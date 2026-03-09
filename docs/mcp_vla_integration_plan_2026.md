@@ -14,7 +14,7 @@
 - **주요 워크플로우**:
   1. 카메라 노드에서 이미지 프레임 수집.
   2. 로컬에 탑재된 **Mobile VLA (V3: Kosmos-2 1.6B + INT8)** 모델로 **9-Class Discrete Action** (이산 액션) 추론.
-  3. 추론된 Action Index(0~8)를 실제 모터 제어(cmd_vel)로 변환해 제어.
+  3. 추론된 Action Index(0~8)를 실제 2DoF 모터 제어 명령(linear_x, angular_z)으로 변환하여 `/cmd_vel` 통신 수행.
 - **MCP Resources:**
   - `camera://front_rgb`: 로봇의 전면 카메라 실시간 프레임
   - `vla://status`: 현재 VLA 모델의 상태 및 최근 추론된 Action Index 값
