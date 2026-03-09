@@ -13,11 +13,11 @@
 로봇은 카메라 데이터, 로봇 상태를 제공함과 동시에 VLA 모델을 통한 자체 자율 주행 연산을 수행합니다.
 - **주요 워크플로우**:
   1. 카메라 노드에서 이미지 프레임 수집.
-  2. 로컬에 탑재된 **Mobile VLA (Kosmos-2 등)** 모델로 Action(linear_x, angular_z) 추론.
-  3. 추론된 Action으로 모터 제어.
+  2. 로컬에 탑재된 **Mobile VLA (V3: Kosmos-2 1.6B + INT8)** 모델로 **9-Class Discrete Action** (이산 액션) 추론.
+  3. 추론된 Action Index(0~8)를 실제 모터 제어(cmd_vel)로 변환해 제어.
 - **MCP Resources:**
   - `camera://front_rgb`: 로봇의 전면 카메라 실시간 프레임
-  - `vla://status`: 현재 VLA 모델의 상태 및 최근 추론된 Action 값
+  - `vla://status`: 현재 VLA 모델의 상태 및 최근 추론된 Action Index 값
 - **MCP Tools:**
   - `get_camera_frame()`: 학습 서버의 객체 인식을 위한 최신 프레임 제공.
   - `override_velocity(linear_x, angular_z)`: 학습 서버(YOLO) 판단에 의한 긴급 회피 제어 권한 수용.
@@ -70,7 +70,7 @@
 
 - **Network**: **Tailscale VPN** 유지. Jetson과 학습 서버 간 **SSE (Server-Sent Events) 기반 통신**.
 - **Hardware/Models**:
-  - Jetson: **VLA Model** (Chunk10/Chunk5 등 量子化 모델), 카메라 하드웨어, ROS2 제어권.
+  - Jetson: **VLA Model** (V3-EXP08 또는 Phase 1-2 기반의 9-Class Discrete + INT8 양자화 모델), 카메라 하드웨어, ROS2 제어권.
   - Learning Server: **YOLO Model** (YOLOv11s 또는 YOLOv11m 등 GPU 연산 풀활용) 및 MCP Client 프로세스.
 - **Software Dependencies**:
   - 양측 공통: Python `mcp` 라이브러리.
