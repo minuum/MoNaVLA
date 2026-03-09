@@ -3,72 +3,82 @@
 ## 1. 개요 (Overview)
 기존 REST API/ROS2 기반의 통신 방식을 넘어, **Model Context Protocol (MCP)**를 도입하여 VLA(Vision-Language-Action) 시스템의 유연성과 확장성을 극대화하는 2026년형 아키텍처 통합 계획입니다. 
 
-로봇은 데이터와 제어 인터페이스를 제공하는 **MCP 서버**가 되고, GPU 인퍼런스 서버는 이를 활용하여 상황을 인식하고 행동을 결정하는 **MCP 클라이언트** 역할을 수행합니다. 이를 통해 단순히 Action 값을 반환하는 것을 넘어, YOLO 기반의 동적 장애물 회피 및 복합적인 상황 판단이 가능해집니다.
+**[UPDATE]** 로봇 서버(Jetson)에서 직접 VLA 모델 추론을 수행하며, 동시에 **MCP 서버** 역할을 합니다. GPU 학습 서버(inference-integration)는 **MCP 클라이언트**로서 로봇에 접속해 카메라 데이터를 받아 YOLO 분석 등 고연산 작업을 돕고, VLA의 판단을 보조하는 역할을 수행합니다.
 
 ---
 
 ## 2. 아키텍처 디자인 (Architecture Design)
 
-### 2.1 로봇 서버 (Vla-driving / Jetson) - **MCP Server**
-로봇은 자신의 센서 데이터와 액추에이터 제어 기능을 MCP 표준에 맞게 노출합니다.
+### 2.1 로봇 서버 (Vla-driving / Jetson 16) - **VLA Inference & MCP Server**
+로봇은 카메라 데이터, 로봇 상태를 제공함과 동시에 VLA 모델을 통한 자체 자율 주행 연산을 수행합니다.
+- **주요 워크플로우**:
+  1. 카메라 노드에서 이미지 프레임 수집.
+  2. 로컬에 탑재된 **Mobile VLA (Kosmos-2 등)** 모델로 Action(linear_x, angular_z) 추론.
+  3. 추론된 Action으로 모터 제어.
 - **MCP Resources:**
   - `camera://front_rgb`: 로봇의 전면 카메라 실시간 프레임
-  - `sensor://status`: 현재 로봇의 속도, 배터리, 상태 정보
+  - `vla://status`: 현재 VLA 모델의 상태 및 최근 추론된 Action 값
 - **MCP Tools:**
-  - `get_camera_frame()`: 최신 이미지 프레임 요청
-  - `set_velocity(linear_x, angular_z)`: 로봇의 이동 명령 하달
-  - `emergency_stop()`: 긴급 정지 메커니즘
+  - `get_camera_frame()`: 학습 서버의 객체 인식을 위한 최신 프레임 제공.
+  - `override_velocity(linear_x, angular_z)`: 학습 서버(YOLO) 판단에 의한 긴급 회피 제어 권한 수용.
 
-### 2.2 학습 서버 (inference-integration) - **MCP Client**
-단순 API 엔드포인트에서 벗어나 능동적인 에이전트(Agent) 또는 컨트롤러 모듈로 동작합니다.
+### 2.2 학습 서버 (inference-integration) - **YOLO + MCP Client**
+고성능 GPU를 활용해 무거운 비전 디텍션(YOLO)을 담당하며, 로봇 서버를 모니터링 및 보조하는 에이전트 역할을 수행합니다.
 - **주요 워크플로우**:
-  1. 로봇(MCP Server)에 연결하여 `get_camera_frame()` Tool을 호출하거나 Resource를 구독하여 이미지를 가져옵니다.
-  2. **YOLO Module**: 받아온 이미지에서 사람, 동적 장애물, 특정 사물을 실시간 객체 탐지(Object Detection).
-  3. **VLA Module (Kosmos-2 등)**: 목적지 네비게이션을 위한 Action(linear_x, angular_z) 추론.
-  4. **Decision Maker**: YOLO 분석 결과(장애물 근접 등)와 VLA 추론 결과를 종합 판단. (예: 정면 장애물 디텍션 시 VLA 명령 무시하고 정지 혹은 회피 명령 생성).
-  5. 로봇(MCP Server)의 `set_velocity()` Tool을 호출하여 로봇 구동.
+  1. Jetson(MCP Server)에 접속하여 `get_camera_frame()`을 주기적으로 호출 (또는 Resource 구독).
+  2. **YOLO Module**: 받아온 이미지에서 사람, 동적 장애물, 목표 사물을 실시간 객체 탐지.
+  3. **Decision Maker**: YOLO 결과를 바탕으로 위험 상황(충돌 임박 등) 판단.
+  4. 위험 감지 시, 로봇(MCP Server)의 `override_velocity()` Tool을 호출하여 VLA의 원래 Action을 덮어쓰고 강제 정지/회피 명령 수행.
 
 ---
 
 ## 3. 구체적 구현 계획 (Implementation Details)
 
-### Phase 1: 로봇 측 MCP Server 구축 (Jetson)
-- Python 기반 `mcp` SDK (`mcp-server-standard` 또는 커스텀 서버)를 사용하여 ROS2 노드를 래핑(Wrapping)하는 코드 작성.
-- ROS2의 `/image_raw` 토픽을 캡처하여 Base64로 인코딩 후 반환하는 Tool 구현.
-- `/cmd_vel` 토픽으로 Twist 메시지를 퍼블리시하는 Tool 구현.
+### Phase 1: 로봇 측 VLA 추론 및 MCP Server 구축 (Jetson)
+- 기존 VLA API 서버 코드를 엣지 디바이스(Jetson) 추론용으로 최적화 및 ROS2 연동.
+- Python 기반 `mcp` SDK를 사용하여 내부 포트(예: SSE 방식)로 MCP 서버 컨테이너 구동.
+- `/image_raw` 토픽 제공 로직 및 외부 강제 제어를 위한 `override_velocity` 처리 로직 (우선순위 Mux) 구현.
 
-### Phase 2: 인퍼런스 서버 측 MCP Client 구축 (학습 서버)
-- Python `mcp` 클라이언트 라이브러리를 사용하여 Jetson MCP Server와 통신(Stdio 또는 SSE 방식 통신, Tailscale IP 활용).
-- **YOLO 파이프라인 통합**: `ultralytics` 라이브러리를 통해 YOLOv8/v11 모델 로드, 프레임 디텍션 수행 로직 추가.
-- 기존 VLA API 서버 로직을 MCP 클라이언트 컨트롤 룹(Control Loop) 안에 편입: `while True:` 루프 안에서 센서 리딩 -> 추론 -> 모터 제어 사이클 형태로 변환.
+### Phase 2: 학습 서버 측 MCP Client 및 YOLO 연동 구축
+- Python `mcp` 클라이언트 구현 및 Tailscale IP를 통한 Jetson 접속.
+- **YOLO 파이프라인 통합**: `ultralytics` 라이브러리로 YOLOv11 모델 구동 및 실시간 디텍션 파이프라인.
+- Bounding Box 데이터를 기반으로 거리 및 위험도를 계산하는 모니터링 루프 구현.
 
 ### Phase 3: 상황 판단 로직 (Situation Awareness & Control)
-- **Safety Overrides**: YOLO에서 Bounding Box의 크기가 일정 임계값(Threshold) 이상일 경우(충돌 임박), VLA의 `linear_x`가 양수이더라도 `linear_x = 0` 및 회피 경로 재생성(Turn Bias 적용).
-- **목표물 인식 강화**: "주행 중 사물 판단"을 위해 YOLO가 타겟 오브젝트를 디텍션하면 VLA의 텍스트 프롬프트를 동적으로 변경하여 추론 정확도 향상.
+- **Safety Overrides**: YOLO 인식 결과(사람, Box 등)가 특정 픽셀 크기(Proximity Threshold) 이상이면 `override_velocity(0, 0)` 등 정지 명령 전송.
+- **명령권 중재 (Muxing)**: Jetson 내부에서 VLA 출력과 MCP Client(YOLO) 출력 간의 제어권 우선순위 룰(Rule) 설정.
 
 ---
 
 ## 4. 실험 설계 (Experimental Design)
 
-### Experiment 1: 통신 지연시간 및 오버헤드 분석 (Latency)
-- **목적**: 기존 REST / ROS2 브릿지 연결 대비 MCP 프로토콜 스택 추가로 인한 네트워크 레이턴시 측정.
-- **측정 지표**: `get_camera_frame()` 요청부터 `set_velocity()` 도달까지의 End-to-End Latency. (목표: < 150ms).
+### Experiment 1: 분산 추론 및 제어 Latency (Distributed Inference Latency)
+- **목적**: Jetson에서의 VLA 추론 속도와, 학습 서버 경유 YOLO 디텍션 -> 제어 피드백 속도의 차이 및 동기화 확인.
+- **측정 지표**: Jetson 카메라 캡처 ~ 학습 서버 YOLO 추론 ~ Jetson에 도착하는 Override 명령까지의 Total Latency.
 
-### Experiment 2: 동적 장애물 회피 성공률 (Dynamic Obstacle Avoidance)
-- **시나리오**: 로봇이 목표물을 향해 VLA 주행 중 (ex: "Navigate to the desk"), 갑자기 사람이나 상자가 경로에 뛰어듬.
-- **측정 지표**: YOLO+MCP 기반 Safety Override 동작 성공 횟수 / 총 시도 횟수. (충돌 회피율).
+### Experiment 2: 동적 장애물 회피 신뢰성 (Dynamic Obstacle Avoidance)
+- **시나리오**: Jetson이 VLA를 이용해 자율 주행 중일 때, 갑작스러운 장애물(학습되지 않은 객체) 난입 상황.
+- **측정 지표**: 학습 서버(YOLO+MCP Client) 개입으로 인한 충돌 회피 성공률.
 
-### Experiment 3: 시스템 안정성 및 메모리 분석
-- **목적**: Jetson에서 MCP Server 가동 시의 리소스 점유율(CPU, RAM) 분석 및 학습 서버에서 YOLO + VLA 동시 로드 시의 VRAM 사용량(OOM 방지) 모니터링.
+### Experiment 3: Jetson 리소스 병목 분석 (Resource Bottleneck)
+- **목적**: Jetson에서 VLA 추론 메인 루프와 실시간 비디오 스트리밍(MCP Server)이 동시에 구동될 때의 프레임 저하 확인.
+- **대응책**: 해상도 조절 및 프레임 전송 주기(FPS) 최적화. 
 
 ---
 
 ## 5. 인프라 및 구축 요구사항 (Infrastructure Requirements)
 
-- **Network**: 현재 사용중인 **Tailscale VPN**을 그대로 유지. SSE (Server-Sent Events) 전송 계층을 통해 MCP 통신 (HTTP 기반).
+- **Network**: **Tailscale VPN** 유지. Jetson과 학습 서버 간 **SSE (Server-Sent Events) 기반 통신**.
+- **Hardware/Models**:
+  - Jetson: **VLA Model** (Chunk10/Chunk5 등 量子化 모델), 카메라 하드웨어, ROS2 제어권.
+  - Learning Server: **YOLO Model** (YOLOv11s 또는 YOLOv11m 등 GPU 연산 풀활용) 및 MCP Client 프로세스.
 - **Software Dependencies**:
-  - Jetson: `mcp` (Python SDK), `ros2-humble`-python-bridge 패키지.
-  - Learning Server: `ultralytics` (YOLO), `mcp` (Python SDK), 기존 `Mobile_VLA` 환경 유지.
-- **Models**:
-  - VLA: 기존 검증된 `Chunk10 Epoch 8` 또는 `Chunk5 Epoch 6` 체크포인트 재사용.
-  - YOLO: 실시간 성을 고려하여 가벼운 `YOLOv11n` (Nano) 또는 `YOLOv11s` (Small) 모델 사용 추천.
+  - 양측 공통: Python `mcp` 라이브러리.
+
+---
+
+## 6. User Review Required
+
+> [!IMPORTANT]  
+> 1. **제어 우선순위**: 평상시 제어권은 Jetson 내부의 VLA 통과 모델에 있고, 상황 발생 시 학습 서버의 오버라이드가 개입하는 **Subsumption Architecture** 형태로 이해했습니다. 올바른지 확인 부탁드립니다.
+> 2. **비디오 스트리밍 부하**: Jetson 구동 중 추가적인 영상 전송(MCP 경유)은 대역폭과 CPU 자원을 소모합니다. 이미지 해상도 다운샘플링 등 압축 전송 로직이 필수로 추가될 예정입니다.
