@@ -1683,6 +1683,7 @@ class BaseRoboVLM(nn.Module):
                 instr_and_action_labels=instr_and_action_labels,
                 instr_and_action_mask=instr_and_action_mask,
                 raw_text=raw_text,
+                mode=mode,  # [추가] mode 전달 (누락되어 있었음)
             )
 
     def pred_action_discrete(

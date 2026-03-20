@@ -1,6 +1,6 @@
 {
   "session_id": "2026-02-22-default",
-  "last_updated": "2026-02-25T11:41:58.308427+00:00",
+  "last_updated": "2026-03-18T18:19:12.662303+00:00",
   "conversation": [
     {
       "role": "assistant",
@@ -17,6 +17,42 @@
     {
       "role": "assistant",
       "content": "[2026-02-25] Clarification saved: code changes are persisted via GitHub PR flow (branch feat/session-history-hybrid, commit b9f3f1b, PR https://github.com/minuum/menemory/pull/1), while menemory session entries are stored separately in local workspace memory (.menemory), not inside the PR."
+    },
+    {
+      "role": "assistant",
+      "content": "Antigravity 복구 수행: .pb는 직접 복호화 가능한 본문이 아니라 conversation index로 판단하고, 대응 brain/<uuid>/ 문서를 복구 원본으로 사용함. docs/antigravity_recovery_20260318.md에 복구 규칙과 반영 상태를 정리했고, docs/recovered_antigravity/ 아래에 disk_usage_analysis_20260315.md, vla_problem_analysis_professor_20260305.md, directory_audit_20260301.md, reorganization_summary_20260228.md를 provenance note와 함께 편입함."
+    },
+    {
+      "role": "user",
+      "content": "사용자 요청: antigravity 루트의 .pb 세션 자산을 실제 복구 가능한 형태로 정리하고, 최근 git/문서 맥락과 연결해 현재 저장소에 반영해 달라고 요청함."
+    },
+    {
+      "role": "assistant",
+      "content": "복구 문서 연결 완료: README.md에 Antigravity 복구 섹션을 추가하고 docs/antigravity_recovery_20260318.md 및 docs/recovered_antigravity/ 하위 복구 문서들로 바로 진입할 수 있게 링크함. 현재 .menemory/sessions/active_session.json에는 Antigravity 복구 관련 세션 내용이 실제로 저장된 상태임."
+    },
+    {
+      "role": "user",
+      "content": "사용자는 Antigravity 복구 문서 연결과 Menemory 백업 이후 monavla-driving 최신 변경을 기준으로 V4 실험과 학습 진행사항을 점검하고, 오프라인 평가를 비동기로 돌려 tail로 확인 가능한 상태로 만들고, 현재까지 채팅 내용을 Menemory에 저장하길 요청했다."
+    },
+    {
+      "role": "assistant",
+      "content": "origin/monavla-driving 최신은 2026-03-18 기준 0d58c7af이며 실험적으로 중요한 커밋은 845c3ebb였다. V4 설정 정합성을 위해 configs/mobile_vla_v4_exp01.json에 root window_size=4를 추가하고, robovlm_nav/serve/inference_server.py는 nested config fallback과 실제 존재하는 V4 checkpoint 기본 경로를 사용하게 수정했다. scripts/test/check_v4_data_loading.py는 V4 config를 직접 읽게 변경했고 데이터 로딩 검증은 통과했다. scripts/test/evaluate_v4_latest.py와 scripts/test/eval_v4_pmsm.py는 CPU/GPU 공용으로 조정했고 둘 다 validation loop 진입까지 확인했다. 현재 오프라인 평가는 백그라운드 실행과 로그 tail 확인을 다시 안정적으로 설정할 필요가 있다."
+    },
+    {
+      "role": "user",
+      "content": "사용자는 원격 접속 중 세션이 자주 끊기는 상황을 고려해, 채팅에 메네모리라고만 입력해도 이전 대화 복구 맥락을 빠르게 파악할 수 있게 하고, 가능하면 몇 분마다 자동 저장하는 방법도 원했다."
+    },
+    {
+      "role": "assistant",
+      "content": "menemory CLI에 recover 명령을 추가해 session summary, recent conversation, raw history tail, optional build prompt와 tmux resume를 한 번에 보게 했다. scripts/menemory_recover_now.sh와 scripts/menemory_autosave.sh를 추가했고, menemory README에 빠른 복구와 주기 자동보존 사용법을 문서화했다. ~/.bashrc에는 interactive shell에서 메네모리와 menemory-autosave 함수를 추가해 SSH 재접속 후 바로 복구와 autosave 실행이 가능하게 했다. autosave는 Menemory에 이미 저장된 상태를 주기 스냅샷하는 것이며, Codex 채팅 원문을 자동 캡처하는 기능은 아니라는 제한도 명시했다."
+    },
+    {
+      "role": "user",
+      "content": "사용자는 2026-03-19 새벽 기준 V4 resume 학습이 실제로 돌고 있는지 확인하고, 삭제된 레거시 backup config 여부와 함께 현재 학습 진행 상황을 점검한 뒤, 이 상태를 Menemory에 저장하길 요청했다."
+    },
+    {
+      "role": "assistant",
+      "content": "Menemory recover로 최근 흐름을 복구했고, 삭제 표시된 git_recovery_backup/config_snapshots/mobile_vla_chunk5_20251217.json 및 mobile_vla_chunk10_20251217.json은 2026-03-06 커밋 기준 legacy recovery snapshot 사본으로 확인했다. V4 학습은 configs/mobile_vla_v4_exp01_resume_20260318.json을 만들어 최신 verified checkpoint val/loss=1.851에서 resume하도록 맞췄다. 2026-03-19 현재 GPU에서 학습을 다시 올렸고, RoboKosMos/LoRA 로드, checkpoint restore, dataloader initialization까지 완료됐으며 train split 142 episodes, val 8 episodes, incomplete H5 1건 skip 상태까지 확인했다."
     }
   ],
   "summary": ""

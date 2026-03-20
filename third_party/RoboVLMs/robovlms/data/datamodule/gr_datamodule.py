@@ -64,7 +64,11 @@ class GRDataModule(pl.LightningDataModule):
         #     import pickle as pkl
         #     pkl.dump(dataset_config, file)
 
-        dataset = getattr(robovlms.data, dataset_type)(**dataset_config)
+        if dataset_type == "NavDataset":
+            from robovlm_nav.datasets.nav_dataset import NavDataset
+            dataset = NavDataset(**dataset_config)
+        else:
+            dataset = getattr(robovlms.data, dataset_type)(**dataset_config)
 
         sampler_cls = None
         if sampler_config is not None:

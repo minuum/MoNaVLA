@@ -16,6 +16,7 @@
 - [현재 한계점 및 Phase 2 계획](#-현재-한계점-및-phase-2-계획)
 - [디렉토리 구조](#-디렉토리-구조)
 - [문서](#-문서)
+- [복구 문서](#-복구-문서)
 
 ---
 
@@ -135,7 +136,8 @@ vla/
 │   ├── experiments_v1_to_v3_comprehensive.md  # V1~V3 종합 실험 기록
 │   ├── training_plan_dataset_v3_20260306.md   # 차세대 학습 전략
 │   ├── dataset_analysis_basket_v2_20260306.md # 데이터 편향 정량 분석
-│   └── research_progress_report_20260306.md   # 전체 연구 진행 상황 보고서
+│   ├── research_progress_report_20260306.md   # 전체 연구 진행 상황 보고서
+│   └── recovered_antigravity/                 # Antigravity 세션에서 복구한 문서
 ├── ROS_action/              # 로봇에서 수집된 실제 주행 데이터셋 경로
 └── README.md                # 현재 개요 파일
 ```
@@ -150,3 +152,15 @@ vla/
 - **[Dataset v2 정량 분석 보고서](docs/dataset_analysis_basket_v2_20260306.md)**: "타이밍 암기" 문제에 대한 표준편차 및 Action Sequence 분석
 - **[Dataset v3 훈련 계획서](docs/training_plan_dataset_v3_20260306.md)**: Causal Confusion을 깰 4가지 데이터 변형 및 Instruction 재설계
 - **[연구 진행 리포트](docs/research_progress_report_20260306.md)**: 현재 연구 Phase 요약 및 아키텍처 개편 내역
+
+---
+
+## ♻️ 복구 문서
+
+Antigravity 세션에서 복구한 문서와 복구 규칙은 아래를 참고하세요.
+
+- **[Antigravity 복구 리포트](docs/antigravity_recovery_20260318.md)**: `.pb` 세션 인덱스와 `brain/<uuid>/` 문서의 대응 관계, 반영 상태 요약
+- **[Recovered Antigravity 문서 모음](docs/recovered_antigravity/README.md)**: 저장소에 편입한 복구 문서 인덱스
+- **[디스크 사용량 분석 복구본](docs/recovered_antigravity/disk_usage_analysis_20260315.md)**: 2026-03-15 디스크 정리 우선순위 리포트
+- **[교수 관점 문제 진단 복구본](docs/recovered_antigravity/vla_problem_analysis_professor_20260305.md)**: 모델, 데이터, 추론 축의 구조적 병목 정리
+- **[디렉토리 감사 복구본](docs/recovered_antigravity/directory_audit_20260301.md)**: canonical/legacy 구조 판단 기록

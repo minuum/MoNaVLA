@@ -130,13 +130,13 @@ def init_trainer_config(configs):
         ModelCheckpoint(
             dirpath=configs["output_dir"], 
             save_top_k=3, 
-            monitor="val/loss", 
+            monitor="val_loss", 
             mode="min",
             save_last=True,
-            filename="epoch_epoch={epoch:02d}-val_loss={val/loss:.3f}"
+            filename="epoch_epoch={epoch:02d}-val_loss={val_loss:.3f}"
         ),
         EarlyStopping(
-            monitor=configs["trainer"].get("monitor", "val/loss"),
+            monitor=configs["trainer"].get("monitor", "val_loss"),
             patience=configs["trainer"].get("patience", 3),
             mode="min",
             verbose=True,
@@ -257,6 +257,8 @@ def experiment(variant):
                 image_processor=image_preprocess,
                 model_type=variant["model"],
             ),
+            # [CRITICAL] Determine if discrete action classification is used
+            # Both action_space=="discrete" and discrete_action==True should be supported
             discrete=(
                 False
                 if variant["act_head"] is None
@@ -299,9 +301,9 @@ def experiment(variant):
         ),
         "ckpt_path": variant["resume"],
     }
-    if _kwargs["ckpt_path"] is not None:
-        print(f"Resuming from {variant['resume']}...")
-
+    # Verify discrete action setup in datamodule
+    print(f"DEBUG: DataModule initialized with discrete_action={_kwargs['datamodule'].kwargs.get('discrete_action')}")
+    
     trainer.fit(**_kwargs)
 
 

@@ -406,14 +406,24 @@ class BaseTrainer(pl.LightningModule):
         gripper_action = None
 
         if action is not None:
-            if action.shape[-1] > 6:
-                arm_action = action[:, :, :6]  # b,len,act_dim-1
-                gripper_action = action[:, :, 6]  # b,len
-                gripper_action = (gripper_action + 1.0) / 2
-                gripper_action = gripper_action.long()
-            else:
-                arm_action = action
-                gripper_action = None
+            # Handle action splitting based on last dimension (usually 7 for arm+gripper, 2 for navigation)
+            if action.dim() == 3:  # (B, L, D)
+                if action.shape[-1] > 6:
+                    arm_action = action[:, :, :6]
+                    gripper_action = action[:, :, 6]
+                    gripper_action = (gripper_action + 1.0) / 2
+                    gripper_action = gripper_action.long()
+                else:
+                    arm_action = action
+            else:  # (B, D) or other cases
+                if action.shape[-1] > 6:
+                    arm_action = action[:, :6]
+                    gripper_action = action[:, 6]
+                    gripper_action = (gripper_action + 1.0) / 2
+                    gripper_action = gripper_action.long()
+                else:
+                    arm_action = action
+                    gripper_action = None
 
         fwd_rgb_chunck = batch.get("fwd_rgb_chunck", None)
         fwd_hand_rgb_chunck = batch.get("fwd_hand_rgb_chunck", None)
