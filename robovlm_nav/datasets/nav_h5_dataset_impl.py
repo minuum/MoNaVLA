@@ -9,7 +9,7 @@ import torchvision.transforms as T
 # from robovlms.utils.model_utils import load_image
 import random
 
-class NavDataset(Dataset):
+class MobileVLAH5Dataset(Dataset):
     def __init__(
         self,
         data_dir,
