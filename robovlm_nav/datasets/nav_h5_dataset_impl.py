@@ -6,7 +6,7 @@ import torch
 from PIL import Image
 from torch.utils.data import Dataset
 import torchvision.transforms as T
-from robovlms.utils.model_utils import load_image
+# from robovlms.utils.model_utils import load_image
 import random
 
 class NavDataset(Dataset):
