@@ -3,14 +3,14 @@
     "discrete_action": true,
     "window_size": 8,
     "fwd_pred_next_n": 5,
-    "exp_name": "v4-hybrid-opt-6cls",
+    "exp_name": "v4-hybrid-opt-1.0-10ep",
     "parent": "configs/mobile_vla_v4_hybrid_final.json",
     "task_name": "mobile_vla_v4_hybrid_opt",
     "model": "kosmos",
     "batch_size": 2,
     "num_workers": 4,
     "learning_rate": 5e-06,
-    "max_epochs": 20,
+    "max_epochs": 3,
     "model_load_path": "/home/billy/25-1kp/MoNaVLA/runs/v4_nav/kosmos/mobile_vla_v4_exp01/2026-03-20/v4-retrain-v4-resume-20260318/last.ckpt",
     "model_load_source": "lightning",
     "model_path": "/home/billy/25-1kp/MoNaVLA/.vlms/kosmos-2-patch14-224",
@@ -39,7 +39,7 @@
         "discrete_action": true,
         "fwd_pred_next_n": 5,
         "window_size": 8,
-        "class_weights": [8.98, 1.0, 17.12, 9.0, 3.0, 2.59]
+        "class_weights": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
     },
     "train_dataset": {
         "type": "NavDataset",

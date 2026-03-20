@@ -371,7 +371,7 @@ class MobileVLAH5Dataset(Dataset):
                 actions.append(np.zeros(2))
             
             use_action_aware_train = (
-                self.instruction_preset == "action_aware_train" and self.is_training
+                self.instruction_preset == "action_aware_train"
             )
             if use_action_aware_train:
                 language_base = self._get_action_aware_instruction(actions)
@@ -468,31 +468,12 @@ class MobileVLAH5Dataset(Dataset):
                     label = 0
                 cls_labels.append(label)
             
-            # (window_size, fwd_pred_next_n) 형태로 변환 (Sliding Window Labeling)
-            # 예: window=8, next_n=5 이면 총 13개의 프레임 정보를 사용하여
-            # 각 steps(0~7)에 대응하는 차후 5개의 액션 레이블을 구성함.
-            chunked_labels = []
-            for i in range(self.window_size):
-                # i번째 step에서의 정답은 actions[i+1 : i+1+fwd_pred_next_n]
-                chunk = cls_labels[i+1 : i+1+self.fwd_pred_next_n]
-                # 패딩 처리 (혹시 모를 범위 초과 발생 시)
-                while len(chunk) < self.fwd_pred_next_n:
-                    chunk.append(cls_labels[-1])
-                chunked_labels.append(chunk)
-            
-            actions_tensor = torch.tensor(chunked_labels, dtype=torch.long) # (window_size, fwd_pred_next_n)
-            
-            # 9 classes -> 6 classes mapping for discrete actions
-            # Original: 0:STOP, 1:F, 2:B, 3:L, 4:R, 5:FL, 6:FR, 7:BL, 8:BR
-            # New (6): 0:STOP, 1:F, 2:L, 3:R, 4:FL, 5:FR
+            # 9 classes -> 6 classes mapping
             if self.num_classes == 6:
                 mapping = {0: 0, 1: 1, 3: 2, 4: 3, 5: 4, 6: 5}
-                # Apply mapping to actions_tensor
-                # Any original action not in the mapping (e.g., 2:B, 7:BL, 8:BR) will map to 0 (STOP)
-                actions_tensor = torch.tensor([
-                    [mapping.get(int(val), 0) for val in row]
-                    for row in actions_tensor.tolist()
-                ], dtype=torch.long)
+                cls_labels = [mapping.get(int(l), 0) for l in cls_labels]
+            
+            actions_tensor = torch.tensor(cls_labels, dtype=torch.long) # (total_frames_needed,)
         else:
             actions_tensor = torch.from_numpy(np.array(actions)).float()  # (total_frames_needed, 2)
             

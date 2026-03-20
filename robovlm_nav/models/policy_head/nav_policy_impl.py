@@ -286,14 +286,42 @@ class MobileVLAClassificationDecoder(BasePolicyHead):
 
         return logits, None
 
+    def get_labels(self, pred_actions, labels, action_masks, **kwargs):
+        """
+        입력된 전체 액션 시퀀스에서 다중 스텝 정답을 추출하여 반환
+        labels[0]: (B, 17) 형태의 전체 액션 시퀀스
+        결과: (B, L, n) 형태의 레이블 (L: window_size, n: fwd_pred_next_n)
+        """
+        arm_labels = labels[0]
+        if arm_labels is None:
+            return pred_actions, labels, action_masks
+            
+        # pred_actions는 (logits, gripper) 형태일 수 있음
+        logits = pred_actions[0] if isinstance(pred_actions, (tuple, list)) else pred_actions
+        
+        bs = arm_labels.shape[0]
+        L = logits.shape[1] 
+        n = self.fwd_pred_next_n # 5
+        
+        chunked = []
+        for t in range(L):
+            # t 시점부터 t + n 시점까지의 정답 추출
+            chunk_t = arm_labels[:, t : t + n] # (B, n)
+            chunked.append(chunk_t)
+            
+        # (B, L, n) 형태로 스택
+        new_arm_labels = torch.stack(chunked, dim=1).to(arm_labels.device)
+        
+        return pred_actions, (new_arm_labels, labels[1]), action_masks
+
     def loss(self, pred_action, labels, attention_mask=None):
         if labels is None or labels[0] is None:
             return {"loss_velocity": None, "loss_gripper": None, "acc_velocity": None}
 
         logits = pred_action[0] if isinstance(pred_action, (tuple, list)) else pred_action
-        class_labels = labels[0] # (B, L, chunk) 또는 (B, L)
+        class_labels = labels[0] # (B, L, n_steps)
         
-        # 만약 (B, L) 형태로 들어오면 (B, L, 1)로 확장
+        # 차원 확인 (B, L, n_steps)가 아닐 경우에만 확장 (backward compatibility)
         if class_labels.dim() == 2:
             class_labels = class_labels.unsqueeze(-1)
 
