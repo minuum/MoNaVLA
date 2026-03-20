@@ -41,6 +41,7 @@ class MobileVLAH5Dataset(Dataset):
         self.augment = augment
         self.use_color_jitter = use_color_jitter
         self.use_random_crop = use_random_crop
+        self.tokenizer = kwargs.get('tokenizer', None)
 
         # Get all episode files
         all_files = sorted(list(self.data_dir.glob(episode_pattern)))
@@ -335,19 +336,36 @@ class MobileVLAH5Dataset(Dataset):
             actions_tensor = torch.from_numpy(np.array(actions)).float()
             actions_tensor = torch.clamp(actions_tensor, -1.0, 1.0)
         
-        return {
+        data_dict = {
             'rgb': images_tensor,
             'hand_rgb': torch.zeros_like(images_tensor),
             'action': actions_tensor,
             'action_mask': torch.ones(total_frames_needed),
             'image_mask': torch.ones(total_frames_needed),
-            'text': torch.zeros(256, dtype=torch.long),
-            'text_mask': torch.ones(256, dtype=torch.long),
             'lang': language_base,
             'raw_text': language_base,
             'data_source': 'mobile_vla_action',
             'attention_mask': torch.ones(total_frames_needed),
         }
+
+        # [CRITICAL] Tokenize the instruction
+        if self.tokenizer is not None:
+            # Kosmos-2 tokenizer expects a specific format or just text
+            tokenized = self.tokenizer(
+                language_base,
+                padding='max_length',
+                truncation=True,
+                max_length=256,
+                return_tensors='pt'
+            )
+            data_dict['text'] = tokenized['input_ids'].squeeze(0)
+            data_dict['text_mask'] = tokenized['attention_mask'].squeeze(0)
+        else:
+            # Fallback (should not happen in real training via GRDataModule)
+            data_dict['text'] = torch.zeros(256, dtype=torch.long)
+            data_dict['text_mask'] = torch.zeros(256, dtype=torch.long)
+
+        return data_dict
 
     def collater(self, data):
         """Standard collater for batching."""

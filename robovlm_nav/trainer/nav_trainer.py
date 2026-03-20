@@ -164,7 +164,8 @@ class NavTrainer(BaseTrainer):
             
             for k, v in loss_dict.items():
                 if v is not None and isinstance(v, torch.Tensor):
-                    self.log(f"val_{k}", v, on_epoch=True, sync_dist=True)
+                    # validation 시에는 on_epoch=True만 사용 (기본값)
+                    self.log(f"val_{k}", v, on_step=False, on_epoch=True, sync_dist=True, prog_bar=(k=="loss"))
 
     def on_validation_epoch_end(self):
         """검증 종료 후 메모리 정리"""
@@ -196,10 +197,13 @@ class NavTrainer(BaseTrainer):
             ]
             for key in candidates:
                 v = prediction.get(key, None)
-                if v is not None and isinstance(v, torch.Tensor) and v.requires_grad:
-                    loss = v
-                    print(f"[NavTrainer] Using '{key}' as loss (requires_grad=True)", flush=True)
-                    break
+                if v is not None and isinstance(v, torch.Tensor):
+                    # 학습 중일 때만 requires_grad 체크, validation/inference 시에는 체크 안 함
+                    if not self.training or v.requires_grad:
+                        loss = v
+                        if self.training:
+                            print(f"[NavTrainer] Using '{key}' as loss (requires_grad=True)", flush=True)
+                        break
 
         # 3) 여전히 None이면 경고
         if loss is None:
