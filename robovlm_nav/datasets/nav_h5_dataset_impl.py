@@ -27,6 +27,7 @@ class MobileVLAH5Dataset(Dataset):
         augment=False,
         use_color_jitter=False,
         use_random_crop=False,
+        **kwargs
     ):
         self.data_dir = Path(data_dir)
         self.window_size = window_size
