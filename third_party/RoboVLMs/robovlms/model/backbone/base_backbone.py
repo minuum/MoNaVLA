@@ -496,7 +496,13 @@ class BaseRoboVLM(nn.Module):
                     max_action=self.act_head_configs.get("max_action", 1),
                 )
             )
-            _cls = getattr(action_heads, _kwargs.pop("type"))
+            _cls_name = _kwargs.pop("type")
+            if _cls_name == "NavPolicy":
+                _cls = getattr(action_heads, "MobileVLAClassificationDecoder")
+            elif _cls_name == "NavPolicyRegression":
+                _cls = getattr(action_heads, "MobileVLALSTMDecoder")
+            else:
+                _cls = getattr(action_heads, _cls_name)
             self.latent_num = self.act_head_configs.get("latent", 1)
             action_head = _cls(**_kwargs)
 
@@ -987,6 +993,7 @@ class BaseRoboVLM(nn.Module):
         instr_and_action_ids=None,
         instr_and_action_labels=None,
         instr_and_action_mask=None,
+        mode="train",  # [추가] 추론/학습 분기 파라미터
         **kwargs,
     ):
         loss = {}
@@ -1064,6 +1071,19 @@ class BaseRoboVLM(nn.Module):
         _, action_loss = self._forward_action_head(
             output_hs, mutlimodal_labels, multimodal_attention_mask
         )
+
+        # [추가] 추론 모드: action_logits를 직접 반환 (학습 모드와 동일한 구조 유지)
+        if mode != "train":
+            # output_hs: (bs, seq_len_merged, vocab_size) -> argmax로 class index 추출
+            # action head가 없는 discrete 모드이므로 output_hs의 마지막 위치 logit 사용
+            # shape 맞추기: (bs, 1, seq_len, vocab_size) 형태로 반환하여 기존 파싱 호환
+            # 실제 action dim 위치의 logit만 슬라이싱
+            action_dim = self.act_head_configs.get("action_dim", 9)
+            # 마지막 window의 마지막 토큰 logit 사용 (bs, vocab_size)
+            last_logits = output_hs[:, -1, :action_dim]  # (bs, action_dim)
+            # 평가 스크립트 호환 shape: (bs, 1, action_dim) → unsqueeze 추가
+            return last_logits.unsqueeze(1)  # (bs, 1, action_dim)
+
         self._update_loss(loss, action_loss, "act")
 
         loss = self._format_loss(loss)
@@ -1621,6 +1641,7 @@ class BaseRoboVLM(nn.Module):
         instr_and_action_mask=None,
         raw_text=None,
         rel_state=None,
+        mode="train",  # [추가] 학습/추론 모드 파라미터 전달
         **kwargs,
     ):
         action_space = self.act_head_configs.get("action_space", "continuous")
@@ -1643,6 +1664,7 @@ class BaseRoboVLM(nn.Module):
                 instr_and_action_ids=instr_and_action_ids,
                 instr_and_action_labels=instr_and_action_labels,
                 instr_and_action_mask=instr_and_action_mask,
+                mode=mode,  # [추가] mode 전달
             )
         else:
             return self.forward_continuous(

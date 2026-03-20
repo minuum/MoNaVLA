@@ -208,7 +208,13 @@ class MobileVLAInference:
         logger.info("Model loaded successfully")
         
         # [CRITICAL] 2. Initialize Image History Buffer
-        self.window_size = self.config.get('window_size', 8) # Default 8 from config
+        # Prefer explicit root key, then nested experiment settings, then a safe default.
+        self.window_size = (
+            self.config.get("window_size")
+            or self.config.get("act_head", {}).get("window_size")
+            or self.config.get("train_dataset", {}).get("window_size")
+            or 8
+        )
         self.image_history = []
         logger.info(f"✅ Initialized Image History Buffer (Window Size: {self.window_size})")
 
@@ -778,11 +784,11 @@ def get_model(refresh=False, use_quant=None):
         # Checkpoint and Config from Env or Default
         checkpoint_path = os.getenv(
             "VLA_CHECKPOINT_PATH",
-            "runs/mobile_vla_no_chunk_20251209/kosmos/mobile_vla_finetune/2025-12-17/mobile_vla_chunk5_20251217/epoch_epoch=06-val_loss=val_loss=0.067.ckpt"
+            "runs/v4_nav/kosmos/mobile_vla_v4_exp01/2026-03-15/v4-retrain-v4/epoch_epoch=epoch=04-val_loss=val/loss=1.851.ckpt"
         )
         config_path = os.getenv(
             "VLA_CONFIG_PATH", 
-            "configs/mobile_vla_exp17_win8_k1.json"
+            "configs/mobile_vla_v4_exp01.json"
         )
         
         model_instance = MobileVLAInference(

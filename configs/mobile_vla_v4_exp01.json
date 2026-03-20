@@ -1,6 +1,7 @@
 {
     "robovlm_name": "RoboKosMos",
     "discrete_action": true,
+    "window_size": 4,
     "exp_name": "v4-exp01-mobile-v3",
     "parent": "configs/mobile_vla_v3_exp08_center_goal.json",
     "task_name": "mobile_vla_v4_exp01",
@@ -31,7 +32,7 @@
         "gradient_checkpointing": true
     },
     "act_head": {
-        "type": "NavPolicy",
+        "type": "MobileVLAClassificationDecoder",
         "num_classes": 9,
         "action_space": "continuous",
         "discrete_action": true,
@@ -67,7 +68,7 @@
         "check_val_every_n_epoch": 1,
         "early_stopping": true,
         "patience": 3,
-        "monitor": "val/loss"
+        "monitor": "val_loss"
     },
     "output_root": "runs/v4_nav",
     "log_root": "runs/v4_nav",

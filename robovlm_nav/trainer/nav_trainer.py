@@ -9,8 +9,8 @@ class NavTrainer(BaseTrainer):
     """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # 초기화 직후 그래디언트 설정 강제 수행
-        self._enable_gradients()
+        # Upstream/Base 설정이 만든 trainable 상태를 그대로 유지하고 요약만 남긴다.
+        self._log_trainable_params()
 
     @classmethod
     def from_checkpoint(cls, checkpoint_path, load_source="nav", variant=None):
@@ -19,39 +19,22 @@ class NavTrainer(BaseTrainer):
         """
         print(f"🚀 [NavTrainer] Creating NavTrainer from checkpoint: {checkpoint_path}", flush=True)
         instance = super().from_checkpoint(checkpoint_path, load_source, variant)
-        # 로드 후 다시 한 번 파라미터 체크 (로드 과정에서 바뀔 수 있으므로)
-        if hasattr(instance, "_enable_gradients"):
-            instance._enable_gradients()
+        # 로드 후 현재 trainable 상태만 다시 기록한다.
+        if hasattr(instance, "_log_trainable_params"):
+            instance._log_trainable_params()
         return instance
 
-    def _enable_gradients(self):
-        """학습이 필요한 파라미터들의 requires_grad를 True로 설정"""
+    def _log_trainable_params(self):
+        """Base 설정 이후의 trainable 파라미터 상태를 점검하고 기록."""
         if self.model is None:
-             print("⚠️ [NavTrainer] Model is None, skipping gradient enablement.", flush=True)
-             return
-             
+            print("⚠️ [NavTrainer] Model is None, skipping trainable-parameter audit.", flush=True)
+            return
+
         print(f"📊 [NavTrainer] === Parameter Gradient Check (Model ID: {id(self.model)}) ===", flush=True)
-        
-        # 1. BaseRoboVLM 수준에서 unfreeze 시도
-        if hasattr(self.model, 'unfreeze_params'):
-            print("  [Model] Calling unfreeze_params()...", flush=True)
-            self.model.unfreeze_params()
+        trainable_names = [name for name, param in self.model.named_parameters() if param.requires_grad]
+        for name in trainable_names[:5]:
+            print(f"  [Trainable] {name}", flush=True)
 
-        # 2. 명시적으로 필요한 컴포넌트들 활성화 (문자열 매칭)
-        # 'lora' (PEFT), 'act_head' (Policy), 'projector' (Vision-to-Lang), 'resampler'
-        target_keywords = ['lora', 'act_head', 'projector', 'resampler', 'action_token', 'mm_projector']
-        matched_count = 0
-        
-        for name, param in self.model.named_parameters():
-            if any(key in name.lower() for key in target_keywords):
-                param.requires_grad = True
-                matched_count += 1
-                if matched_count <= 5: # 처음 5개만 예시로 로깅
-                    print(f"  [Enabled] {name}", flush=True)
-
-        print(f"✅ [NavTrainer] Total keywords-matched parameters enabled: {matched_count}", flush=True)
-        
-        # 3. 최종 요약
         trainable_params_count = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
         grad_true_count = sum(1 for p in self.model.parameters() if p.requires_grad)
         print(f"🔍 [NavTrainer] Total trainable parameters: {trainable_params_count:,}", flush=True)
@@ -121,7 +104,7 @@ class NavTrainer(BaseTrainer):
         # 로그 기록
         for k, v in loss_dict.items():
             if v is not None and isinstance(v, torch.Tensor):
-                self.log(f"train/{k}", v, on_step=True, on_epoch=True, prog_bar=(k=="loss"))
+                self.log(f"train_{k}", v, on_step=True, on_epoch=True, prog_bar=(k=="loss"))
         
         # Gradient 체크 (디버깅)
         if hasattr(train_loss, "requires_grad") and not train_loss.requires_grad:
@@ -153,7 +136,7 @@ class NavTrainer(BaseTrainer):
             
             for k, v in loss_dict.items():
                 if v is not None and isinstance(v, torch.Tensor):
-                    self.log(f"val/{k}", v, on_epoch=True, sync_dist=True)
+                    self.log(f"val_{k}", v, on_epoch=True, sync_dist=True)
 
     def on_validation_epoch_end(self):
         """검증 종료 후 메모리 정리"""

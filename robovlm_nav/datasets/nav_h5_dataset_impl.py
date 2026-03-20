@@ -62,7 +62,10 @@ class MobileVLAH5Dataset(Dataset):
         self.abs_action = abs_action  # 방향 제거 옵션
         self.augment = augment and (not is_validation)  # 검증셋에는 증강 미적용
         self.is_training = not is_validation
-        # [EXP-08+] instruction 프리셋: None = 기본(EXP-07 등), 'center_goal' = EXP-08
+        # instruction 프리셋:
+        # - None: 기본 left/right goal phrasing
+        # - center_goal: EXP-08 style goal-completion phrasing
+        # - action_aware_train: training only, action-conditioned phrasing
         self.instruction_preset = instruction_preset
         # [EXP-09+] 가변 길이 에피소드 허용을 위한 최소 프레임 수
         # None이면 window_size + fwd_pred_next_n 과 동일 (기존 동작 유지)
@@ -167,6 +170,75 @@ class MobileVLAH5Dataset(Dataset):
                 return ep_idx, frame_idx
             idx -= (end - start)
         return len(self.episode_files) - 1, 0
+
+    def _get_action_aware_instruction(self, actions):
+        """Build a training-only instruction variant from the next predicted action."""
+        target_idx = min(self.window_size, len(actions) - 1)
+        tx, ty = actions[target_idx][0], actions[target_idx][1]
+
+        curr_act_type = "forward"
+        if abs(tx) < 0.3 and abs(ty) < 0.3:
+            curr_act_type = "stop"
+        elif tx > 0.3 and abs(ty) < 0.3:
+            curr_act_type = "forward"
+        elif tx < -0.3 and abs(ty) < 0.3:
+            curr_act_type = "backward"
+        elif abs(tx) < 0.3 and ty > 0.3:
+            curr_act_type = "left"
+        elif abs(tx) < 0.3 and ty < -0.3:
+            curr_act_type = "right"
+        elif tx > 0.3 and ty > 0.3:
+            curr_act_type = "diag_fl"
+        elif tx > 0.3 and ty < -0.3:
+            curr_act_type = "diag_fr"
+
+        if curr_act_type == "stop":
+            variations = [
+                "Stop in front of the gray basket",
+                "Halt at the target location",
+                "Maintain position near the basket",
+                "Stop the robot now",
+            ]
+        elif curr_act_type == "forward":
+            variations = [
+                "Navigate straight to the gray basket",
+                "Move forward to the basket",
+                "Go straight to the target",
+                "Proceed forward",
+            ]
+        elif curr_act_type == "left":
+            variations = [
+                "Steer left toward the gray basket",
+                "Turn left to reach the target",
+                "Navigate left to the basket",
+                "Make a left turn toward the object",
+            ]
+        elif curr_act_type == "right":
+            variations = [
+                "Steer right toward the gray basket",
+                "Turn right to reach the target",
+                "Navigate right to the basket",
+                "Make a right turn toward the object",
+            ]
+        elif curr_act_type == "diag_fl":
+            variations = [
+                "Navigate diagonally left toward the gray basket",
+                "Move forward-left to the basket",
+                "Steer slightly left while moving forward",
+            ]
+        elif curr_act_type == "diag_fr":
+            variations = [
+                "Navigate diagonally right toward the gray basket",
+                "Move forward-right to the basket",
+                "Steer slightly right while moving forward",
+            ]
+        else:
+            variations = [
+                "Navigate to the gray basket",
+                "Move toward the target",
+            ]
+
+        return np.random.choice(variations)
     
     def __getitem__(self, idx):
         # Random Temporal Sampling for better diversity
@@ -235,36 +307,54 @@ class MobileVLAH5Dataset(Dataset):
                 for _ in range(total_frames_needed):
                     actions.append(np.zeros(2))
             else:
-                for t in range(start_frame, min(start_frame + total_frames_needed, total_len)):
-                    if t < len(f['actions']):
-                        action_2d = f['actions'][t][:2]  # linear_x, linear_y만 사용
-                        action = action_2d.copy()
-                    else:
-                        action = np.zeros(2)
-                    actions.append(action)
+                episode_actions = f['actions'][:] # Load all actions for the episode
+                episode_len = episode_actions.shape[0]
+                
+                # For hybrid planning (action chunking), we need sequence of actions
+                if self.fwd_pred_next_n > 1:
+                    # For each frame in the window_size, we need a chunk of actions
+                    for i in range(self.window_size):
+                        current_frame_abs_idx = start_frame + i
+                        start_act = current_frame_abs_idx
+                        end_act = min(start_act + self.fwd_pred_next_n, episode_len)
+                        
+                        # Slice next_n actions: shape [next_n, 2]
+                        chunk = episode_actions[start_act:end_act, :2] # Only take first 2 dimensions
+                        
+                        # Pad if last few frames of episode
+                        if chunk.shape[0] < self.fwd_pred_next_n:
+                            padding = np.zeros((self.fwd_pred_next_n - chunk.shape[0], chunk.shape[1]), dtype=chunk.dtype)
+                            chunk = np.concatenate([chunk, padding], axis=0)
+                        actions.append(chunk)
+
+                    # np.stack 이전에 패딩을 수행하여 AttributeError 방지
+                    while len(actions) < total_frames_needed:
+                        actions.append(np.zeros((self.fwd_pred_next_n, 2)))
+                    actions = np.stack(actions) # shape [window_size, fwd_pred_next_n, 2]
+                else:
+                    # Standard 1-step prediction, load actions for total_frames_needed
+                    for t in range(start_frame, min(start_frame + total_frames_needed, episode_len)):
+                        action_2d = episode_actions[t][:2]  # linear_x, linear_y만 사용
+                        actions.append(action_2d.copy())
             
-            # Padding for actions
+            # Padding for actions (always ensure total_frames_needed for consistency)
+            # This fixes the 'maximum size N but size 10' error in V4 inference
             while len(actions) < total_frames_needed:
                 actions.append(np.zeros(2))
             
-            # ----------------------------------------------------------------
-            # 언어 명령 생성 (우선순위 순)
-            # 1) H5 내부 'language_instruction' 필드 (미래 수집 데이터용)
-            # 2) instruction_preset 설정 (EXP-08+ 전용 프리셋)
-            # 3) H5 attrs['episode_name'] 파싱 (현재 528 에피소드 전부 해당)
-            # 4) 파일명 fallback
-            # ----------------------------------------------------------------
-            if 'language_instruction' in f:
+            use_action_aware_train = (
+                self.instruction_preset == "action_aware_train" and self.is_training
+            )
+            if use_action_aware_train:
+                language_base = self._get_action_aware_instruction(actions)
+            elif 'language_instruction' in f:
                 raw = f['language_instruction'][0]
                 language_base = raw.decode('utf-8') if isinstance(raw, bytes) else str(raw)
             else:
-                # episode_name attr 파싱: e.g.
-                # "episode_20260129_010041_basket_1box_hori_left_core_medium"
                 ep_name = str(f.attrs.get('episode_name', '')).lower()
                 if not ep_name:
                     ep_name = Path(self.episode_files[ep_idx]).stem.lower()
 
-                # 방향 추출
                 if 'left' in ep_name:
                     direction = 'left'
                 elif 'right' in ep_name:
@@ -272,69 +362,17 @@ class MobileVLAH5Dataset(Dataset):
                 else:
                     direction = None
 
-                # ------ EXP-08+: center_goal 프리셋 ------
                 if self.instruction_preset == 'center_goal':
-                    if direction == 'left':
-                        if self.is_training:
-                            variations = [
-                                "Navigate toward the gray basket until it is centered in the frame",
-                                "Move until the gray basket appears at the center of the image",
-                                "Approach the gray basket on the left until it is in the center of your view",
-                                "Steer to center the gray basket in the frame",
-                                "Navigate to the gray basket",
-                            ]
-                            language_base = np.random.choice(variations)
-                        else:
-                            language_base = "Navigate toward the gray basket until it is centered in the frame"
-                    elif direction == 'right':
-                        if self.is_training:
-                            variations = [
-                                "Navigate toward the gray basket until it is centered in the frame",
-                                "Move until the gray basket appears at the center of the image",
-                                "Approach the gray basket on the right until it is in the center of your view",
-                                "Steer to center the gray basket in the frame",
-                                "Navigate to the gray basket",
-                            ]
-                            language_base = np.random.choice(variations)
-                        else:
-                            language_base = "Navigate toward the gray basket until it is centered in the frame"
-                    else:
-                        language_base = "Navigate toward the gray basket until it is centered in the frame"
-
-                # ------ 기본 프리셋 (EXP-07 등, None) ------
+                    language_base = "Navigate toward the gray basket until it is centered in the frame"
                 elif direction == 'left':
-                    # 학습 시: instruction variation으로 grounding 다양성 확보
-                    # - 위치 명시 표현("visible on the left side of the frame")으로
-                    #   VLM의 시각 위치 단서와 텍스트를 동시에 활성화
-                    if self.is_training:
-                        variations = [
-                            "Navigate to the gray basket visible on the left side of the frame",
-                            "Move toward the basket located on the left side",
-                            "Steer left to reach the gray basket in view",
-                            "Go to the gray basket on the left",
-                            "Navigate to the gray basket",
-                        ]
-                        language_base = np.random.choice(variations)
-                    else:
-                        language_base = "Navigate to the gray basket visible on the left side of the frame"
-
+                    language_base = "Navigate to the gray basket visible on the left side of the frame"
                 elif direction == 'right':
-                    if self.is_training:
-                        variations = [
-                            "Navigate to the gray basket visible on the right side of the frame",
-                            "Move toward the basket located on the right side",
-                            "Steer right to reach the gray basket in view",
-                            "Go to the gray basket on the right",
-                            "Navigate to the gray basket",
-                        ]
-                        language_base = np.random.choice(variations)
-                    else:
-                        language_base = "Navigate to the gray basket visible on the right side of the frame"
-
+                    language_base = "Navigate to the gray basket visible on the right side of the frame"
                 else:
                     language_base = "Navigate to the gray basket"
 
             language = language_base
+
 
 
         # -------------------------------------------------------------------------
@@ -365,7 +403,15 @@ class MobileVLAH5Dataset(Dataset):
             # 0: Stop, 1: F, 2: B, 3: L, 4: R, 5: FL, 6: FR, 7: BL, 8: BR
             cls_labels = []
             for a in actions:
-                x, y = a[0], a[1]
+                # 텐서나 배열인 경우 .item()을 사용하여 안전하게 스칼라 추출
+                try:
+                    curr_x = a[0].item() if hasattr(a[0], 'item') else a[0]
+                    curr_y = a[1].item() if hasattr(a[1], 'item') else a[1]
+                    x, y = float(curr_x), float(curr_y)
+                except:
+                    # 혹시라도 a 자체가 더 복잡한 구조일 경우 대비 (fallback)
+                    x, y = float(np.ravel(a)[0]), float(np.ravel(a)[1])
+                
                 # Threshold를 0.3으로 설정하여 미세한 노이즈 무시
                 is_x_pos = x > 0.3
                 is_x_neg = x < -0.3
@@ -374,13 +420,13 @@ class MobileVLAH5Dataset(Dataset):
                 
                 if not is_x_pos and not is_x_neg and not is_y_pos and not is_y_neg:
                     label = 0 # Stop
-                elif is_x_pos and not is_y_pos and not is_y_neg:
+                elif is_x_pos and not (is_y_pos or is_y_neg):
                     label = 1 # Forward
-                elif is_x_neg and not is_y_pos and not is_y_neg:
+                elif is_x_neg and not (is_y_pos or is_y_neg):
                     label = 2 # Backward
-                elif not is_x_pos and not is_x_neg and is_y_pos:
+                elif not (is_x_pos or is_x_neg) and is_y_pos:
                     label = 3 # Left
-                elif not is_x_pos and not is_x_neg and is_y_neg:
+                elif not (is_x_pos or is_x_neg) and is_y_neg:
                     label = 4 # Right
                 elif is_x_pos and is_y_pos:
                     label = 5 # Diag FL
@@ -493,4 +539,3 @@ class MobileVLAH5Dataset(Dataset):
             "data_source": "mobile_vla_action",
         }
         return res
-

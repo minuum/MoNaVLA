@@ -1,0 +1,8 @@
+{
+    "parent": "configs/mobile_vla_v4_exp01.json",
+    "exp_name": "v4-retrain-v4-resume-20260318",
+    "model_load_path": "/home/billy/25-1kp/MoNaVLA/runs/v4_nav/kosmos/mobile_vla_v4_exp01/2026-03-15/v4-retrain-v4/epoch_epoch=epoch=04-val_loss=val/loss=1.851.ckpt",
+    "model_load_source": "lightning",
+    "resume": "/home/billy/25-1kp/MoNaVLA/runs/v4_nav/kosmos/mobile_vla_v4_exp01/2026-03-15/v4-retrain-v4/epoch_epoch=epoch=04-val_loss=val/loss=1.851.ckpt",
+    "_resume_comment": "Resume V4 training from the latest verified best checkpoint on 2026-03-18."
+}
