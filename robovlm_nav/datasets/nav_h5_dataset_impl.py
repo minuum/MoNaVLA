@@ -42,7 +42,8 @@ class MobileVLAH5Dataset(Dataset):
         shift_first=False,
         abs_action=False,  # 액션 절대값 사용 (방향 제거)
         augment=False,     # 데이터 증강 (Mirroring 등)
-        discrete_action=False, # 분류 방식 사용 여부 (6개 클래스)
+        discrete_action=False, # 분류 방식 사용 여부
+        num_classes=9,         # [OPT] 분류 클래스 수 (기본 9, 최적화 시 6)
         use_color_jitter=False,  # [V3] Color Jitter 증강
         use_random_crop=False,   # [V3] Random Crop 증강
         instruction_preset=None, # [EXP-08+] instruction 프리셋 ('center_goal' 등)
@@ -62,6 +63,7 @@ class MobileVLAH5Dataset(Dataset):
         self.abs_action = abs_action  # 방향 제거 옵션
         self.augment = augment and (not is_validation)  # 검증셋에는 증강 미적용
         self.is_training = not is_validation
+        self.num_classes = num_classes or kwargs.get("num_classes", 9)
         # instruction 프리셋:
         # - None: 기본 left/right goal phrasing
         # - center_goal: EXP-08 style goal-completion phrasing
@@ -174,9 +176,14 @@ class MobileVLAH5Dataset(Dataset):
     def _get_action_aware_instruction(self, actions):
         """Build a training-only instruction variant from the next predicted action."""
         target_idx = min(self.window_size, len(actions) - 1)
-        tx, ty = actions[target_idx][0], actions[target_idx][1]
+        # actions가 [window, next_n, 2] 인 경우와 [window, 2] 인 경우 대응
+        if len(actions.shape) == 3:
+            tx, ty = actions[target_idx][0][0], actions[target_idx][0][1]
+        else:
+            tx, ty = actions[target_idx][0], actions[target_idx][1]
 
         curr_act_type = "forward"
+        # 0.3 Threshold 적용
         if abs(tx) < 0.3 and abs(ty) < 0.3:
             curr_act_type = "stop"
         elif tx > 0.3 and abs(ty) < 0.3:
@@ -192,12 +199,16 @@ class MobileVLAH5Dataset(Dataset):
         elif tx > 0.3 and ty < -0.3:
             curr_act_type = "diag_fr"
 
+        # 명령어 변형 (영어/한국어 혼합하여 강건성 확보)
         if curr_act_type == "stop":
             variations = [
                 "Stop in front of the gray basket",
                 "Halt at the target location",
                 "Maintain position near the basket",
                 "Stop the robot now",
+                "바구니 앞에서 정지해줘",
+                "목표 지점에서 멈춰",
+                "이동을 중단하고 대기해"
             ]
         elif curr_act_type == "forward":
             variations = [
@@ -205,6 +216,9 @@ class MobileVLAH5Dataset(Dataset):
                 "Move forward to the basket",
                 "Go straight to the target",
                 "Proceed forward",
+                "바구니를 향해 직진해",
+                "앞으로 이동해서 바구니로 가줘",
+                "정면 목표를 향해 전진해"
             ]
         elif curr_act_type == "left":
             variations = [
@@ -212,6 +226,9 @@ class MobileVLAH5Dataset(Dataset):
                 "Turn left to reach the target",
                 "Navigate left to the basket",
                 "Make a left turn toward the object",
+                "왼쪽으로 꺾어서 바구니로 가",
+                "좌측으로 이동해서 목표물에 도달해",
+                "바구니쪽으로 왼쪽 방향을 잡아"
             ]
         elif curr_act_type == "right":
             variations = [
@@ -219,23 +236,34 @@ class MobileVLAH5Dataset(Dataset):
                 "Turn right to reach the target",
                 "Navigate right to the basket",
                 "Make a right turn toward the object",
+                "오른쪽으로 조향해서 바구니로 가",
+                "우측으로 이동해",
+                "바구니가 보이게 오른쪽으로 움직여"
             ]
         elif curr_act_type == "diag_fl":
             variations = [
                 "Navigate diagonally left toward the gray basket",
                 "Move forward-left to the basket",
                 "Steer slightly left while moving forward",
+                "대각선 왼쪽 방향으로 바구니에 접근해",
+                "왼쪽 앞으로 비스듬히 이동해서 바구니로 가",
+                "전진하면서 왼쪽으로 살짝 틀어줘"
             ]
         elif curr_act_type == "diag_fr":
             variations = [
                 "Navigate diagonally right toward the gray basket",
                 "Move forward-right to the basket",
                 "Steer slightly right while moving forward",
+                "대각선 오른쪽 방향으로 바구니에 접근해",
+                "오른쪽 앞으로 비스듬히 이동해",
+                "전진하면서 우측으로 조향해"
             ]
         else:
             variations = [
                 "Navigate to the gray basket",
                 "Move toward the target",
+                "바구니를 향해 이동해",
+                "회색 바구니로 주행해"
             ]
 
         return np.random.choice(variations)
@@ -397,53 +425,78 @@ class MobileVLAH5Dataset(Dataset):
         images_tensor = torch.stack(images)  # (total_frames_needed, C, H, W)
         
         if self.discrete_action:
-            if idx % 100 == 0: # 너무 자주 찍히지 않게 조절
-                print(f"DEBUG: __getitem__ processing discrete actions for idx {idx}")
-            # Action Classification Mapping (Omniwheel 9-classes)
-            # 0: Stop, 1: F, 2: B, 3: L, 4: R, 5: FL, 6: FR, 7: BL, 8: BR
+            if idx % 500 == 0: # 로깅 빈도 조절
+                print(f"DEBUG: __getitem__ processing discrete actions ({self.num_classes} cls) for idx {idx}")
+            
             cls_labels = []
             for a in actions:
-                # 텐서나 배열인 경우 .item()을 사용하여 안전하게 스칼라 추출
                 try:
-                    curr_x = a[0].item() if hasattr(a[0], 'item') else a[0]
-                    curr_y = a[1].item() if hasattr(a[1], 'item') else a[1]
+                    # chunking 인 경우 [next_n, 2]의 첫 번째 값 사용 (혹은 평균 가능하지만 첫 번째가 정확함)
+                    if len(a.shape) == 2:
+                        curr_x, curr_y = a[0, 0], a[0, 1]
+                    else:
+                        curr_x, curr_y = a[0], a[1]
                     x, y = float(curr_x), float(curr_y)
                 except:
-                    # 혹시라도 a 자체가 더 복잡한 구조일 경우 대비 (fallback)
                     x, y = float(np.ravel(a)[0]), float(np.ravel(a)[1])
                 
-                # Threshold를 0.3으로 설정하여 미세한 노이즈 무시
                 is_x_pos = x > 0.3
                 is_x_neg = x < -0.3
                 is_y_pos = y > 0.3
                 is_y_neg = y < -0.3
                 
+                # 9-classes: 0:Stop, 1:F, 2:B, 3:L, 4:R, 5:FL, 6:FR, 7:BL, 8:BR
                 if not is_x_pos and not is_x_neg and not is_y_pos and not is_y_neg:
-                    label = 0 # Stop
+                    label = 0
                 elif is_x_pos and not (is_y_pos or is_y_neg):
-                    label = 1 # Forward
+                    label = 1
                 elif is_x_neg and not (is_y_pos or is_y_neg):
-                    label = 2 # Backward
+                    label = 2
                 elif not (is_x_pos or is_x_neg) and is_y_pos:
-                    label = 3 # Left
+                    label = 3
                 elif not (is_x_pos or is_x_neg) and is_y_neg:
-                    label = 4 # Right
+                    label = 4
                 elif is_x_pos and is_y_pos:
-                    label = 5 # Diag FL
+                    label = 5
                 elif is_x_pos and is_y_neg:
-                    label = 6 # Diag FR
+                    label = 6
                 elif is_x_neg and is_y_pos:
-                    label = 7 # Diag BL
+                    label = 7
                 elif is_x_neg and is_y_neg:
-                    label = 8 # Diag BR
+                    label = 8
                 else:
-                    label = 0 # Default Stop
+                    label = 0
                 cls_labels.append(label)
-            actions_tensor = torch.tensor(cls_labels, dtype=torch.long)
+            
+            # (window_size, fwd_pred_next_n) 형태로 변환 (Sliding Window Labeling)
+            # 예: window=8, next_n=5 이면 총 13개의 프레임 정보를 사용하여
+            # 각 steps(0~7)에 대응하는 차후 5개의 액션 레이블을 구성함.
+            chunked_labels = []
+            for i in range(self.window_size):
+                # i번째 step에서의 정답은 actions[i+1 : i+1+fwd_pred_next_n]
+                chunk = cls_labels[i+1 : i+1+self.fwd_pred_next_n]
+                # 패딩 처리 (혹시 모를 범위 초과 발생 시)
+                while len(chunk) < self.fwd_pred_next_n:
+                    chunk.append(cls_labels[-1])
+                chunked_labels.append(chunk)
+            
+            actions_tensor = torch.tensor(chunked_labels, dtype=torch.long) # (window_size, fwd_pred_next_n)
+            
+            # 9 classes -> 6 classes mapping for discrete actions
+            # Original: 0:STOP, 1:F, 2:B, 3:L, 4:R, 5:FL, 6:FR, 7:BL, 8:BR
+            # New (6): 0:STOP, 1:F, 2:L, 3:R, 4:FL, 5:FR
+            if self.num_classes == 6:
+                mapping = {0: 0, 1: 1, 3: 2, 4: 3, 5: 4, 6: 5}
+                # Apply mapping to actions_tensor
+                # Any original action not in the mapping (e.g., 2:B, 7:BL, 8:BR) will map to 0 (STOP)
+                actions_tensor = torch.tensor([
+                    [mapping.get(int(val), 0) for val in row]
+                    for row in actions_tensor.tolist()
+                ], dtype=torch.long)
         else:
             actions_tensor = torch.from_numpy(np.array(actions)).float()  # (total_frames_needed, 2)
             
-            # 방향 제거 옵션: linear_y의 절대값 사용
+            # 방향 제거 옵션: linear_y의 절대값
             if self.abs_action:
                 actions_tensor[:, 1] = torch.abs(actions_tensor[:, 1])  # linear_y만 절대값
             

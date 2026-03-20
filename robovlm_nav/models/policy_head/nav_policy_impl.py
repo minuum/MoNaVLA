@@ -297,6 +297,16 @@ class MobileVLAClassificationDecoder(BasePolicyHead):
         if class_labels.dim() == 2:
             class_labels = class_labels.unsqueeze(-1)
 
+        # Check sequence length mismatch (L)
+        l_logits = logits.size(1)
+        l_labels = class_labels.size(1)
+        if l_logits != l_labels:
+            min_l = min(l_logits, l_labels)
+            logits = logits[:, :min_l]
+            class_labels = class_labels[:, :min_l]
+            if attention_mask is not None:
+                attention_mask = attention_mask[:, :min_l]
+
         flat_logits = rearrange(logits, "b l n d -> (b l n) d")
         flat_labels = rearrange(class_labels, "b l n -> (b l n)").long()
 

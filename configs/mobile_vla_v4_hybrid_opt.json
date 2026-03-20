@@ -1,0 +1,79 @@
+{
+    "robovlm_name": "RoboKosMos",
+    "discrete_action": true,
+    "window_size": 8,
+    "fwd_pred_next_n": 5,
+    "exp_name": "v4-hybrid-opt-6cls",
+    "parent": "configs/mobile_vla_v4_hybrid_final.json",
+    "task_name": "mobile_vla_v4_hybrid_opt",
+    "model": "kosmos",
+    "batch_size": 2,
+    "num_workers": 4,
+    "learning_rate": 5e-06,
+    "max_epochs": 20,
+    "model_load_path": "/home/billy/25-1kp/MoNaVLA/runs/v4_nav/kosmos/mobile_vla_v4_exp01/2026-03-20/v4-retrain-v4-resume-20260318/last.ckpt",
+    "model_load_source": "lightning",
+    "model_path": "/home/billy/25-1kp/MoNaVLA/.vlms/kosmos-2-patch14-224",
+    "model_config": "/home/billy/25-1kp/MoNaVLA/.vlms/kosmos-2-patch14-224/config.json",
+    "tokenizer": {
+        "pretrained_model_name_or_path": "/home/billy/25-1kp/MoNaVLA/.vlms/kosmos-2-patch14-224"
+    },
+    "vlm": {
+        "pretrained_model_name_or_path": "/home/billy/25-1kp/MoNaVLA/.vlms/kosmos-2-patch14-224"
+    },
+    "train_setup": {
+        "precision": "16-mixed",
+        "predict_action": true,
+        "train_vision": false,
+        "freeze_backbone": true,
+        "tune_mm_projector": true,
+        "lora_enable": true,
+        "lora_r": 32,
+        "lora_alpha": 64,
+        "gradient_checkpointing": true
+    },
+    "act_head": {
+        "type": "MobileVLAClassificationDecoder",
+        "num_classes": 6,
+        "action_space": "continuous",
+        "discrete_action": true,
+        "fwd_pred_next_n": 5,
+        "window_size": 8,
+        "class_weights": [8.98, 1.0, 17.12, 9.0, 3.0, 2.59]
+    },
+    "train_dataset": {
+        "type": "NavDataset",
+        "data_dir": "/home/billy/25-1kp/MoNaVLA/ROS_action/mobile_vla_dataset_v3",
+        "episode_pattern": "episode_*.h5",
+        "discrete_action": true,
+        "window_size": 8,
+        "fwd_pred_next_n": 5,
+        "min_episode_frames": 10,
+        "instruction_preset": "action_aware_train",
+        "num_classes": 6,
+        "augment": true,
+        "train_split": 0.95
+    },
+    "val_dataset": {
+        "type": "NavDataset",
+        "data_dir": "/home/billy/25-1kp/MoNaVLA/ROS_action/mobile_vla_dataset_v3",
+        "episode_pattern": "episode_*.h5",
+        "discrete_action": true,
+        "window_size": 8,
+        "fwd_pred_next_n": 5,
+        "min_episode_frames": 10,
+        "instruction_preset": "action_aware_train",
+        "num_classes": 6,
+        "is_validation": true,
+        "train_split": 0.95
+    },
+    "trainer": {
+        "limit_val_batches": 1.0,
+        "check_val_every_n_epoch": 1,
+        "early_stopping": true,
+        "patience": 5,
+        "monitor": "val_loss"
+    },
+    "output_root": "runs/v4_nav",
+    "log_root": "runs/v4_nav"
+}

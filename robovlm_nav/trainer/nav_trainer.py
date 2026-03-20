@@ -16,12 +16,40 @@ class NavTrainer(BaseTrainer):
     def from_checkpoint(cls, checkpoint_path, load_source="nav", variant=None):
         """
         체크포인트로부터 트레이너 인스턴스를 생성하는 팩토리 메서드.
+        액션 공간 최적화(6개 클래스 등) 시 발생하는 로딩 에러(size mismatch)를 방지합니다.
         """
         print(f"🚀 [NavTrainer] Creating NavTrainer from checkpoint: {checkpoint_path}", flush=True)
-        instance = super().from_checkpoint(checkpoint_path, load_source, variant)
-        # 로드 후 현재 trainable 상태만 다시 기록한다.
+        
+        # 1. 트레이너 및 모델 인스턴스 초기화 (config 기반)
+        instance = cls(variant)
+        
+        # 2. 체크포인트 로드
+        checkpoint = torch.load(checkpoint_path, map_location="cpu")
+        state_dict = checkpoint.get("state_dict", checkpoint.get("model_state_dict", {}))
+        
+        # module. 프리픽스 제거 (DDP 호환)
+        state_dict = {k.replace("module.model.", "model.").replace("module.", ""): v for k, v in state_dict.items()}
+        
+        # 3. 로드 시도
+        try:
+            # strict=False를 기본으로 하되, 층별 데이터 로드 시도
+            msg = instance.load_state_dict(state_dict, strict=False)
+            print(f"✅ [NavTrainer] Full checkpoint load successful (Missing: {msg.missing_keys}, Unexpected: {msg.unexpected_keys})", flush=True)
+        except RuntimeError as e:
+            if "size mismatch" in str(e):
+                print(f"⚠️ [NavTrainer] Size mismatch detected during load! Attempting to load by excluding 'act_head'.", flush=True)
+                # act_head 관련 가중치만 제외하고 다시 로드 (최적화 시 architecture가 바뀌기 때문)
+                filtered_state_dict = {k: v for k, v in state_dict.items() if "act_head" not in k}
+                msg = instance.load_state_dict(filtered_state_dict, strict=False)
+                print(f"✅ [NavTrainer] Partial load successful (Excluded act_head. Missing: {msg.missing_keys})", flush=True)
+            else:
+                raise e
+        
+        # 4. 메모리 정리 및 로깅
+        del state_dict
         if hasattr(instance, "_log_trainable_params"):
             instance._log_trainable_params()
+            
         return instance
 
     def _log_trainable_params(self):
