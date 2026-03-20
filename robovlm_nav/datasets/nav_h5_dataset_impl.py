@@ -197,6 +197,7 @@ class MobileVLAH5Dataset(Dataset):
         with h5py.File(self.episode_files[ep_idx], 'r') as f:
             total_len = len(f['images'])
             total_frames_needed = self.window_size
+            total_actions_needed = self.window_size + self.fwd_pred_next_n - 1
             
             # 이미지 로드 (window_size 만큼)
             images = []
@@ -227,35 +228,26 @@ class MobileVLAH5Dataset(Dataset):
             while len(images) < total_frames_needed:
                 images.append(torch.zeros_like(images[-1]) if images else torch.zeros(3, self.image_size, self.image_size))
             
-            # 액션 로드
+            # -------------------------------------------------------------------------
+            # [LFS Update] 액션 로드 (Chunking을 위해 충분한 길이를 FLAT하게 로드)
+            # -------------------------------------------------------------------------
             actions = []
             if 'actions' not in f:
-                for _ in range(total_frames_needed):
+                for _ in range(total_actions_needed):
                     actions.append(np.zeros(2))
             else:
                 episode_actions = f['actions'][:]
                 episode_len = episode_actions.shape[0]
                 
-                if self.fwd_pred_next_n > 1:
-                    for i in range(self.window_size):
-                        current_frame_abs_idx = start_frame + i
-                        start_act = current_frame_abs_idx
-                        end_act = min(start_act + self.fwd_pred_next_n, episode_len)
-                        chunk = episode_actions[start_act:end_act, :2]
-                        if chunk.shape[0] < self.fwd_pred_next_n:
-                            padding = np.zeros((self.fwd_pred_next_n - chunk.shape[0], chunk.shape[1]), dtype=chunk.dtype)
-                            chunk = np.concatenate([chunk, padding], axis=0)
-                        actions.append(chunk)
-
-                    while len(actions) < total_frames_needed:
-                        actions.append(np.zeros((self.fwd_pred_next_n, 2)))
-                    actions = np.stack(actions)
-                else:
-                    for t in range(start_frame, min(start_frame + total_frames_needed, episode_len)):
-                        actions.append(episode_actions[t][:2].copy())
+                for t in range(start_frame, min(start_frame + total_actions_needed, episode_len)):
+                    actions.append(episode_actions[t][:2].copy())
+                
+                # 부족한 액션 패딩
+                while len(actions) < total_actions_needed:
+                    actions.append(np.zeros(2))
             
-            while len(actions) < total_frames_needed:
-                actions.append(np.zeros(2))
+            actions = np.array(actions)
+            # -------------------------------------------------------------------------
             
             use_action_aware_train = (self.instruction_preset == "action_aware_train")
             if use_action_aware_train:
@@ -300,11 +292,8 @@ class MobileVLAH5Dataset(Dataset):
         if self.discrete_action:
             cls_labels = []
             for a in actions:
-                # chunking 인 경우 [next_n, 2]의 첫 번째 값 사용
-                if len(a.shape) == 2:
-                    curr_x, curr_y = a[0, 0], a[0, 1]
-                else:
-                    curr_x, curr_y = a[0], a[1]
+                # a is (2,)
+                curr_x, curr_y = a[0], a[1]
                 x, y = float(curr_x), float(curr_y)
                 
                 is_x_pos = x > 0.3
@@ -349,7 +338,7 @@ class MobileVLAH5Dataset(Dataset):
         return {
             'rgb': images_tensor,
             'hand_rgb': torch.zeros_like(images_tensor),
-            'actions': actions_tensor,
+            'action': actions_tensor,
             'action_mask': torch.ones(total_frames_needed),
             'image_mask': torch.ones(total_frames_needed),
             'text': torch.zeros(256, dtype=torch.long),
