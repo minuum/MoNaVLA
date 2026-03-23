@@ -105,7 +105,7 @@ class MobileVLAH5Dataset(Dataset):
                 "목표물을 향해 가줘",
                 "앞에 보이는 바구니로 도달해"
             ]
-            return random.choice(generic_variations)
+            return f"<grounding>An image of a robot {random.choice(generic_variations)}"
 
         target_idx = min(self.window_size, len(actions) - 1)
         # actions shape handling
@@ -195,7 +195,8 @@ class MobileVLAH5Dataset(Dataset):
         else:
             variations = ["Navigate to the gray basket"]
         
-        return random.choice(variations)
+
+        return f"<grounding>An image of a robot {random.choice(variations)}"
 
     def __getitem__(self, idx):
         ep_idx, start_frame = self.frame_indices[idx]
