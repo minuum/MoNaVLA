@@ -12,7 +12,7 @@
     "num_workers": 4,
     "learning_rate": 5e-06,
     "max_epochs": 15,
-    "model_load_path": "runs/v4_nav/kosmos/mobile_vla_v4_hybrid_opt/2026-03-20/v4-hybrid-opt-1.0-10ep/epoch_epoch=epoch=11-val_loss=val_loss=1.224.ckpt",
+    "model_load_path": "pretrained_ckpts/checkpoints/kosmos_ph_google-robot-post-train_new.pt",
     "model_load_source": "lightning",
     "model_path": "/home/billy/25-1kp/MoNaVLA/.vlms/kosmos-2-patch14-224",
     "model_config": "/home/billy/25-1kp/MoNaVLA/.vlms/kosmos-2-patch14-224/config.json",

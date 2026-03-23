@@ -42,6 +42,11 @@ class MobileVLAH5Dataset(Dataset):
         self.use_color_jitter = use_color_jitter
         self.use_random_crop = use_random_crop
         self.tokenizer = kwargs.get('tokenizer', None)
+        
+        # [NEW] Handle is_training from GRDataModule/third_party
+        if 'is_training' in kwargs:
+            is_validation = not kwargs['is_training']
+        self.is_validation = is_validation
 
         # Get all episode files
         all_files = sorted(list(self.data_dir.glob(episode_pattern)))
@@ -58,9 +63,9 @@ class MobileVLAH5Dataset(Dataset):
 
         # Split
         num_episodes = len(self.episode_files)
-        split_idx = int(num_episodes * train_split)
+        split_idx = int(num_episodes * 0.8)
         
-        if is_validation:
+        if self.is_validation:
             self.episode_files = self.episode_files[split_idx:]
         else:
             self.episode_files = self.episode_files[:split_idx]
@@ -75,7 +80,7 @@ class MobileVLAH5Dataset(Dataset):
                 for start_f in range(0, num_frames - self.window_size - self.fwd_pred_next_n + 1):
                     self.frame_indices.append((ep_idx, start_f))
 
-        print(f"{'Validation' if is_validation else 'Training'} dataset initialized with {len(self.episode_files)} episodes and {len(self.frame_indices)} valid sequences.")
+        print(f"{'Validation' if self.is_validation else 'Training'} dataset initialized with {len(self.episode_files)} episodes and {len(self.frame_indices)} valid sequences.")
 
         # Transforms
         if self.use_color_jitter:
