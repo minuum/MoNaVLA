@@ -637,6 +637,15 @@ class BaseTrainer(pl.LightningModule):
         )
 
         output = self._get_loss(prediction)
+        
+        # [DEBUG] Check loss gradient status
+        if not output["loss"].requires_grad:
+            print(f"!!! Error: Loss does not require grad !!!")
+            print(f"Loss object: {output['loss']}")
+            print(f"Loss grad_fn: {output['loss'].grad_fn}")
+            for k, v in output.items():
+                if isinstance(v, torch.Tensor):
+                    print(f"Sub-loss {k}: requires_grad={v.requires_grad}, grad_fn={v.grad_fn}")
 
         prog_bar_set = {"loss"}
         if self.act_pred:

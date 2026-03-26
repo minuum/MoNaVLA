@@ -8,7 +8,7 @@ from einops import rearrange
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from robovlms.model.policy_head.base_policy import BasePolicyHead, lstm_decoder, MLPTanhHead, initialize_param
+from robovlms.model.policy_head.base_policy import BasePolicyHead, lstm_decoder, MLPTanhHead, MLPNohHead, initialize_param
 
 
 class MobileVLALSTMDecoder(BasePolicyHead):
@@ -137,6 +137,8 @@ class MobileVLALSTMDecoder(BasePolicyHead):
         # (B, seq_len, fwd_pred_next_n * action_dim) -> (B, seq_len, fwd_pred_next_n, action_dim)
         velocities = rearrange(velocities, "b l (n d) -> b l n d", n=self.fwd_pred_next_n, d=self.action_dim)
 
+        # print(f"DEBUG: [MobileVLALSTMDecoder.forward] output shape: {velocities.shape}, requires_grad: {velocities.requires_grad}", flush=True)
+
         # gripper 없음 (None 반환)
         return velocities, None
 
@@ -175,8 +177,12 @@ class MobileVLALSTMDecoder(BasePolicyHead):
             attention_mask = attention_mask.bool()
             loss_velocity = loss_velocity[attention_mask].mean()
 
+        # print(f"DEBUG: [MobileVLALSTMDecoder.loss] velocities_grad: {velocities.requires_grad}, loss_grad: {loss_velocity.requires_grad}", flush=True)
+
         return {
             "loss_arm": loss_velocity,
+            "loss_velocity": loss_velocity,  # For redundancy
+            "loss_arm_act": loss_velocity,   # BaseTrainer often looks for this
             "loss_gripper": None,
             "acc_arm": None,
             "acc_gripper": None,
@@ -281,6 +287,12 @@ class MobileVLAClassificationDecoder(BasePolicyHead):
         logits = rearrange(logits, "b l (n d) -> b l n d", n=self.fwd_pred_next_n, d=self.num_classes)
 
         return logits, None
+
+    def get_labels(self, action, labels, attention_mask=None, **kwargs):
+        # BaseBackbone calls: get_labels(action, action_labels, action_mask, tok_seq=action_tokens, **kwargs)
+        # action: pred_action (from forward)
+        # labels: ground truth labels
+        return action, labels, attention_mask
 
     def loss(self, pred_action, labels, attention_mask=None):
         if labels is None or labels[0] is None:

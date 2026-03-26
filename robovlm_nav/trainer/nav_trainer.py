@@ -199,20 +199,25 @@ class NavTrainer(BaseTrainer):
 
         # 2) loss가 없거나 requires_grad=False이면 후보 키에서 재탐색
         if loss is None or (isinstance(loss, torch.Tensor) and not loss.requires_grad):
+            if loss is not None:
+                # print(f"[NavTrainer] Found 'loss' key but requires_grad=False. Searching alternatives...", flush=True)
+                pass 
+            
             candidates = [
                 "loss_arm_act_act",   # _update_loss(..., "act") suffix 버전
                 "loss_velocity_act",
                 "loss_arm_act",
                 "loss_velocity",
+                "loss_arm",
             ]
             for key in candidates:
                 v = prediction.get(key, None)
                 if v is not None and isinstance(v, torch.Tensor):
+                    # print(f"[NavTrainer] Checking candidate '{key}': requires_grad={v.requires_grad}", flush=True)
                     # 학습 중일 때만 requires_grad 체크, validation/inference 시에는 체크 안 함
                     if not self.training or v.requires_grad:
                         loss = v
-                        if self.training:
-                            print(f"[NavTrainer] Using '{key}' as loss (requires_grad=True)", flush=True)
+                        # print(f"[NavTrainer] SUCCESS: Using '{key}' as loss (requires_grad={v.requires_grad})", flush=True)
                         break
 
         # 3) 여전히 None이면 경고
