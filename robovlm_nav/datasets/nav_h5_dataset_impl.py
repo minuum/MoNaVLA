@@ -28,6 +28,7 @@ class MobileVLAH5Dataset(Dataset):
         use_color_jitter=False,
         use_random_crop=False,
         curvature_only=False,
+        counterfactual_stop_prob=0.0,
         **kwargs
     ):
         self.data_dir = Path(data_dir)
@@ -43,6 +44,9 @@ class MobileVLAH5Dataset(Dataset):
         self.use_color_jitter = use_color_jitter
         self.use_random_crop = use_random_crop
         self.curvature_only = curvature_only
+        # [Counterfactual Stop] 학습 중 이 확률로 Stop 명령 + zero action으로 오버라이드
+        # is_validation 설정 전에 저장 (나중에 val에서는 비활성화)
+        self._counterfactual_stop_prob = counterfactual_stop_prob
         self.tokenizer = kwargs.get('tokenizer', None)
         
         # [NEW] Handle is_training from GRDataModule/third_party
@@ -277,14 +281,38 @@ class MobileVLAH5Dataset(Dataset):
             actions = np.array(actions)
             # -------------------------------------------------------------------------
             
-            use_action_aware_train = (self.instruction_preset == "action_aware_train")
-            if use_action_aware_train:
-                language_base = self._get_action_aware_instruction(actions)
-            elif 'language_instruction' in f:
-                raw = f['language_instruction'][0]
-                language_base = raw.decode('utf-8') if isinstance(raw, bytes) else str(raw)
+            # [Counterfactual Stop] 학습 중 지정된 확률로 Stop 명령 + zero action 주입
+            # 목적: 모델이 텍스트를 무시하면 틀리는 상황을 강제 생성 → Text Sensitivity 학습
+            # Validation에서는 절대 적용하지 않음
+            _apply_counterfactual_stop = (
+                not self.is_validation
+                and self._counterfactual_stop_prob > 0.0
+                and random.random() < self._counterfactual_stop_prob
+            )
+            
+            if _apply_counterfactual_stop:
+                # Stop 명령어 변형
+                stop_variations = [
+                    "Stop in front of the gray basket",
+                    "Halt immediately",
+                    "Freeze and stay still",
+                    "Do not move",
+                    "바구니 앞에서 멈춰",
+                    "정지해",
+                    "움직이지 마",
+                ]
+                language_base = f"<grounding>An image of a robot {random.choice(stop_variations)}"
+                # 액션을 모두 0으로 오버라이드 (정지 = 속도 0)
+                actions = np.zeros_like(actions)
             else:
-                language_base = "Navigate to the gray basket"
+                use_action_aware_train = (self.instruction_preset == "action_aware_train")
+                if use_action_aware_train:
+                    language_base = self._get_action_aware_instruction(actions)
+                elif 'language_instruction' in f:
+                    raw = f['language_instruction'][0]
+                    language_base = raw.decode('utf-8') if isinstance(raw, bytes) else str(raw)
+                else:
+                    language_base = "Navigate to the gray basket"
 
             # -------------------------------------------------------------------------
             # [LFS Update] Augmentation - Image Flip (좌우 반전)
