@@ -142,39 +142,72 @@ class MobileVLALSTMDecoder(BasePolicyHead):
         # gripper 없음 (None 반환)
         return velocities, None
 
+    def get_labels(self, pred_actions, labels, action_masks, **kwargs):
+        """
+        입력된 전체 액션 시퀀스에서 다중 스텝 정답을 추출하여 반환
+        labels[0]: (B, Total_L, 2) 형태의 전체 액션 시퀀스
+        결과: (B, L, n, 2) 형태의 레이블 (L: window_size, n: fwd_pred_next_n)
+        """
+        arm_labels = labels[0]
+        if arm_labels is None:
+            return pred_actions, labels, action_masks
+            
+        # pred_actions는 (velocities, None) 형태
+        logits = pred_actions[0] if isinstance(pred_actions, (tuple, list)) else pred_actions
+        
+        bs = arm_labels.shape[0]
+        L = logits.shape[1] 
+        n = self.fwd_pred_next_n
+        
+        # MobileVLATrainer에서 이미 chunked된 labels를 보냈을 경우 처리
+        if arm_labels.dim() == 4: # (B, L_full, n, 2)
+            if arm_labels.size(1) != L:
+                arm_labels = arm_labels[:, :L]
+            return pred_actions, (arm_labels, labels[1]), action_masks
+
+        # 만약 (B, Total_L, 2) 형태라면 직접 chunking
+        chunked = []
+        for t in range(L):
+            # t 시점부터 t + n 시점까지의 정답 추출
+            if t + n <= arm_labels.shape[1]:
+                chunk_t = arm_labels[:, t : t + n] # (B, n, 2)
+            else:
+                # 패딩 처리
+                pad_size = (t + n) - arm_labels.shape[1]
+                chunk_t = arm_labels[:, t:]
+                padding = torch.zeros(bs, pad_size, 2).to(arm_labels.device)
+                chunk_t = torch.cat([chunk_t, padding], dim=1)
+            chunked.append(chunk_t)
+            
+        # (B, L, n, 2) 형태로 스택
+        new_arm_labels = torch.stack(chunked, dim=1).to(arm_labels.device)
+        
+        return pred_actions, (new_arm_labels, labels[1]), action_masks
+
     def loss(self, pred_action, labels, attention_mask=None):
         """
-        Mobile VLA용 Loss 계산
-        2D 속도 (linear_x, linear_y)만 처리 - 0.4초 동안의 이동 방향 속도 조정
-        
-        Args:
-            pred_action: (velocities, gripper) - gripper는 None
-            labels: (velocity_chunck, gripper_action_chunck) - gripper_action_chunck는 None
-            attention_mask: (B, seq_len, chunk_size)
-        
-        Returns:
-            dict: {"loss_velocity": ..., "loss_gripper": None, "acc_gripper": None}
+        Mobile VLA용 Loss 계산 (2D Regression)
         """
         if labels is None or labels[0] is None:
-            return {"loss_velocity": None, "loss_gripper": None, "acc_gripper": None}
+            return {"loss_arm_act": None, "loss_gripper": None, "acc_gripper": None}
 
         # pred_action는 (velocities, None) 형태
         if isinstance(pred_action, tuple) or isinstance(pred_action, list):
-            velocities = pred_action[0]  # (B, seq_len, chunk_size, 2) - [linear_x, linear_y]
+            velocities = pred_action[0]  # (B, seq_len, chunk_size, 2)
         else:
             velocities = pred_action
 
         # labels는 (velocity_chunck, None) 형태
-        velocity_labels = labels[0]  # (B, seq_len, chunk_size, 2) - [linear_x, linear_y]
+        velocity_labels = labels[0]  # (B, seq_len, chunk_size, 2)
 
-        # 2D 속도 Loss 계산 (Huber Loss) - 0.4초 동안의 이동 방향 속도 조정
+        # 2D 속도 Loss 계산 (Huber Loss)
         if attention_mask is None:
-            # Mask 없이 진행 (reduction="none"으로 개별 가중치 적용 후 평균)
             loss_velocity = torch.nn.functional.huber_loss(velocities, velocity_labels, reduction="none")
             
-            # [NEW] Weighting (C)
-            if self._action_weight_non_forward != 1.0:
-                is_forward = (velocity_labels[..., 0] > 1.0) & (torch.abs(velocity_labels[..., 1]) < 0.1)
+            # [Directional Awareness] Weighting
+            if hasattr(self, "_action_weight_non_forward") and self._action_weight_non_forward != 1.0:
+                # linear_x(0)가 크고 linear_y(1)가 작은 경우를 forward로 정의
+                is_forward = (velocity_labels[..., 0] > 0.5) & (torch.abs(velocity_labels[..., 1]) < 0.2)
                 weights = torch.ones_like(loss_velocity)
                 weights[~is_forward] = self._action_weight_non_forward
                 loss_velocity = loss_velocity * weights
@@ -185,18 +218,26 @@ class MobileVLALSTMDecoder(BasePolicyHead):
                 velocities, velocity_labels, reduction="none"
             )
             
-            # [NEW] Weighting (C)
-            if self._action_weight_non_forward != 1.0:
-                is_forward = (velocity_labels[..., 0] > 1.0) & (torch.abs(velocity_labels[..., 1]) < 0.1)
+            # [Directional Awareness] Weighting
+            if hasattr(self, "_action_weight_non_forward") and self._action_weight_non_forward != 1.0:
+                is_forward = (velocity_labels[..., 0] > 0.5) & (torch.abs(velocity_labels[..., 1]) < 0.2)
                 weights = torch.ones_like(loss_velocity)
                 weights[~is_forward] = self._action_weight_non_forward
                 loss_velocity = loss_velocity * weights
                 
+            # mask 차원 맞춤
             attention_mask = attention_mask.bool()
-            loss_velocity = loss_velocity[attention_mask].mean()
+            while attention_mask.dim() < loss_velocity.dim():
+                attention_mask = attention_mask.unsqueeze(-1)
+            
+            if attention_mask.any():
+                loss_velocity = loss_velocity[attention_mask.expand_as(loss_velocity)].mean()
+            else:
+                loss_velocity = loss_velocity.mean() * 0.0
 
         return {
-            "loss_arm": loss_velocity,
+            "loss_arm_act": loss_velocity,
+            "loss_velocity": loss_velocity,
             "loss_gripper": None,
             "acc_arm": None,
             "acc_gripper": None,
