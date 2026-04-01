@@ -1,0 +1,50 @@
+{
+    "_comment": "V4 Navigation Regression Model (Continuous Control). Using MobileVLALSTMDecoder for (v, w) output.",
+    "resume": "runs/v4_nav/kosmos/mobile_vla_v4_regression_v1/2026-03-26/v4-regression-v1/last.ckpt",
+    "parent": "configs/mobile_vla_v4_robust_instr.json",
+    "robovlm_name": "RoboKosMos",
+    "discrete_action": false,
+    "window_size": 8,
+    "fwd_pred_next_n": 5,
+    "exp_name": "v4-regression-v1",
+    "task_name": "mobile_vla_v4_regression_v1",
+    "model": "kosmos",
+    "batch_size": 2,
+    "num_workers": 4,
+    "learning_rate": 2e-05,
+    "max_epochs": 20,
+    "model_load_path": "runs/v4_nav/kosmos/mobile_vla_v4_regression_v1/2026-03-26/v4-regression-v1/last.ckpt",
+    "model_load_source": "lightning",
+    "act_head": {
+        "type": "MobileVLALSTMDecoder",
+        "action_dim": 2,
+        "down_sample": "pooling",
+        "latent": 1,
+        "action_space": "continuous",
+        "discrete_action": false
+    },
+    "train_dataset": {
+        "type": "NavDataset",
+        "data_dir": "/home/billy/25-1kp/MoNaVLA/ROS_action/mobile_vla_dataset_v3",
+        "episode_pattern": "episode_*.h5",
+        "discrete_action": false,
+        "window_size": 8,
+        "fwd_pred_next_n": 5,
+        "min_episode_frames": 10,
+        "instruction_preset": "action_aware_train",
+        "augment": true,
+        "train_split": 0.95
+    },
+    "val_dataset": {
+        "type": "NavDataset",
+        "data_dir": "/home/billy/25-1kp/MoNaVLA/ROS_action/mobile_vla_dataset_v3",
+        "episode_pattern": "episode_*.h5",
+        "discrete_action": false,
+        "window_size": 8,
+        "fwd_pred_next_n": 5,
+        "min_episode_frames": 10,
+        "instruction_preset": "action_aware_train",
+        "is_validation": true,
+        "train_split": 0.95
+    }
+}

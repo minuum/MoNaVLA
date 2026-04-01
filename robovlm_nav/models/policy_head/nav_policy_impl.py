@@ -53,6 +53,8 @@ class MobileVLALSTMDecoder(BasePolicyHead):
         self.velocities = MLPTanhHead(
             self.hidden_size * latent, fwd_pred_next_n * action_dim
         )
+        # [NEW] Weighting for Non-Forward Actions (C)
+        self._action_weight_non_forward = kwargs.get("action_weight_non_forward", 1.0)
         
         self.hidden_state = None
         if self.down_sample == "pooling":
@@ -167,18 +169,37 @@ class MobileVLALSTMDecoder(BasePolicyHead):
 
         # 2D 속도 Loss 계산 (Huber Loss) - 0.4초 동안의 이동 방향 속도 조정
         if attention_mask is None:
-            loss_velocity = torch.nn.functional.huber_loss(velocities, velocity_labels)
+            # Mask 없이 진행 (reduction="none"으로 개별 가중치 적용 후 평균)
+            loss_velocity = torch.nn.functional.huber_loss(velocities, velocity_labels, reduction="none")
+            
+            # [NEW] Weighting (C)
+            if self._action_weight_non_forward != 1.0:
+                is_forward = (velocity_labels[..., 0] > 1.0) & (torch.abs(velocity_labels[..., 1]) < 0.1)
+                weights = torch.ones_like(loss_velocity)
+                weights[~is_forward] = self._action_weight_non_forward
+                loss_velocity = loss_velocity * weights
+            
+            loss_velocity = loss_velocity.mean()
         else:
             loss_velocity = torch.nn.functional.huber_loss(
                 velocities, velocity_labels, reduction="none"
             )
+            
+            # [NEW] Weighting (C)
+            if self._action_weight_non_forward != 1.0:
+                is_forward = (velocity_labels[..., 0] > 1.0) & (torch.abs(velocity_labels[..., 1]) < 0.1)
+                weights = torch.ones_like(loss_velocity)
+                weights[~is_forward] = self._action_weight_non_forward
+                loss_velocity = loss_velocity * weights
+                
             attention_mask = attention_mask.bool()
             loss_velocity = loss_velocity[attention_mask].mean()
 
         return {
-            "loss_velocity": loss_velocity,  # loss_arm -> loss_velocity
-            "loss_gripper": None,  # Mobile VLA는 gripper 없음
-            "acc_gripper": None,  # Mobile VLA는 gripper 없음
+            "loss_arm": loss_velocity,
+            "loss_gripper": None,
+            "acc_arm": None,
+            "acc_gripper": None,
         }
 
 
@@ -354,9 +375,10 @@ class MobileVLAClassificationDecoder(BasePolicyHead):
                 flat_labels = flat_labels[flat_mask]
 
         if flat_labels.size(0) == 0:
+            # logits에 0을 곱해 더함으로써 grad_fn을 유지하고 값은 0이 되도록 함
             return {
-                "loss_arm_act": torch.tensor(0.0, device=logits.device, requires_grad=True),
-                "loss_velocity": torch.tensor(0.0, device=logits.device, requires_grad=True),
+                "loss_arm_act": logits.sum() * 0.0,
+                "loss_velocity": logits.sum() * 0.0,
                 "acc_arm_act": 0.0,
                 "acc_velocity": 0.0,
             }

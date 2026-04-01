@@ -64,9 +64,7 @@ setattr(robovlms.train, "BaseTrainer", NavTrainer)
 
 # main 모듈의 BaseTrainer 교체
 import main
-print(f"DEBUG: main.BaseTrainer before patch: {main.BaseTrainer}", flush=True)
 main.BaseTrainer = NavTrainer
-print(f"DEBUG: main.BaseTrainer after patch: {main.BaseTrainer}", flush=True)
 
 if __name__ == "__main__":
     # third_party/RoboVLMs/main.py의 함수들을 직접 import해서 사용.

@@ -1,0 +1,49 @@
+{
+    "_comment": "V4 Regression v2: Weighted Loss (5x) for Non-Forward + Image Augmentation (Jitter/Crop) - Fix Dimensionality for V1 weights",
+    "parent": "configs/mobile_vla_v4_regression_v1.json",
+    "robovlm_name": "RoboKosMos",
+    "discrete_action": false,
+    "window_size": 8,
+    "fwd_pred_next_n": 5,
+    "exp_name": "v4-regression-v2-weighted-v2",
+    "task_name": "mobile_vla_v4_regression_v2",
+    "model": "kosmos",
+    "batch_size": 2,
+    "num_workers": 4,
+    "learning_rate": 1e-05,
+    "max_epochs": 15,
+    "model_load_path": "/home/billy/25-1kp/MoNaVLA/runs/v4_nav/kosmos/mobile_vla_v4_regression_v1/2026-03-26/v4-regression-v1/epoch_epoch=epoch=02-val_loss=val_loss=0.066.ckpt",
+    "model_load_source": "lightning",
+    "resume": null,
+    "act_head": {
+        "type": "MobileVLALSTMDecoder",
+        "action_dim": 2,
+        "action_space": "continuous",
+        "discrete_action": false,
+        "action_weight_non_forward": 5.0
+    },
+    "train_dataset": {
+        "type": "NavDataset",
+        "data_dir": "/home/billy/25-1kp/MoNaVLA/ROS_action/mobile_vla_dataset_v3",
+        "episode_pattern": "episode_*.h5",
+        "discrete_action": false,
+        "window_size": 8,
+        "fwd_pred_next_n": 5,
+        "instruction_preset": "action_aware_train",
+        "augment": true,
+        "use_color_jitter": true,
+        "use_random_crop": true,
+        "train_split": 0.95
+    },
+    "val_dataset": {
+        "type": "NavDataset",
+        "data_dir": "/home/billy/25-1kp/MoNaVLA/ROS_action/mobile_vla_dataset_v3",
+        "episode_pattern": "episode_*.h5",
+        "discrete_action": false,
+        "window_size": 8,
+        "fwd_pred_next_n": 5,
+        "instruction_preset": "action_aware_train",
+        "is_validation": true,
+        "train_split": 0.95
+    }
+}

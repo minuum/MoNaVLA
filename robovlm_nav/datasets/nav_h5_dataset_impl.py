@@ -27,6 +27,8 @@ class MobileVLAH5Dataset(Dataset):
         augment=False,
         use_color_jitter=False,
         use_random_crop=False,
+        curvature_only=False,
+        counterfactual_stop_prob=0.0,
         **kwargs
     ):
         self.data_dir = Path(data_dir)
@@ -41,6 +43,10 @@ class MobileVLAH5Dataset(Dataset):
         self.augment = augment
         self.use_color_jitter = use_color_jitter
         self.use_random_crop = use_random_crop
+        self.curvature_only = curvature_only
+        # [Counterfactual Stop] 학습 중 이 확률로 Stop 명령 + zero action으로 오버라이드
+        # is_validation 설정 전에 저장 (나중에 val에서는 비활성화)
+        self._counterfactual_stop_prob = counterfactual_stop_prob
         self.tokenizer = kwargs.get('tokenizer', None)
         
         # [NEW] Handle is_training from GRDataModule/third_party
@@ -72,14 +78,33 @@ class MobileVLAH5Dataset(Dataset):
 
         # Precompute frame indices for __len__ and __getitem__
         self.frame_indices = []
+        filtered_files = []
         for ep_idx, f in enumerate(self.episode_files):
             with h5py.File(f, 'r') as hf:
                 num_frames = len(hf['images'])
+                
+                # [Option B] Curvature Only Filtering
+                if self.curvature_only:
+                    actions = hf['actions'][:]
+                    # If all actions are straight (x > 0.3, abs(y) < 0.3), skip this episode
+                    is_straight_only = True
+                    for a in actions:
+                        ax, ay = a[0], a[1]
+                        # Not straight if: turning (abs(ay) > 0.3) OR stopping/backward (ax < 0.3)
+                        if abs(ay) > 0.3 or ax < 0.3:
+                            is_straight_only = False
+                            break
+                    if is_straight_only:
+                        continue
+                
+                filtered_files.append(f)
                 # We need at least window_size frames AND space for fwd_pred_next_n
                 # Max valid start frame is num_frames - fwd_pred_next_n - 1
                 for start_f in range(0, num_frames - self.window_size - self.fwd_pred_next_n + 1):
-                    self.frame_indices.append((ep_idx, start_f))
-
+                    # Local index relative to filtered_files list
+                    self.frame_indices.append((len(filtered_files) - 1, start_f))
+        
+        self.episode_files = filtered_files
         print(f"{'Validation' if self.is_validation else 'Training'} dataset initialized with {len(self.episode_files)} episodes and {len(self.frame_indices)} valid sequences.")
 
         # Transforms
@@ -256,14 +281,38 @@ class MobileVLAH5Dataset(Dataset):
             actions = np.array(actions)
             # -------------------------------------------------------------------------
             
-            use_action_aware_train = (self.instruction_preset == "action_aware_train")
-            if use_action_aware_train:
-                language_base = self._get_action_aware_instruction(actions)
-            elif 'language_instruction' in f:
-                raw = f['language_instruction'][0]
-                language_base = raw.decode('utf-8') if isinstance(raw, bytes) else str(raw)
+            # [Counterfactual Stop] 학습 중 지정된 확률로 Stop 명령 + zero action 주입
+            # 목적: 모델이 텍스트를 무시하면 틀리는 상황을 강제 생성 → Text Sensitivity 학습
+            # Validation에서는 절대 적용하지 않음
+            _apply_counterfactual_stop = (
+                not self.is_validation
+                and self._counterfactual_stop_prob > 0.0
+                and random.random() < self._counterfactual_stop_prob
+            )
+            
+            if _apply_counterfactual_stop:
+                # Stop 명령어 변형
+                stop_variations = [
+                    "Stop in front of the gray basket",
+                    "Halt immediately",
+                    "Freeze and stay still",
+                    "Do not move",
+                    "바구니 앞에서 멈춰",
+                    "정지해",
+                    "움직이지 마",
+                ]
+                language_base = f"<grounding>An image of a robot {random.choice(stop_variations)}"
+                # 액션을 모두 0으로 오버라이드 (정지 = 속도 0)
+                actions = np.zeros_like(actions)
             else:
-                language_base = "Navigate to the gray basket"
+                use_action_aware_train = (self.instruction_preset == "action_aware_train")
+                if use_action_aware_train:
+                    language_base = self._get_action_aware_instruction(actions)
+                elif 'language_instruction' in f:
+                    raw = f['language_instruction'][0]
+                    language_base = raw.decode('utf-8') if isinstance(raw, bytes) else str(raw)
+                else:
+                    language_base = "Navigate to the gray basket"
 
             # -------------------------------------------------------------------------
             # [LFS Update] Augmentation - Image Flip (좌우 반전)
@@ -338,20 +387,44 @@ class MobileVLAH5Dataset(Dataset):
                 cls_labels = [mapping.get(int(l), 0) for l in cls_labels]
             
             actions_tensor = torch.tensor(cls_labels, dtype=torch.long)
+            action_chunck = actions_tensor  # For compatibility
         else:
-            actions_tensor = torch.from_numpy(np.array(actions)).float()
-            actions_tensor = torch.clamp(actions_tensor, -1.0, 1.0)
+            # Continuous action: Predict next N actions for each frame in window
+            # actions shape: (window_size + next_n - 1, 2 or 6 or higher)
+            actions_tensor_full = torch.from_numpy(np.array(actions)).float()
+            
+            # [CRITICAL] Slice to 2D [linear_x, angular_z] for navigation
+            if actions_tensor_full.shape[-1] > 2:
+                actions_tensor_full = actions_tensor_full[..., :2]
+                
+            actions_tensor_full = torch.clamp(actions_tensor_full, -1.0, 1.0)
+            
+            # chunk_size is fwd_pred_next_n
+            # Create action_chunck (B, seq_len, chunk_size, 2)
+            action_chunks = []
+            for t in range(self.window_size):
+                chunk = actions_tensor_full[t : t + self.fwd_pred_next_n]
+                if len(chunk) < self.fwd_pred_next_n:
+                    pad_len = self.fwd_pred_next_n - len(chunk)
+                    last_val = chunk[-1] if len(chunk) > 0 else torch.zeros(2)
+                    chunk = torch.cat([chunk, last_val.repeat(pad_len, 1)], dim=0)
+                action_chunks.extend(chunk)
+            
+            # Reshape into (seq_len, chunk_size, 2)
+            action_chunck = torch.stack(action_chunks).reshape(self.window_size, self.fwd_pred_next_n, 2)
+            actions_tensor = actions_tensor_full[:self.window_size] # (window_size, 2)
         
         data_dict = {
             'rgb': images_tensor,
             'hand_rgb': torch.zeros_like(images_tensor),
             'action': actions_tensor,
-            'action_mask': torch.ones(total_frames_needed),
-            'image_mask': torch.ones(total_frames_needed),
+            'action_chunck': action_chunck,
+            'image_mask': torch.ones(self.window_size),
+            'chunck_mask': torch.ones(self.window_size, self.fwd_pred_next_n),
             'lang': language_base,
             'raw_text': language_base,
             'data_source': 'mobile_vla_action',
-            'attention_mask': torch.ones(total_frames_needed),
+            'attention_mask': torch.ones(self.window_size),
         }
 
         # [CRITICAL] Tokenize the instruction

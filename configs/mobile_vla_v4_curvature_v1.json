@@ -1,0 +1,23 @@
+{
+    "_comment": "V4-Curvature v1: Training ONLY on non-forward episodes to break forward bias.",
+    "robovlm_name": "RoboKosMos",
+    "discrete_action": true,
+    "window_size": 8,
+    "fwd_pred_next_n": 5,
+    "exp_name": "v4-curvature-v1",
+    "parent": "configs/mobile_vla_v4_balanced_v2.json",
+    "task_name": "mobile_vla_v4_curvature_v1",
+    "model": "kosmos",
+    "batch_size": 2,
+    "num_workers": 4,
+    "learning_rate": 1e-05,
+    "max_epochs": 20,
+    "model_load_path": "/home/billy/25-1kp/MoNaVLA/runs/v4_nav/kosmos/mobile_vla_v4_balanced_v2/2026-03-25/v4-balanced-v2/epoch_epoch=epoch=04-val_loss=val_loss=3.182.ckpt",
+    "model_load_source": "lightning",
+    "act_head": {
+        "type": "MobileVLAClassificationDecoder",
+        "num_classes": 6,
+        "class_weights": [2.0, 0.0, 20.0, 30.0, 10.0, 10.0],
+        "curvature_only": true
+    }
+}

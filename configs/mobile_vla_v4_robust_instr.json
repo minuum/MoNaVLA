@@ -14,13 +14,13 @@
     "max_epochs": 15,
     "model_load_path": "pretrained_ckpts/checkpoints/kosmos_ph_google-robot-post-train_new.pt",
     "model_load_source": "lightning",
-    "model_path": "/home/billy/25-1kp/MoNaVLA/.vlms/kosmos-2-patch14-224",
-    "model_config": "/home/billy/25-1kp/MoNaVLA/.vlms/kosmos-2-patch14-224/config.json",
+    "model_path": "microsoft/kosmos-2-patch14-224",
+    "model_config": "microsoft/kosmos-2-patch14-224",
     "tokenizer": {
-        "pretrained_model_name_or_path": "/home/billy/25-1kp/MoNaVLA/.vlms/kosmos-2-patch14-224"
+        "pretrained_model_name_or_path": "microsoft/kosmos-2-patch14-224"
     },
     "vlm": {
-        "pretrained_model_name_or_path": "/home/billy/25-1kp/MoNaVLA/.vlms/kosmos-2-patch14-224"
+        "pretrained_model_name_or_path": "microsoft/kosmos-2-patch14-224"
     },
     "train_setup": {
         "precision": "16-mixed",

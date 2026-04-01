@@ -18,5 +18,13 @@
         "type": "MobileVLAClassificationDecoder",
         "num_classes": 6,
         "class_weights": [3.0, 1.0, 10.0, 15.0, 5.0, 5.0]
+    },
+    "model_path": "microsoft/kosmos-2-patch14-224",
+    "model_config": "microsoft/kosmos-2-patch14-224",
+    "tokenizer": {
+        "pretrained_model_name_or_path": "microsoft/kosmos-2-patch14-224"
+    },
+    "vlm": {
+        "pretrained_model_name_or_path": "microsoft/kosmos-2-patch14-224"
     }
 }
