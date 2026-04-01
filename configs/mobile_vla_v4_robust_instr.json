@@ -5,9 +5,11 @@
     "window_size": 8,
     "fwd_pred_next_n": 5,
     "exp_name": "v4-robust-instr",
-    "parent": "configs/mobile_vla_v4_hybrid_final.json",
+    "parent": "configs/mobile_vla_pretrained.json",
     "task_name": "mobile_vla_v4_robust_instr",
     "model": "kosmos",
+    "cache_root": "runs/cache",
+    "seed": 42,
     "batch_size": 2,
     "num_workers": 4,
     "learning_rate": 5e-06,
@@ -69,8 +71,14 @@
         "train_split": 0.95
     },
     "trainer": {
+        "num_nodes": 1,
+        "devices": 1,
+        "accelerator": "gpu",
+        "precision": "16-mixed",
+        "logger": ["tensorboard", "csv"],
         "limit_val_batches": 1.0,
         "check_val_every_n_epoch": 1,
+        "log_every_n_steps": 10,
         "early_stopping": true,
         "patience": 5,
         "monitor": "val_loss"

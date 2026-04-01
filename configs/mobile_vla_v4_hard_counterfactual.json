@@ -5,7 +5,7 @@
     "task_name": "mobile_vla_v4_hard",
     "max_epochs": 10,
     "learning_rate": 2e-5,
-    "model_load_path": "/home/billy/25-1kp/MoNaVLA/runs/v4_nav/kosmos/mobile_vla_v4_regression_v2/2026-03-26/v4-regression-v2-weighted-v2/epoch_epoch=epoch=02-val_loss=val_loss=0.259.ckpt",
+    "model_load_path": "/home/billy/25-1kp/MoNaVLA/runs/v4_nav/kosmos/mobile_vla_v4_regression_v2/2026-03-26/v4-regression-v2-weighted-v2/last.ckpt",
     "model_load_source": "lightning",
     "act_head": {
         "action_weight_non_forward": 10.0

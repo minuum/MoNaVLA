@@ -1,0 +1,22 @@
+{
+    "_comment": "V4 Steer Sensitivity: Stop(30%) + Steer(30%) 주입 + 가중치 15x → 조향 명령어 반응성 확보 목적",
+    "parent": "configs/mobile_vla_v4_hard_counterfactual.json",
+    "exp_name": "v4-steer-sensitivity-v1",
+    "task_name": "mobile_vla_v4_steer",
+    "max_epochs": 10,
+    "learning_rate": 2e-5,
+    "resume": "/home/billy/25-1kp/MoNaVLA/runs/v4_nav/kosmos/mobile_vla_v4_steer/2026-03-31/v4-steer-sensitivity-v1/epoch_epoch=epoch=03-val_loss=val_loss=0.377.ckpt",
+    "model_load_path": "/home/billy/25-1kp/MoNaVLA/runs/v4_nav/kosmos/mobile_vla_v4_hard/2026-03-31/v4-hard-counterfactual-v1/epoch_epoch=epoch=05-val_loss=val_loss=0.981.ckpt",
+    "model_load_source": "lightning",
+    "act_head": {
+        "action_weight_non_forward": 15.0
+    },
+    "train_dataset": {
+        "counterfactual_stop_prob": 0.3,
+        "counterfactual_steer_prob": 0.3
+    },
+    "val_dataset": {
+        "counterfactual_stop_prob": 0.0,
+        "counterfactual_steer_prob": 0.0
+    }
+}

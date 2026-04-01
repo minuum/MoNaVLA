@@ -29,6 +29,7 @@ class MobileVLAH5Dataset(Dataset):
         use_random_crop=False,
         curvature_only=False,
         counterfactual_stop_prob=0.0,
+        counterfactual_steer_prob=0.0,
         **kwargs
     ):
         self.data_dir = Path(data_dir)
@@ -44,9 +45,9 @@ class MobileVLAH5Dataset(Dataset):
         self.use_color_jitter = use_color_jitter
         self.use_random_crop = use_random_crop
         self.curvature_only = curvature_only
-        # [Counterfactual Stop] 학습 중 이 확률로 Stop 명령 + zero action으로 오버라이드
-        # is_validation 설정 전에 저장 (나중에 val에서는 비활성화)
+        # [Counterfactual] 학습 중 이 확률로 명령어 + 대응 액션으로 오버라이드
         self._counterfactual_stop_prob = counterfactual_stop_prob
+        self._counterfactual_steer_prob = counterfactual_steer_prob
         self.tokenizer = kwargs.get('tokenizer', None)
         
         # [NEW] Handle is_training from GRDataModule/third_party
@@ -85,6 +86,9 @@ class MobileVLAH5Dataset(Dataset):
                 
                 # [Option B] Curvature Only Filtering
                 if self.curvature_only:
+                    if 'actions' not in hf:
+                        print(f"⚠️ [NavH5Dataset] Skipping {f.name}: 'actions' key not found.")
+                        continue
                     actions = hf['actions'][:]
                     # If all actions are straight (x > 0.3, abs(y) < 0.3), skip this episode
                     is_straight_only = True
@@ -281,29 +285,43 @@ class MobileVLAH5Dataset(Dataset):
             actions = np.array(actions)
             # -------------------------------------------------------------------------
             
-            # [Counterfactual Stop] 학습 중 지정된 확률로 Stop 명령 + zero action 주입
-            # 목적: 모델이 텍스트를 무시하면 틀리는 상황을 강제 생성 → Text Sensitivity 학습
-            # Validation에서는 절대 적용하지 않음
+            # -------------------------------------------------------------------------
+            # [Counterfactual Injection] 학습 중 명령어 감수성(Sensitivity) 강화를 위해 액션 오버라이드
+            # -------------------------------------------------------------------------
             _apply_counterfactual_stop = (
                 not self.is_validation
                 and self._counterfactual_stop_prob > 0.0
                 and random.random() < self._counterfactual_stop_prob
             )
             
+            _apply_counterfactual_steer = (
+                not self.is_validation
+                and self._counterfactual_steer_prob > 0.0
+                and random.random() < self._counterfactual_steer_prob
+            )
+            
             if _apply_counterfactual_stop:
-                # Stop 명령어 변형
                 stop_variations = [
-                    "Stop in front of the gray basket",
-                    "Halt immediately",
-                    "Freeze and stay still",
-                    "Do not move",
-                    "바구니 앞에서 멈춰",
-                    "정지해",
-                    "움직이지 마",
+                    "Stop in front of the gray basket", "Halt immediately",
+                    "Freeze and stay still", "Do not move", "정지해", "움직이지 마"
                 ]
                 language_base = f"<grounding>An image of a robot {random.choice(stop_variations)}"
-                # 액션을 모두 0으로 오버라이드 (정지 = 속도 0)
                 actions = np.zeros_like(actions)
+                
+            elif _apply_counterfactual_steer:
+                # 50:50 확률로 좌/우 주입
+                is_left = random.random() < 0.5
+                if is_left:
+                    steer_vars = ["Turn left", "Steer to the left", "왼쪽으로 가", "좌측으로 회전해"]
+                    language_base = f"<grounding>An image of a robot {random.choice(steer_vars)}"
+                    # [Linear, Angular] -> [0.0, 0.6] 강한 좌회전
+                    actions = np.tile(np.array([0.0, 0.6]), (actions.shape[0], 1))
+                else:
+                    steer_vars = ["Turn right", "Steer to the right", "오른쪽으로 가", "우측으로 회전해"]
+                    language_base = f"<grounding>An image of a robot {random.choice(steer_vars)}"
+                    # [Linear, Angular] -> [0.0, -0.6] 강한 우회전
+                    actions = np.tile(np.array([0.0, -0.6]), (actions.shape[0], 1))
+                    
             else:
                 use_action_aware_train = (self.instruction_preset == "action_aware_train")
                 if use_action_aware_train:
@@ -386,8 +404,23 @@ class MobileVLAH5Dataset(Dataset):
                 mapping = {0: 0, 1: 1, 3: 2, 4: 3, 5: 4, 6: 5}
                 cls_labels = [mapping.get(int(l), 0) for l in cls_labels]
             
-            actions_tensor = torch.tensor(cls_labels, dtype=torch.long)
-            action_chunck = actions_tensor  # For compatibility
+            actions_tensor_full = torch.tensor(cls_labels, dtype=torch.long)
+            
+            # Create action_chunck (seq_len, chunk_size) for discrete
+            action_chunks = []
+            for t in range(self.window_size):
+                chunk = actions_tensor_full[t : t + self.fwd_pred_next_n]
+                if len(chunk) < self.fwd_pred_next_n:
+                    pad_len = self.fwd_pred_next_n - len(chunk)
+                    last_val = chunk[-1] if len(chunk) > 0 else torch.tensor(0, dtype=torch.long)
+                    # use repeat to pad
+                    padding = last_val.unsqueeze(0).repeat(pad_len)
+                    chunk = torch.cat([chunk, padding], dim=0)
+                action_chunks.extend(chunk)
+            
+            # Reshape into (seq_len, chunk_size)
+            action_chunck = torch.stack(action_chunks).reshape(self.window_size, self.fwd_pred_next_n)
+            actions_tensor = actions_tensor_full[:self.window_size] # (window_size,)
         else:
             # Continuous action: Predict next N actions for each frame in window
             # actions shape: (window_size + next_n - 1, 2 or 6 or higher)

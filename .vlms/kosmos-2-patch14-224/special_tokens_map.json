@@ -1,11 +1,4 @@
 {
-  "additional_special_tokens": [
-    "<s>",
-    "<pad>",
-    "</s>",
-    "<unk>",
-    "<mask>"
-  ],
   "bos_token": {
     "content": "<s>",
     "lstrip": false,

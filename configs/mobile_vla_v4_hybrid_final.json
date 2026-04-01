@@ -1,76 +1,27 @@
 {
-    "robovlm_name": "RoboKosMos",
-    "discrete_action": true,
-    "window_size": 8,
-    "fwd_pred_next_n": 5,
-    "exp_name": "v4-hybrid-final",
+    "_comment": "[PROJECT 25-1KP] Hybrid Final: Curriculum learning using curved+stop models, mixed with full data to prevent forgetting",
     "parent": "configs/mobile_vla_v4_exp01.json",
-    "task_name": "mobile_vla_v4_hybrid",
+    "exp_name": "v4-hybrid-final-v1",
     "model": "kosmos",
-    "batch_size": 1,
-    "num_workers": 4,
-    "learning_rate": 5e-06,
-    "max_epochs": 12,
-    "model_load_path": "/home/billy/25-1kp/MoNaVLA/runs/v4_nav/kosmos/mobile_vla_v4_exp01/2026-03-20/v4-retrain-v4-resume-20260318/last.ckpt",
-    "model_load_source": "lightning",
-    "model_path": "/home/billy/25-1kp/MoNaVLA/.vlms/kosmos-2-patch14-224",
-    "model_config": "/home/billy/25-1kp/MoNaVLA/.vlms/kosmos-2-patch14-224/config.json",
-    "tokenizer": {
-        "pretrained_model_name_or_path": "/home/billy/25-1kp/MoNaVLA/.vlms/kosmos-2-patch14-224"
-    },
+    "model_path": "microsoft/kosmos-2-patch14-224",
+    "task_name": "mobile_vla_v4_hybrid_eval",
     "vlm": {
-        "pretrained_model_name_or_path": "/home/billy/25-1kp/MoNaVLA/.vlms/kosmos-2-patch14-224"
+        "pretrained_model_name_or_path": "microsoft/kosmos-2-patch14-224"
     },
-    "train_setup": {
-        "precision": "16-mixed",
-        "predict_action": true,
-        "train_vision": false,
-        "freeze_backbone": true,
-        "tune_mm_projector": true,
-        "lora_enable": true,
-        "lora_r": 32,
-        "lora_alpha": 64,
-        "gradient_checkpointing": true
+    "tokenizer": {
+        "pretrained_model_name_or_path": "microsoft/kosmos-2-patch14-224"
     },
-    "act_head": {
-        "type": "MobileVLAClassificationDecoder",
-        "num_classes": 9,
-        "action_space": "continuous",
-        "discrete_action": true,
-        "fwd_pred_next_n": 5,
-        "window_size": 8
-    },
+    "model_load_path": "/home/billy/25-1kp/MoNaVLA/runs/v4_nav/kosmos/mobile_vla_v4_curved_eval/2026-03-27/v4-curved-only-stop50-v1/last.ckpt",
+    "learning_rate": 8e-6,
     "train_dataset": {
-        "type": "NavDataset",
-        "data_dir": "/home/billy/25-1kp/MoNaVLA/ROS_action/mobile_vla_dataset_v3",
-        "episode_pattern": "episode_*.h5",
-        "discrete_action": true,
-        "window_size": 8,
-        "fwd_pred_next_n": 5,
-        "min_episode_frames": 10,
-        "instruction_preset": "action_driven",
-        "augment": true,
+        "curvature_only": false,
+        "counterfactual_stop_prob": 0.5,
+        "action_weight_non_forward": 1.5,
         "train_split": 0.95
     },
     "val_dataset": {
-        "type": "NavDataset",
-        "data_dir": "/home/billy/25-1kp/MoNaVLA/ROS_action/mobile_vla_dataset_v3",
-        "episode_pattern": "episode_*.h5",
-        "discrete_action": true,
-        "window_size": 8,
-        "fwd_pred_next_n": 5,
-        "min_episode_frames": 10,
-        "instruction_preset": "action_driven",
-        "is_validation": true,
+        "curvature_only": false,
+        "counterfactual_stop_prob": 0.0,
         "train_split": 0.95
-    },
-    "trainer": {
-        "limit_val_batches": 0.05,
-        "check_val_every_n_epoch": 1,
-        "early_stopping": true,
-        "patience": 5,
-        "monitor": "val_loss"
-    },
-    "output_root": "runs/v4_nav",
-    "log_root": "runs/v4_nav"
+    }
 }

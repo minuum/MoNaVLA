@@ -1,0 +1,20 @@
+{
+    "_comment": "[PROJECT 25-1KP] Curved Only + High Stop Prob (50%): 직진 편향 원천 제거 및 텍스트 민감도 극대화",
+    "parent": "configs/mobile_vla_v4_counterfactual_stop.json",
+    "exp_name": "v4-curved-only-stop50-v1",
+    "task_name": "mobile_vla_v4_curved_eval",
+    "max_epochs": 15,
+    "learning_rate": 8e-6,
+    "model_load_path": "/home/billy/25-1kp/MoNaVLA/runs/v4_nav/kosmos/mobile_vla_v4_counterfactual/2026-03-27/v4-counterfactual-stop-v1/epoch_epoch=epoch=03-val_loss=val_loss=0.270.ckpt",
+    "train_dataset": {
+        "curvature_only": true,
+        "counterfactual_stop_prob": 0.5,
+        "action_weight_non_forward": 2.5,
+        "train_split": 0.9
+    },
+    "val_dataset": {
+        "curvature_only": false,
+        "counterfactual_stop_prob": 0.0,
+        "train_split": 0.9
+    }
+}
