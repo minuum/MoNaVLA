@@ -72,6 +72,10 @@ def correct_image(img_pil):
     return Image.fromarray(img_final)
 
 # --- Matplotlib Optimization ---
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import io
 import warnings
 warnings.filterwarnings("ignore", message="Unable to import Axes3D")
 
@@ -254,6 +258,49 @@ class ROSDashboardNode(Node):
             except: pass
         return None
 
+    def generate_trajectory_plot(self, full_chunk, model_name="VLA"):
+        """Generate 2D Matplotlib plot for the given chunk"""
+        if full_chunk is None or len(full_chunk) == 0:
+            return None
+        
+        # Trajectory Integration
+        DT = 0.2
+        traj_x = [0]
+        traj_y = [0]
+        curr_x, curr_y = 0, 0
+        
+        for step in full_chunk:
+            vx, vy = float(step[0]), float(step[1])
+            curr_x += vx * DT
+            curr_y += vy * DT
+            traj_x.append(curr_x)
+            traj_y.append(curr_y)
+            
+        fig, ax = plt.subplots(figsize=(5, 5))
+        # Start point
+        ax.plot(0, 0, 'ko', markersize=8, label='Start')
+        # Orientation arrow (x-axis)
+        ax.arrow(0, 0, 0.2, 0, head_width=0.05, head_length=0.05, fc='k', ec='k')
+        
+        # Trajectory line
+        ax.plot(traj_x, traj_y, 'b-', linewidth=3, alpha=0.8, label=f'{model_name}')
+        ax.plot(traj_x[-1], traj_y[-1], 'b*', markersize=10) # End point
+        
+        ax.set_title("Predicted Trajectory (2D XY)")
+        ax.set_xlabel("Forward (X) [m]")
+        ax.set_ylabel("Left/Right (Y) [m]")
+        ax.grid(True, linestyle='--', alpha=0.6)
+        ax.set_aspect('equal')
+        
+        # Auto-scale with some margin
+        all_points = np.column_stack((traj_x, traj_y))
+        mins = np.min(all_points, axis=0) - 0.5
+        maxs = np.max(all_points, axis=0) + 0.5
+        ax.set_xlim(min(mins[0], -0.5), max(maxs[0], 2.0))
+        ax.set_ylim(min(mins[1], -1.0), max(maxs[1], 1.0))
+        
+        return fig
+
 ros_node = None
 if ROS_AVAILABLE:
     if not rclpy.ok(): rclpy.init()
@@ -343,12 +390,17 @@ def update_ui(mode, instr, apply_cc, is_running_ui):
                 res = run_api_inference(img, instr, use_local=True)
                 log_inf, lat_str, act_str, chunk_str, raw_act, raw_lat, raw_chunk = res
                 
+                # [VISUALIZATION] Generate Trajectory Plot
+                fig = None
+                if ROS_AVAILABLE and ros_node:
+                    fig = ros_node.generate_trajectory_plot(raw_chunk)
+
                 # [LOGGING] Unified step logging
                 if logger_instance: 
                     logger_instance.log_step(current_step, raw_act, raw_lat, raw_chunk, image=img)
                 
                 log = f"{current_step}/18 | {log_inf}"
-                return img, log, lat_str, act_str, chunk_str, gr.update(value=f"Running ({current_step}/18)"), state["camera_status"], state["model_path"]
+                return img, log, lat_str, act_str, chunk_str, gr.update(value=f"Running ({current_step}/18)"), state["camera_status"], state["model_path"], fig
                 
             # Step > 18: Finish
             else:
@@ -362,13 +414,13 @@ def update_ui(mode, instr, apply_cc, is_running_ui):
                     
                 if ROS_AVAILABLE and ros_node:
                      ros_node.control.robust_stop(source="inference_done")
-                return img, completion_msg, "0 ms", "STOP", "N/A", gr.update(value="Stopped (Finished)"), state["camera_status"], state["model_path"]
+                return img, completion_msg, "0 ms", "STOP", "N/A", gr.update(value="Stopped (Finished)"), state["camera_status"], state["model_path"], None
 
         finally:
             state["is_busy"] = False # UNLOCK
             
     # Not running or Manual Mode
-    return img, f"📡 Live | {state['current_log']}", "N/A", "N/A", "N/A", gr.update(), state["camera_status"], state["model_path"]
+    return img, f"📡 Live | {state['current_log']}", "N/A", "N/A", "N/A", gr.update(), state["camera_status"], state["model_path"], None
 
 
 def run_api_inference(image, instruction, use_local):
@@ -510,6 +562,10 @@ with gr.Blocks(title="VLA PRO Dashboard") as demo:
             latency_val = gr.Textbox(label="Latency", value="0 ms")
             action_val = gr.Textbox(label="Predicted Action [v, w]", value="0, 0")
             chunk_val = gr.Textbox(label="Action Chunk Preview", value="N/A", lines=2)
+            
+            # --- Trajectory Visualization ---
+            traj_plot = gr.Plot(label="Predicted Trajectory (XY)")
+            
             btn_reset = gr.Button("🔄 Reset Model History")
             
             gr.Markdown("---")
@@ -534,7 +590,7 @@ with gr.Blocks(title="VLA PRO Dashboard") as demo:
     timer.tick(
         fn=update_ui,
         inputs=[mode_radio, instr_box, toggle_cc, run_status_box],
-        outputs=[camera_output, status_log, latency_val, action_val, chunk_val, run_status_box, camera_status, model_path]
+        outputs=[camera_output, status_log, latency_val, action_val, chunk_val, run_status_box, camera_status, model_path, traj_plot]
     )
 
 
