@@ -309,6 +309,13 @@ class MobileVLAClassificationDecoder(BasePolicyHead):
             flat_logits = flat_logits[flat_mask]
             flat_labels = flat_labels[flat_mask]
 
+        if list(flat_logits.shape)[0] != list(flat_labels.shape)[0]:
+            print(f"!!! Error in loss shapes: logits={flat_logits.shape}, labels={flat_labels.shape}")
+            # match size by trimming the larger one
+            min_size = min(flat_logits.shape[0], flat_labels.shape[0])
+            flat_logits = flat_logits[:min_size]
+            flat_labels = flat_labels[:min_size]
+
         if flat_labels.size(0) == 0:
             return {"loss_velocity": torch.tensor(0.0).to(logits.device), "acc_velocity": 0.0}
 

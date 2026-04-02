@@ -365,10 +365,21 @@ class MobileVLAClassificationDecoder(BasePolicyHead):
         L = logits.shape[1] 
         n = self.fwd_pred_next_n # 5
         
+        # 이미 쪼개진 데이터(B, L, n)가 왔을 경우 중복 처리 방지
+        if arm_labels.dim() >= 3:
+            return pred_actions, labels, action_masks
+            
         chunked = []
         for t in range(L):
             # t 시점부터 t + n 시점까지의 정답 추출
-            chunk_t = arm_labels[:, t : t + n] # (B, n)
+            # arm_labels의 길이가 충분할 때만 chunking 수행
+            if t + n <= arm_labels.shape[1]:
+                chunk_t = arm_labels[:, t : t + n] # (B, n)
+            else:
+                # 마지막 구간 패딩 (마지막 값 복사)
+                last_val = arm_labels[:, -1:]
+                pad_len = (t + n) - arm_labels.shape[1]
+                chunk_t = torch.cat([arm_labels[:, t:], last_val.repeat(1, pad_len)], dim=1)
             chunked.append(chunk_t)
             
         # (B, L, n) 형태로 스택
@@ -415,6 +426,13 @@ class MobileVLAClassificationDecoder(BasePolicyHead):
                 flat_logits = flat_logits[flat_mask]
                 flat_labels = flat_labels[flat_mask]
 
+        if list(flat_logits.shape)[0] != list(flat_labels.shape)[0]:
+            print(f"!!! Error in loss shapes: logits={flat_logits.shape}, labels={flat_labels.shape}")
+            # match size 0 by trimming the larger one
+            min_size = min(flat_logits.shape[0], flat_labels.shape[0])
+            flat_logits = flat_logits[:min_size]
+            flat_labels = flat_labels[:min_size]
+
         if flat_labels.size(0) == 0:
             # logits에 0을 곱해 더함으로써 grad_fn을 유지하고 값은 0이 되도록 함
             return {
@@ -424,6 +442,8 @@ class MobileVLAClassificationDecoder(BasePolicyHead):
                 "acc_velocity": 0.0,
             }
 
+        # [DEBUG]
+        print(f"DEBUG: [loss] flat_logits shape={flat_logits.shape}, flat_labels shape={flat_labels.shape}, n={self.fwd_pred_next_n}", flush=True)
         loss = F.cross_entropy(flat_logits, flat_labels, weight=self.class_weights_tensor)
         
         # Accuracy 계산

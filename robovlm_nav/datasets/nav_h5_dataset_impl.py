@@ -420,7 +420,7 @@ class MobileVLAH5Dataset(Dataset):
             
             # Reshape into (seq_len, chunk_size)
             action_chunck = torch.stack(action_chunks).reshape(self.window_size, self.fwd_pred_next_n)
-            actions_tensor = actions_tensor_full[:self.window_size] # (window_size,)
+            actions_tensor = actions_tensor_full # (window_size + fwd_pred_next_n - 1,)
         else:
             # Continuous action: Predict next N actions for each frame in window
             # actions shape: (window_size + next_n - 1, 2 or 6 or higher)
@@ -445,7 +445,7 @@ class MobileVLAH5Dataset(Dataset):
             
             # Reshape into (seq_len, chunk_size, 2)
             action_chunck = torch.stack(action_chunks).reshape(self.window_size, self.fwd_pred_next_n, 2)
-            actions_tensor = actions_tensor_full[:self.window_size] # (window_size, 2)
+            actions_tensor = actions_tensor_full # (window_size + next_n - 1, 2)
         
         data_dict = {
             'rgb': images_tensor,
