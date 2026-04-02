@@ -1,0 +1,34 @@
+{
+    "_comment": "[STAGE 1] Curved Only + Discrete Action: 1.15 조향값 학습 검증용 (Root Level Params 정합성 수정)",
+    "parent": "configs/mobile_vla_v4_counterfactual_stop.json",
+    "exp_name": "v4-stage1-curve-discrete-v1",
+    "task_name": "mobile_vla_v4_curved_verification",
+    "discrete_action": true,
+    "fwd_pred_next_n": 5,
+    "window_size": 8,
+    "max_epochs": 15,
+    "learning_rate": 2.5e-5,
+    "model_load_path": "/home/billy/25-1kp/MoNaVLA/runs/v4_nav/kosmos/mobile_vla_v4_counterfactual/2026-03-27/v4-counterfactual-stop-v1/last.ckpt",
+    "act_head": {
+        "type": "MobileVLAClassificationDecoder",
+        "num_classes": 6,
+        "class_weights": [1.0, 50.0, 50.0, 10.0, 1.0, 1.0]
+    },
+    "train_dataset": {
+        "curvature_only": true,
+        "discrete_action": true,
+        "num_classes": 6,
+        "fwd_pred_next_n": 5,
+        "window_size": 8,
+        "counterfactual_stop_prob": 0.0,
+        "action_weight_non_forward": 5.0
+    },
+    "val_dataset": {
+        "curvature_only": false,
+        "discrete_action": true,
+        "num_classes": 6,
+        "fwd_pred_next_n": 5,
+        "window_size": 8,
+        "counterfactual_stop_prob": 0.0
+    }
+}

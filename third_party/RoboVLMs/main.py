@@ -225,9 +225,13 @@ def experiment(variant):
     variant["gpus"] = trainer.num_devices
     variant["train_setup"]["precision"] = variant["trainer"]["precision"]
 
-    model = BaseTrainer.from_checkpoint(
-        model_load_path, variant.get("model_load_source", "torch"), variant
-    )
+    if model_load_path and os.path.exists(model_load_path):
+        model = BaseTrainer.from_checkpoint(
+            model_load_path, variant.get("model_load_source", "torch"), variant
+        )
+    else:
+        print(f"INFO: model_load_path is empty or not found: '{model_load_path}'. Initializing fresh model.")
+        model = BaseTrainer(variant)
 
     # MPS 호환성을 위해 모델 전체를 float32로 명시적 변환
     if trainer_config.get("accelerator") == "mps":

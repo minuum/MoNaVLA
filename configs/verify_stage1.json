@@ -1,0 +1,9 @@
+{
+    "parent": "configs/mobile_vla_v4_stage1_curve_discrete.json",
+    "gpus": 1,
+    "trainer": {
+        "max_epochs": 1,
+        "limit_train_batches": 2,
+        "limit_val_batches": 0
+    }
+}
