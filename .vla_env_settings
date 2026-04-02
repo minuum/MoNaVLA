@@ -6,14 +6,9 @@
 # 1. 모델 설정 (Checkpoint & Config)
 # 최신 학습 결과에 맞춰 경로를 수정하세요.
 # v3_exp08_center_goal
-export VLA_CHECKPOINT_PATH="/home/soda/MoNaVLA/runs/v3_classification/kosmos/mobile_vla_v3_exp08_center_goal/2026-03-05/v3-exp08-center-goal/epoch_epoch=07-val_loss=val_loss=0.031.ckpt"
-# exp-04
-# export VLA_CHECKPOINT_PATH="/home/soda/MoNaVLA/runs/v3/exp-04/epoch_epoch=05-val_loss=val_loss=0.234.ckpt"
-# exp_v2_17
-# export VLA_CHECKPOINT_PATH="/home/soda/MoNaVLA/runs/exp_v2/exp_v2_17/epoch_epoch=09-val_loss=val_loss=0.001.ckpt"
-# No Info
-# export VLA_CHECKPOINT_PATH="/home/soda/MoNaVLA/runs/unified_regression_win12/kosmos/epoch=epoch=09-val_loss=val_loss=0.0013.ckpt"
-export VLA_CONFIG_PATH="/home/soda/MoNaVLA/configs/mobile_vla_v3_exp08_center_goal.json"
+# Best model (87% accuracy, diagonal-aware)
+export VLA_CHECKPOINT_PATH="/home/soda/MoNaVLA/runs/v4_nav/kosmos/v4_balanced_v2/checkpoints/best_model_87pc.ckpt"
+export VLA_CONFIG_PATH="/home/soda/MoNaVLA/configs/mobile_vla_v4_balanced_v2.json"
 
 # 2. 보안 설정 (API Key)
 export VLA_API_KEY="v3_test_key"

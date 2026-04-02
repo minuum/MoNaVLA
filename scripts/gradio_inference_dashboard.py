@@ -137,8 +137,8 @@ try:
     from robovlm_nav.serve.inference_server import MobileVLAInference
     LOCAL_MODEL_AVAILABLE = True
 except ImportError as e:
-    print(f"⚠️ Local model modules not found: {e}")
     LOCAL_MODEL_AVAILABLE = False
+    print(f"⚠️ Local model modules not found: {e}")
 
 local_model_instance = None
 
@@ -148,15 +148,21 @@ def scan_local_files():
     # Checkpoints: [(DisplayName, FullPath), ...]
     ckpt_tuples = [(f, os.path.join(root, f)) for f in os.listdir(root) if f.endswith('.ckpt') or f.endswith('.pth')]
     
+    # Checkpoints recursively from runs/
     runs_dir = os.path.join(root, "runs")
     if os.path.exists(runs_dir):
         for r, d, f in os.walk(runs_dir):
             for file in f:
-                if file.endswith('.ckpt') and "epoch" in file:
+                if file.endswith(('.ckpt', '.pth')):
                     full_p = os.path.join(r, file)
-                    # Show as 'Folder/epoch_XX.ckpt' for clarity
-                    parent = os.path.basename(os.path.dirname(full_p))
-                    ckpt_tuples.append((f"{parent}/{file}", full_p))
+                    # Show as 'Folder/filename.ckpt' for clarity. 
+                    # Use two levels of parent folders if available for better context.
+                    parts = full_p.split(os.sep)
+                    if len(parts) >= 3:
+                        display_name = f"{parts[-3]}/{parts[-2]}/{file}"
+                    else:
+                        display_name = f"{parts[-2]}/{file}"
+                    ckpt_tuples.append((display_name, full_p))
     
     # Configs: [(DisplayName, FullPath), ...]
     configs_dir = os.path.join(root, "configs")
@@ -348,19 +354,19 @@ state = {
 def update_ui(mode, instr, apply_cc, is_running_ui):
     # Global Concurrency Guard: If previous tick is still processing VLM inference, skip this tick.
     if state["is_busy"]:
-        return gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update()
+        return gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update()
     
     # Sync UI state to internal state if needed, but primarily controlled by buttons
     state["auto_inference"] = (mode == "Inference (18-step)")
     
     if not ROS_AVAILABLE or ros_node is None:
         state["camera_status"] = "ROS Not Available"
-        return None, "ROS Not Available", "N/A", "N/A", "N/A", gr.update(value="Stopped"), state["camera_status"], state["model_path"]
+        return None, "ROS Not Available", "N/A", "N/A", "N/A", gr.update(value="Stopped"), state["camera_status"], state["model_path"], None
     
     img = ros_node.get_inference_frame()
     if img is None:
         state["camera_status"] = "Waiting for get_image_service"
-        return state["last_img"], "⚠️ Camera Service Waiting...", "N/A", "N/A", "N/A", gr.update(), state["camera_status"], state["model_path"]
+        return state["last_img"], "⚠️ Camera Service Waiting...", "N/A", "N/A", "N/A", gr.update(), state["camera_status"], state["model_path"], None
     
     if apply_cc:
         try:
@@ -404,7 +410,7 @@ def update_ui(mode, instr, apply_cc, is_running_ui):
                 if logger_instance:
                     logger_instance.log_step(current_step, [0.0, 0.0], 0, image=img)
                 
-                return img, log, lat, act, chunk_info, gr.update(value="Running (1/18)..."), state["camera_status"], state["model_path"]
+                return img, log, lat, act, chunk_info, gr.update(value="Running (1/18)..."), state["camera_status"], state["model_path"], None
 
             # Step 2~18: Run Inference (17 steps of action)
             elif current_step <= state["max_steps"]:

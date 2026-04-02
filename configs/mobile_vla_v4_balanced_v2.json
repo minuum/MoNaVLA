@@ -17,6 +17,10 @@
     "act_head": {
         "type": "MobileVLAClassificationDecoder",
         "num_classes": 6,
-        "class_weights": [2.0, 0.5, 10.0, 10.0, 5.0, 5.0]
+        "hidden_size": 1024,
+        "class_weights": [2.0, 0.5, 10.0, 10.0, 5.0, 5.0],
+        "logit_penalty": {"1": -100.0},
+        "temperature": 1.1,
+        "window_size": 1
     }
 }

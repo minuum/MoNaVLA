@@ -176,9 +176,12 @@ class MobileVLAInference:
         else:
             self.use_quant = os.getenv("VLA_QUANTIZE", "false").lower() == "true"
         
-        # Initialize action buffer for chunk_reuse strategy
+        # --- 1. Core State Initialization ---
         self.action_buffer = ActionBuffer(chunk_size=10)
         self.inference_count = 0
+        self.image_history = []
+        self.prev_action = np.zeros(2)  # For Action Smoothing
+        self.smoothing_alpha = 0.6      # 0.6 current, 0.4 prev
         
         logger.info(f"Loading model from {checkpoint_path}")
         logger.info(f"Using device: {device}")
@@ -186,6 +189,20 @@ class MobileVLAInference:
         # Load config recursively
         self.config = self._load_config_recursive(config_path)
         self._normalize_config_paths()
+
+        # Define Window Size with proper fallback priority
+        # 1. Root window_size, 2. act_head.window_size, 3. train_dataset.window_size, 4. Default 8
+        self.window_size = (
+            self.config.get("window_size")
+            or self.config.get("act_head", {}).get("window_size")
+            or int(self.config.get("train_dataset", {}).get("window_size", 8))
+        )
+        
+        # Runtime Intervention parameters
+        self.logit_penalty = self.config.get("act_head", {}).get("logit_penalty", {})
+        self.temperature = float(self.config.get("act_head", {}).get("temperature", 1.0))
+        
+        logger.info(f"📊 [INIT] Window: {self.window_size}, T={self.temperature}, Penalty: {self.logit_penalty}")
 
         self.inference_mode = "classification" if self.config.get("discrete_action", False) else self._resolve_inference_mode()
         self.class_labels, self.class_action_map, self.class_index_action_map = self._build_classification_map()
@@ -209,28 +226,27 @@ class MobileVLAInference:
         
         logger.info(f"✅ [INIT] Inference Mode: {self.inference_mode.upper()}")
         
-        # Load model
+        # --- 2. Build/Load Model Infrastructure ---
         self._load_model()
         
-        # [OPTIMIZATION] Initialize processor once
+        # Override history window in act_head internal state
+        try:
+            potential_model = self.model.model if hasattr(self.model, 'model') else self.model
+            for name in ['act_head', 'policy_head']:
+                if hasattr(potential_model, name):
+                    head = getattr(potential_model, name)
+                    if hasattr(head, 'history_len'):
+                        head.history_len = self.window_size
+                        logger.info(f"✅ [INTERVENTION] Applied history window size: {head.history_len}")
+                        break
+        except Exception as e:
+            logger.warning(f"⚠️ [INTERVENTION] Failed to apply window size: {e}")
+        
         from transformers import AutoProcessor
         self.processor = AutoProcessor.from_pretrained(
             self.config['tokenizer']['pretrained_model_name_or_path']
         )
-        logger.info(f"Processor initialized from {self.config['tokenizer']['pretrained_model_name_or_path']}")
-        
-        logger.info("Model loaded successfully")
-        
-        # [CRITICAL] 2. Initialize Image History Buffer
-        # Prefer explicit root key, then nested experiment settings, then a safe default.
-        self.window_size = (
-            self.config.get("window_size")
-            or self.config.get("act_head", {}).get("window_size")
-            or self.config.get("train_dataset", {}).get("window_size")
-            or 8
-        )
-        self.image_history = []
-        logger.info(f"✅ Initialized Image History Buffer (Window Size: {self.window_size})")
+        logger.info("✅ MobileVLAInference initialized successfully")
 
     def _normalize_config_paths(self) -> None:
         """Normalize relative config paths against project root for stable CWD-independent loading."""
@@ -366,6 +382,23 @@ class MobileVLAInference:
             class_idx = int(logits[0])
             score = float(logits[0])
         else:
+            # 1. Apply Logit Penalization (Soft-Decision)
+            if self.logit_penalty:
+                penalty_vec = np.zeros_like(logits)
+                for k, v in self.logit_penalty.items():
+                    try:
+                        idx = int(k)
+                        if idx < len(penalty_vec):
+                            penalty_vec[idx] = float(v)
+                    except: continue
+                logits = logits + penalty_vec
+                logger.info(f"📤 [INTERVENTION] Penalty Applied: {self.logit_penalty}")
+            
+            # 2. Apply Temperature Scaling (Confidence Smoothing)
+            if self.temperature != 1.0:
+                logits = logits / self.temperature
+                logger.info(f"📤 [INTERVENTION] Temperature Scaling Applied: T={self.temperature}")
+
             class_idx = int(np.argmax(logits))
             score = float(logits[class_idx])
 
@@ -514,10 +547,12 @@ class MobileVLAInference:
         self.image_transform = transforms.Compose([
             transforms.Resize((224, 224), interpolation=transforms.InterpolationMode.BICUBIC),
             transforms.ToTensor(),
-            transforms.Normalize(
-                mean=self.config.get('image_mean', [0.48145466, 0.4578275, 0.40821073]),
-                std=self.config.get('image_std', [0.26862954, 0.26130258, 0.27577711])
-            )
+            # [CRITICAL] 87% 모델(Kosmos기반)은 자체 전처리기에서 정규화를 수행할 가능성이 높습니다.
+            # 서버단 정규화가 중복되면 모델이 '장님'이 됩니다. (BGR/RGB 문제 포함)
+            # transforms.Normalize(
+            #     mean=self.config.get('image_mean', [0.48145466, 0.4578275, 0.40821073]),
+            #     std=self.config.get('image_std', [0.26862954, 0.26130258, 0.27577711])
+            # )
         ])
         
     def preprocess_image(self, image_input: str | np.ndarray) -> torch.Tensor:
@@ -657,12 +692,24 @@ class MobileVLAInference:
 
 
 
-        # [CRITICAL] 3. Prompt Engineering (Grounding Tag)
+        # [CRITICAL] 3. Prompt Engineering (V4-Balanced Standard)
         # instruction = request.instruction (raw) -> converted to grounding format
         if not instruction.startswith("<grounding>"):
             full_prompt = f"<grounding>An image of a robot {instruction}"
         else:
             full_prompt = instruction
+            
+        # [INTERVENTION] Ensure history_window is maintained at runtime
+        try:
+            potential_model = self.model.model if hasattr(self.model, 'model') else self.model
+            for name in ['act_head', 'policy_head']:
+                if hasattr(potential_model, name):
+                    head = getattr(potential_model, name)
+                    if hasattr(head, 'history_len') and head.history_len != self.window_size:
+                         head.history_len = self.window_size
+                         logger.debug(f"🔄 [SYNC] History Window re-applied: {head.history_len}")
+                         break
+        except: pass
             
         with torch.no_grad():
             # Preprocess image
@@ -741,7 +788,7 @@ class MobileVLAInference:
                         hist_len = len(target_policy.history_memory)
                 except: pass
 
-                logger.info(f"📤 [DETAILED ACTION] InfCount: {self.inference_count}, Hist: {hist_len}/8, Raw: {action}")
+                logger.info(f"📤 [DETAILED ACTION] InfCount: {self.inference_count}, Hist: {hist_len}/{self.window_size}, Raw: {action}")
                 
                 # De-normalize and Clip (regression only)
                 if self.inference_mode == "regression":
@@ -767,6 +814,15 @@ class MobileVLAInference:
                         logger.debug("✅ Applied denormalization (norm_action=True)")
 
                 logger.debug(f"📤 [PROCESSED ACTION] After scaling: {action}")
+
+                # [INTERVENTION] Action Smoothing (Exponential Moving Average)
+                if self.inference_count > 1:
+                    # lx, ly smoothing to prevent sudden BACKWARD/RIGHT swap
+                    # 0.6 : 0.4 ratio for better responsiveness vs stability
+                    action = self.smoothing_alpha * action + (1 - self.smoothing_alpha) * self.prev_action
+                    logger.info(f"📤 [SMOOTHING] Applied EMA: Alpha={self.smoothing_alpha}")
+                
+                self.prev_action = action.copy()
 
                 # Clip to valid range
                 action[0] = np.clip(action[0], -1.5, 1.5)

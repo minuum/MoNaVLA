@@ -12,6 +12,7 @@
     "act_head": {
         "type": "MobileVLAClassificationDecoder",
         "num_classes": 6,
+        "hidden_size": 1024,
         "class_weights": [1.0, 50.0, 50.0, 10.0, 1.0, 1.0]
     },
     "train_dataset": {
