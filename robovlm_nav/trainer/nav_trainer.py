@@ -93,28 +93,30 @@ class NavTrainer(BaseTrainer):
 
             # 19개 리턴 규격 (BaseTrainer.py:468-488 참고)
             # BaseTrainer.training_step은 arm_action_chunck(10번째)를 action_labels로 사용함
+            print(f"DEBUG: [NavTrainer] Discrete branch taken. arm_action shape: {arm_action.shape}", flush=True)
             return (
-                rgb,                    # 01: rgb
-                None,                   # 02: hand_rgb
-                None,                   # 03: attention_mask
-                language,               # 04: language
-                text_mask,              # 05: text_mask
-                None,                   # 06: fwd_rgb_chunck
-                None,                   # 07: fwd_hand_rgb_chunck
-                None,                   # 08: arm_action
-                None,                   # 09: gripper_action
-                arm_action,             # 10: arm_action_chunck (여기 전달해야 training_step에서 사용됨)
-                None,                   # 11: gripper_action_chunck
-                None,                   # 12: chunck_mask
-                None,                   # 13: fwd_mask
-                None,                   # 14: instr_and_action_ids
-                None,                   # 15: instr_and_action_labels
-                None,                   # 16: instr_and_action_mask
-                raw_text,               # 17: raw_text
-                None,                   # 18: rel_state
-                data_source             # 19: data_source
+                rgb,                    # 00: rgb
+                None,                   # 01: hand_rgb
+                None,                   # 02: attention_mask
+                language,               # 03: language
+                text_mask,              # 04: text_mask
+                None,                   # 05: fwd_rgb_chunck
+                None,                   # 06: fwd_hand_rgb_chunck
+                None,                   # 07: arm_action
+                None,                   # 08: gripper_action
+                arm_action,             # 09: arm_action_chunck
+                None,                   # 10: gripper_action_chunck
+                None,                   # 11: chunck_mask
+                None,                   # 12: fwd_mask
+                None,                   # 13: instr_and_action_ids
+                None,                   # 14: instr_and_action_labels
+                None,                   # 15: instr_and_action_mask
+                raw_text,               # 16: raw_text
+                None,                   # 17: rel_state
+                data_source             # 18: data_source
             )
         
+        # 일반적인 경우 부모 클래스 호출
         return super()._process_batch(batch)
 
     def training_step(self, batch, batch_idx):

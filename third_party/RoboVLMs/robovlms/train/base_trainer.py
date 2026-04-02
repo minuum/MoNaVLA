@@ -551,6 +551,9 @@ class BaseTrainer(pl.LightningModule):
                 rel_state=rel_state,
             )
 
+            if isinstance(prediction, tuple):
+                prediction = prediction[0]
+
             output = self._get_loss(prediction)
 
             prog_bar_set = {"loss"}
@@ -635,6 +638,9 @@ class BaseTrainer(pl.LightningModule):
             data_source=data_source,
             rel_state=rel_state,
         )
+
+        if isinstance(prediction, tuple):
+            prediction = prediction[0]
 
         output = self._get_loss(prediction)
         
