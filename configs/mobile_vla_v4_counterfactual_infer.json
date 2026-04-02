@@ -1,0 +1,40 @@
+{
+    "_comment": "V4 Counterfactual Stop - INFERENCE ONLY (parent chain removed for Soda server compatibility)",
+    "robovlm_name": "RoboKosMos",
+    "discrete_action": false,
+    "window_size": 8,
+    "fwd_pred_next_n": 5,
+    "exp_name": "v4-counterfactual-stop-v1",
+    "task_name": "mobile_vla_v4_counterfactual",
+    "model": "kosmos",
+    "model_path": "/home/soda/MoNaVLA/.vlms/kosmos-2-patch14-224",
+    "model_config": "/home/soda/MoNaVLA/.vlms/kosmos-2-patch14-224/config.json",
+    "tokenizer": {
+        "pretrained_model_name_or_path": "/home/soda/MoNaVLA/.vlms/kosmos-2-patch14-224"
+    },
+    "vlm": {
+        "pretrained_model_name_or_path": "/home/soda/MoNaVLA/.vlms/kosmos-2-patch14-224"
+    },
+    "train_setup": {
+        "precision": "16-mixed",
+        "predict_action": true,
+        "train_vision": false,
+        "freeze_backbone": true,
+        "tune_mm_projector": true,
+        "lora_enable": true,
+        "lora_r": 32,
+        "lora_alpha": 64,
+        "gradient_checkpointing": true
+    },
+    "act_head": {
+        "type": "MobileVLALSTMDecoder",
+        "action_dim": 2,
+        "action_space": "continuous",
+        "discrete_action": false,
+        "fwd_pred_next_n": 5,
+        "window_size": 8
+    },
+    "inference_mode": "regression",
+    "output_root": "runs/v4_nav",
+    "log_root": "runs/v4_nav"
+}

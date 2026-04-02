@@ -187,8 +187,22 @@ class MobileVLAInference:
         self.config = self._load_config_recursive(config_path)
         self._normalize_config_paths()
 
-        self.inference_mode = self.config.get("inference_mode", self._resolve_inference_mode())
+        self.inference_mode = "classification" if self.config.get("discrete_action", False) else self._resolve_inference_mode()
         self.class_labels, self.class_action_map, self.class_index_action_map = self._build_classification_map()
+        
+        # 6-class mapping 강제 보정 (v3 dataset 기준)
+        if self.config.get("num_classes") == 6:
+            speed = float(self.config.get("classification_speed", 1.15))
+            diag = speed * 0.707
+            self.class_index_action_map = {
+                0: [0.0, 0.0],   # STOP
+                1: [speed, 0.0], # FORWARD
+                2: [0.0, speed], # LEFT
+                3: [0.0, -speed],# RIGHT
+                4: [diag, diag], # FL
+                5: [diag, -diag] # FR
+            }
+            logger.info("🎯 Forced 6-class index mapping (STOP/F/L/R/FL/FR)")
         
         # Integration fallback for scale_factor
         self.scale_factor = self.config.get("scale_factor", self.config.get("classification_speed", 1.15))
@@ -371,9 +385,21 @@ class MobileVLAInference:
             sys.path.append(project_root)
             
         def _update_paths(config_dict):
+            # soda 서버와 billy 서버의 경로 차이를 모두 동적 대응
+            old_roots = ["/home/billy/25-1kp/vla", "/home/soda/vla"]
+            fixed_model_base = os.getenv("VLA_MODEL_PATH", os.path.join(project_root, ".vlms"))
+            
             for k, v in config_dict.items():
-                if isinstance(v, str) and "/home/billy/25-1kp/vla" in v:
-                    config_dict[k] = v.replace("/home/billy/25-1kp/vla", project_root)
+                if isinstance(v, str):
+                    # 1순위: 모델 기반 경로 전용 강제 치환 (가장 확실함)
+                    if "kosmos-2-patch14-224" in v:
+                         config_dict[k] = os.path.join(fixed_model_base, "kosmos-2-patch14-224")
+                         continue
+                    
+                    # 2순위: 기타 일반 경로 치환
+                    for old_root in old_roots:
+                        if old_root in v:
+                             config_dict[k] = v.replace(old_root, project_root)
                 elif isinstance(v, dict):
                     _update_paths(v)
         _update_paths(self.config)
@@ -489,8 +515,8 @@ class MobileVLAInference:
             transforms.Resize((224, 224), interpolation=transforms.InterpolationMode.BICUBIC),
             transforms.ToTensor(),
             transforms.Normalize(
-                mean=self.config.get('image_mean', [0.481, 0.457, 0.408]),
-                std=self.config.get('image_std', [0.268, 0.261, 0.275])
+                mean=self.config.get('image_mean', [0.48145466, 0.4578275, 0.40821073]),
+                std=self.config.get('image_std', [0.26862954, 0.26130258, 0.27577711])
             )
         ])
         

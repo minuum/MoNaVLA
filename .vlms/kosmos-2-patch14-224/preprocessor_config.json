@@ -17,8 +17,7 @@
     "input_data_format"
   ],
   "crop_size": {
-    "height": 224,
-    "width": 224
+    "shortest_edge": 224
   },
   "do_center_crop": true,
   "do_convert_rgb": true,
@@ -40,8 +39,7 @@
   "resample": 3,
   "rescale_factor": 0.00392156862745098,
   "size": {
-    "height": 224,
-    "width": 224
+    "shortest_edge": 224
   },
   "use_square_size": true
 }

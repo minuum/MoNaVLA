@@ -63,9 +63,28 @@ def build_vlm(vlm_config, tokenizer_config, precision="bf16", quantization_confi
                 "torch_dtype": torch.float16  # BitsAndBytes requires FP16
             })
             print(f"🔧 Loading Kosmos-2 with BitsAndBytes INT8/INT4")
+
+        # V4 모델의 확장된 Vocab(65037) 대응: config를 먼저 불러와서 vocab_size를 강제 설정
+        from transformers import Kosmos2Config
+        model_id = tokenizer_config["pretrained_model_name_or_path"]
+        print(f"🔧 Forcing vocab_size to 65037 for model: {model_id}")
         
-        model = Kosmos2ForConditionalGeneration.from_pretrained(**load_kwargs)
-        tokenizer = build_tokenizer(tokenizer_config)
+        # V4 모델의 확장된 Vocab(65037) 대응: 모델 로드 후 임베딩 레이어 강제 리사이즈
+        load_kwargs.pop("pretrained_model_name_or_path", None)
+        model = Kosmos2ForConditionalGeneration.from_pretrained(
+            model_id, **load_kwargs, ignore_mismatched_sizes=True
+        )
+        print(f"🔧 Resizing token embeddings to 65037 for checkpoint compatibility...")
+        model.resize_token_embeddings(65037)
+        
+        # 토크나이저/프로세서 로드 (shortest_edge 에러 방지를 위한 폴백 적용)
+        try:
+            from robovlms.utils.model_utils import build_tokenizer
+            tokenizer = build_tokenizer(tokenizer_config)
+        except Exception as e:
+            print(f"⚠️ Standard build_tokenizer failed: {e}. Trying raw AutoProcessor fallback...")
+            from transformers import AutoProcessor
+            tokenizer = AutoProcessor.from_pretrained(model_id, trust_remote_code=True)
         
     else:
         # Handle deprecated AutoModelForVision2Seq -> AutoModelForImageTextToText

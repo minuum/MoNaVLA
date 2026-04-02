@@ -1,9 +1,9 @@
 {
   "package_name": "camera_interfaces",
-  "output_dir": "/home/soda/vla/ROS_action/build/camera_interfaces/rosidl_generator_c/camera_interfaces",
+  "output_dir": "/home/soda/MoNaVLA/ROS_action/build/camera_interfaces/rosidl_generator_c/camera_interfaces",
   "template_dir": "/opt/ros/humble/share/rosidl_generator_c/cmake/../resource",
   "idl_tuples": [
-    "/home/soda/vla/ROS_action/build/camera_interfaces/rosidl_adapter/camera_interfaces:srv/GetImage.idl"
+    "/home/soda/MoNaVLA/ROS_action/build/camera_interfaces/rosidl_adapter/camera_interfaces:srv/GetImage.idl"
   ],
   "ros_interface_dependencies": [
     "sensor_msgs:/opt/ros/humble/share/sensor_msgs/msg/BatteryState.idl",
@@ -111,7 +111,7 @@
     "/opt/ros/humble/share/rosidl_generator_c/cmake/../resource/msg__struct.h.em",
     "/opt/ros/humble/share/rosidl_generator_c/cmake/../resource/msg__type_support.h.em",
     "/opt/ros/humble/share/rosidl_generator_c/cmake/../resource/srv__type_support.h.em",
-    "/home/soda/vla/ROS_action/build/camera_interfaces/rosidl_adapter/camera_interfaces/srv/GetImage.idl",
+    "/home/soda/MoNaVLA/ROS_action/build/camera_interfaces/rosidl_adapter/camera_interfaces/srv/GetImage.idl",
     "/opt/ros/humble/share/sensor_msgs/msg/BatteryState.idl",
     "/opt/ros/humble/share/sensor_msgs/msg/CameraInfo.idl",
     "/opt/ros/humble/share/sensor_msgs/msg/ChannelFloat32.idl",

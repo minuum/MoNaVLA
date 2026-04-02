@@ -1,6 +1,6 @@
 {
   "package_name": "camera_interfaces",
   "non_idl_tuples": [
-    "/home/soda/vla/ROS_action/src/camera_interfaces:srv/GetImage.srv"
+    "/home/soda/MoNaVLA/ROS_action/src/camera_interfaces:srv/GetImage.srv"
   ]
 }

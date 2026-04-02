@@ -16,7 +16,7 @@ class ExistingModelsTensorRTConverter:
     
     def __init__(self):
         self.base_dir = "Robo+/Mobile_VLA"
-        self.output_dir = "Robo+/Mobile_VLA/tensorrt_engines"
+        self.output_dir = "Mobile_VLA/tensorrt_engines"
         os.makedirs(self.output_dir, exist_ok=True)
         
         # 기존 ONNX 모델들
@@ -223,7 +223,7 @@ def main():
     print("🚀 Starting TensorRT Engine Benchmark")
     
     # 엔진 디렉토리
-    engine_dir = "Robo+/Mobile_VLA/tensorrt_engines"
+    engine_dir = "Mobile_VLA/tensorrt_engines"
     
     if not os.path.exists(engine_dir):
         print(f"❌ Engine directory not found: {engine_dir}")
@@ -365,7 +365,7 @@ def main():
             print("\n✅ TensorRT conversion completed!")
             print(f"\n📁 Output directory: {converter.output_dir}")
             print("🔧 Next steps:")
-            print("  1. cd Robo+/Mobile_VLA/tensorrt_engines")
+            print("  1. cd Mobile_VLA/tensorrt_engines")
             print("  2. python benchmark_engines.py")
             print("  3. Use the generated TensorRT engines in ROS nodes")
         else:

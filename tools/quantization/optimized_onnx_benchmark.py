@@ -291,8 +291,8 @@ class OptimizedONNXBenchmark:
         
         # 2. 최적화된 ONNX Runtime 벤치마크
         print(f"\n2. Optimized ONNX Runtime Benchmark")
-        onnx_path = "Robo+/Mobile_VLA/optimized_onnx/model.onnx"
-        os.makedirs("Robo+/Mobile_VLA/optimized_onnx", exist_ok=True)
+        onnx_path = "Mobile_VLA/optimized_onnx/model.onnx"
+        os.makedirs("Mobile_VLA/optimized_onnx", exist_ok=True)
         
         if not os.path.exists(onnx_path):
             self.create_optimized_onnx_model(onnx_path)
@@ -370,7 +370,7 @@ class OptimizedONNXBenchmark:
             print(f"   ONNX Runtime: {onnx_result['optimization']}")
         
         # 결과 저장
-        report_path = "Robo+/Mobile_VLA/optimized_benchmark_results.json"
+        report_path = "Mobile_VLA/optimized_benchmark_results.json"
         with open(report_path, "w") as f:
             json.dump({
                 "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),

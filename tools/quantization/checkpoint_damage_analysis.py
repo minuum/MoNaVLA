@@ -136,9 +136,9 @@ class CheckpointDamageAnalyzer:
         print("=" * 80)
         
         checkpoints = [
-            "Robo+/Mobile_VLA/results/simple_clip_lstm_results_extended/best_simple_clip_lstm_model.pth",
-            "Robo+/Mobile_VLA/results/simple_lstm_results_extended/best_simple_lstm_model.pth",
-            "Robo+/Mobile_VLA/results/simple_lstm_results_extended/final_simple_lstm_model.pth"
+            "Mobile_VLA/results/simple_clip_lstm_results_extended/best_simple_clip_lstm_model.pth",
+            "Mobile_VLA/results/simple_lstm_results_extended/best_simple_lstm_model.pth",
+            "Mobile_VLA/results/simple_lstm_results_extended/final_simple_lstm_model.pth"
         ]
         
         results = {}
@@ -241,7 +241,7 @@ class CheckpointDamageAnalyzer:
     
     def save_analysis_results(self, results: Dict[str, Any]):
         """분석 결과 저장"""
-        output_path = "Robo+/Mobile_VLA/checkpoint_damage_analysis_results.json"
+        output_path = "Mobile_VLA/checkpoint_damage_analysis_results.json"
         
         with open(output_path, "w") as f:
             json.dump({

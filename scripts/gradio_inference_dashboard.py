@@ -18,7 +18,7 @@ os.environ["RMW_IMPLEMENTATION"] = "rmw_fastrtps_cpp"
 print(f"🔧 Forced ROS_DOMAIN_ID={os.environ['ROS_DOMAIN_ID']}, RMW={os.environ['RMW_IMPLEMENTATION']}")
 
 # --- Load .vla_env_settings manually ---
-env_path = os.getenv("VLA_ENV_PATH", "/home/soda/vla/.vla_env_settings")
+env_path = os.getenv("VLA_ENV_PATH", "/home/soda/MoNaVLA/.vla_env_settings")
 if not os.path.exists(env_path):
     env_path = "/home/billy/25-1kp/vla/.vla_env_settings" # fallback
 if os.path.exists(env_path):
@@ -111,7 +111,7 @@ except ImportError as e:
     print(f"⚠️ ROS2 environment partially missing: {e}")
 
 # --- Custom Control Library ---
-sys.path.insert(0, "/home/soda/vla")
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from robovlm_nav.serve.vla_control_utils import VLAControlManager
 
 
@@ -142,7 +142,29 @@ except ImportError as e:
 
 local_model_instance = None
 
-def init_local_model(use_quant_str):
+def scan_local_files():
+    """Scan project root for models and configs"""
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    # Checkpoints: [(DisplayName, FullPath), ...]
+    ckpt_tuples = [(f, os.path.join(root, f)) for f in os.listdir(root) if f.endswith('.ckpt') or f.endswith('.pth')]
+    
+    runs_dir = os.path.join(root, "runs")
+    if os.path.exists(runs_dir):
+        for r, d, f in os.walk(runs_dir):
+            for file in f:
+                if file.endswith('.ckpt') and "epoch" in file:
+                    full_p = os.path.join(r, file)
+                    # Show as 'Folder/epoch_XX.ckpt' for clarity
+                    parent = os.path.basename(os.path.dirname(full_p))
+                    ckpt_tuples.append((f"{parent}/{file}", full_p))
+    
+    # Configs: [(DisplayName, FullPath), ...]
+    configs_dir = os.path.join(root, "configs")
+    conf_tuples = [(f, os.path.join(configs_dir, f)) for f in os.listdir(configs_dir) if f.endswith('.json')]
+    
+    return sorted(ckpt_tuples), sorted(conf_tuples)
+
+def init_local_model(use_quant_str, manual_ckpt=None, manual_conf=None):
     global local_model_instance
     if not LOCAL_MODEL_AVAILABLE:
         return "❌ Module Missing"
@@ -160,7 +182,7 @@ def init_local_model(use_quant_str):
              print("🔄 Unloaded existing model")
 
         # Dynamically reload env settings to catch VSCode changes
-        env_path = os.getenv("VLA_ENV_PATH", "/home/soda/vla/.vla_env_settings")
+        env_path = os.getenv("VLA_ENV_PATH", "/home/soda/MoNaVLA/.vla_env_settings")
         if not os.path.exists(env_path):
             env_path = "/home/billy/25-1kp/vla/.vla_env_settings" # fallback
         if os.path.exists(env_path):
@@ -175,14 +197,14 @@ def init_local_model(use_quant_str):
                             continue
             print("🔄 Reloaded .vla_env_settings dynamically")
 
-        ckpt = os.getenv("VLA_CHECKPOINT_PATH")
+        ckpt = manual_ckpt if manual_ckpt else os.getenv("VLA_CHECKPOINT_PATH")
         if not ckpt:
-            state["model_status"] = "Missing VLA_CHECKPOINT_PATH"
+            state["model_status"] = "Missing Checkpoint Path"
             state["model_path"] = "N/A"
-            return "❌ VLA_CHECKPOINT_PATH not set"
+            return "❌ No Checkpoint Selected"
             
-        # --- Auto-Detect Configuration based on Checkpoint Path ---
-        config = os.getenv("VLA_CONFIG_PATH", "")
+        # Priority: Manual Selection > Env Variable > Auto-detect
+        config = manual_conf if manual_conf else os.getenv("VLA_CONFIG_PATH", "")
         if not config or not os.path.exists(config):
             import re
             import glob
@@ -512,8 +534,13 @@ with gr.Blocks(title="VLA PRO Dashboard") as demo:
                 
                 with gr.Row(visible=False) as inference_panel:
                     with gr.Column():
+                        # --- Manual File Selection Dropdowns ---
+                        ckpts, confs = scan_local_files()
+                        ckpt_dropdown = gr.Dropdown(choices=ckpts, label="🎯 Select Checkpoint (.ckpt/.pth)", value=ckpts[0][1] if ckpts else None)
+                        conf_dropdown = gr.Dropdown(choices=confs, label="⚙️ Select Config (.json)", value=confs[0][1] if confs else None)
+                        
                         quant_radio = gr.Radio(choices=["INT8 (Fast)", "FP16 (Accurate)"], value="FP16 (Accurate)", label="Model Precision")
-                        btn_load_model = gr.Button("📂 Load Local Model (Checkpoints)")
+                        btn_load_model = gr.Button("📂 Load Selected Model", variant="primary")
                         load_status = gr.Textbox(label="Model Status", value="Not Loaded", interactive=False)
                         model_path = gr.Textbox(label="Loaded Checkpoint Path", value="N/A", interactive=False)
                         toggle_cc = gr.Checkbox(label="🎨 RGB Red Gain Boost", value=False)
@@ -541,7 +568,7 @@ with gr.Blocks(title="VLA PRO Dashboard") as demo:
 
             mode_radio.change(fn=on_mode_change, inputs=[mode_radio], outputs=[inference_panel])
             mode_radio.change(fn=on_mode_change, inputs=[mode_radio], outputs=[inference_panel])
-            btn_load_model.click(fn=init_local_model, inputs=[quant_radio], outputs=load_status)
+            btn_load_model.click(fn=init_local_model, inputs=[quant_radio, ckpt_dropdown, conf_dropdown], outputs=load_status)
             
             btn_start_inf.click(fn=lambda: set_running(True), outputs=run_status_box)
             btn_stop_inf.click(fn=lambda: set_running(False), outputs=run_status_box)
