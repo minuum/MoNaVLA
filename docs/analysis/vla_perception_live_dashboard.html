@@ -11,10 +11,10 @@
         .prompt-box { background: #0f172a; border: 1px dashed #38bdf8; padding: 15px; border-radius: 8px; font-family: monospace; color: #7dd3fc; margin-bottom: 30px; }
         .evidence-section { margin-bottom: 60px; }
         .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 25px; }
-        .card { background: #1e293b; border-radius: 16px; padding: 25px; border: 1px solid #334155; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
-        .img-container { position: relative; width: 100%; aspect-ratio: 1; background: #000; border-radius: 12px; overflow: hidden; margin-bottom: 20px; }
+        .card { background: #1e293b; border-radius: 16px; padding: 25px; border: 1px solid #334155; }
+        .img-container { position: relative; width: 100%; aspect-ratio: 1; background: #000; border-radius: 12px; overflow: hidden; margin-bottom: 20px; border: 2px solid #334155; }
         img { width: 100%; height: 100%; object-fit: cover; }
-        .bbox { position: absolute; border: 3px solid #10b981; background: rgba(16, 185, 129, 0.1); box-shadow: 0 0 15px #10b981; }
+        .bbox { position: absolute; border: 4px solid #00ff00; background: rgba(0, 255, 0, 0.15); box-shadow: 0 0 20px #00ff00; z-index: 100; pointer-events: none; }
         .badge { background: #0ea5e9; padding: 4px 12px; border-radius: 20px; font-size: 0.75em; font-weight: bold; }
         .h5-badge { background: #f59e0b; color: black; }
         .stats-label { font-size: 0.85em; color: #94a3b8; font-weight: bold; margin-top: 15px; }
@@ -38,7 +38,7 @@
         </div>
 
         <div class="prompt-box">
-             <b># VLM Grounding Prompt:</b><br>
+             <b># VLM Grounding Prompt (Active Inference):</b><br>
              &lt;image&gt;&lt;grounding&gt;An image of a robot. Where is the gray basket? Answer:
         </div>
 
@@ -51,8 +51,6 @@
                     <div class="img-container">
                         <img src="assets/training_h5_forward.jpg">
                     </div>
-                    <p class="stats-label">Source Path:</p>
-                    <p style="font-size: 0.7em; color: #64748b; word-break: break-all;">.../mobile_vla_dataset_v3/episode_...center_core_medium.h5</p>
                 </div>
                 <div class="card">
                     <span class="badge h5-badge">TRAINING DATA (H5)</span>
@@ -60,34 +58,32 @@
                     <div class="img-container">
                         <img src="assets/training_h5_turn_left.jpg">
                     </div>
-                    <p class="stats-label">Source Path:</p>
-                    <p style="font-size: 0.7em; color: #64748b; word-break: break-all;">.../mobile_vla_dataset_v3/episode_...left_core_medium.h5</p>
                 </div>
                 <div class="card" style="background: rgba(56, 189, 248, 0.05); border: 2px dashed #0ea5e9;">
                     <h2>💡 Data Insight</h2>
-                    <p>Current model was trained on <b>74.5% straight-line data</b>. Model "remembers" the visual patterns on the left but "chooses" straight due to statistical momentum.</p>
+                    <p>Training distribution was <b>74.5% straight</b>. The model "Sees" the basket correctly but "Decides" to go straight based on this historical memory.</p>
                 </div>
             </div>
         </div>
 
         <div class="evidence-section">
-            <h2>👁️ Live Inference Audit (Backbone Perception Proof)</h2>
+            <h2>👁️ Live Inference Audit (VLM Bounding Box Visualization)</h2>
             <div class="grid">
                 
         <div class="card">
             <span class="badge">INFERENCE FRAME</span>
             <h3>frame_001.jpg</h3>
             <div class="img-container">
-                <img src="/file/home/soda/vla/docs/inference_reports/session_20260403_050653_images/frame_001.jpg">
-                <div class="bbox" style="top: 42.5%; left: 45.2%; width: 9.600000000000003%; height: 15.299999999999997%;"></div>
+                <img src="assets/frame_001.jpg">
+                <div class="bbox" style="top: 42.5%; left: 45.2%; width: 9.599999999999994%; height: 15.299999999999997%;"></div>
             </div>
             <div class="stats-label">VLM Perception Result:</div>
-            <p style="font-size: 0.8em; color: #7dd3fc;">The gray basket is located at [425, 452, 578, 548]</p>
+            <p style="font-size: 0.8em; color: #7dd3fc; border-left: 2px solid #00ff00; padding-left: 10px;">The gray basket is located at [425, 452, 578, 548]</p>
             
             <div class="stats-label">Action Prob: FORWARD</div>
             <div class="prob-bar"><div class="prob-fill" style="width: 21.80454134941101%"></div></div>
             
-            <div class="stats-label">Action Prob: TURN-LEFT</div>
+            <div class="stats-label">Action Prob: TURN-LEFT (FL)</div>
             <div class="prob-bar"><div class="prob-fill" style="width: 20.284411311149597%; background: #10b981;"></div></div>
         </div>
         
@@ -95,16 +91,16 @@
             <span class="badge">INFERENCE FRAME</span>
             <h3>frame_003.jpg</h3>
             <div class="img-container">
-                <img src="/file/home/soda/vla/docs/inference_reports/session_20260403_050653_images/frame_003.jpg">
-                <div class="bbox" style="top: 42.5%; left: 45.2%; width: 9.600000000000003%; height: 15.299999999999997%;"></div>
+                <img src="assets/frame_003.jpg">
+                <div class="bbox" style="top: 42.5%; left: 45.2%; width: 9.599999999999994%; height: 15.299999999999997%;"></div>
             </div>
             <div class="stats-label">VLM Perception Result:</div>
-            <p style="font-size: 0.8em; color: #7dd3fc;">The gray basket is located at [425, 452, 578, 548]</p>
+            <p style="font-size: 0.8em; color: #7dd3fc; border-left: 2px solid #00ff00; padding-left: 10px;">The gray basket is located at [425, 452, 578, 548]</p>
             
             <div class="stats-label">Action Prob: FORWARD</div>
             <div class="prob-bar"><div class="prob-fill" style="width: 29.785409569740295%"></div></div>
             
-            <div class="stats-label">Action Prob: TURN-LEFT</div>
+            <div class="stats-label">Action Prob: TURN-LEFT (FL)</div>
             <div class="prob-bar"><div class="prob-fill" style="width: 19.495634734630585%; background: #10b981;"></div></div>
         </div>
         
@@ -112,16 +108,16 @@
             <span class="badge">INFERENCE FRAME</span>
             <h3>frame_005.jpg</h3>
             <div class="img-container">
-                <img src="/file/home/soda/vla/docs/inference_reports/session_20260403_050653_images/frame_005.jpg">
-                <div class="bbox" style="top: 42.5%; left: 45.2%; width: 9.600000000000003%; height: 15.299999999999997%;"></div>
+                <img src="assets/frame_005.jpg">
+                <div class="bbox" style="top: 42.5%; left: 45.2%; width: 9.599999999999994%; height: 15.299999999999997%;"></div>
             </div>
             <div class="stats-label">VLM Perception Result:</div>
-            <p style="font-size: 0.8em; color: #7dd3fc;">The gray basket is located at [425, 452, 578, 548]</p>
+            <p style="font-size: 0.8em; color: #7dd3fc; border-left: 2px solid #00ff00; padding-left: 10px;">The gray basket is located at [425, 452, 578, 548]</p>
             
             <div class="stats-label">Action Prob: FORWARD</div>
             <div class="prob-bar"><div class="prob-fill" style="width: 30.80858290195465%"></div></div>
             
-            <div class="stats-label">Action Prob: TURN-LEFT</div>
+            <div class="stats-label">Action Prob: TURN-LEFT (FL)</div>
             <div class="prob-bar"><div class="prob-fill" style="width: 21.009628474712372%; background: #10b981;"></div></div>
         </div>
         
@@ -129,16 +125,16 @@
             <span class="badge">INFERENCE FRAME</span>
             <h3>frame_010.jpg</h3>
             <div class="img-container">
-                <img src="/file/home/soda/vla/docs/inference_reports/session_20260403_050653_images/frame_010.jpg">
-                <div class="bbox" style="top: 42.5%; left: 45.2%; width: 9.600000000000003%; height: 15.299999999999997%;"></div>
+                <img src="assets/frame_010.jpg">
+                <div class="bbox" style="top: 42.5%; left: 45.2%; width: 9.599999999999994%; height: 15.299999999999997%;"></div>
             </div>
             <div class="stats-label">VLM Perception Result:</div>
-            <p style="font-size: 0.8em; color: #7dd3fc;">The gray basket is located at [425, 452, 578, 548]</p>
+            <p style="font-size: 0.8em; color: #7dd3fc; border-left: 2px solid #00ff00; padding-left: 10px;">The gray basket is located at [425, 452, 578, 548]</p>
             
             <div class="stats-label">Action Prob: FORWARD</div>
             <div class="prob-bar"><div class="prob-fill" style="width: 31.62612020969391%"></div></div>
             
-            <div class="stats-label">Action Prob: TURN-LEFT</div>
+            <div class="stats-label">Action Prob: TURN-LEFT (FL)</div>
             <div class="prob-bar"><div class="prob-fill" style="width: 20.82209289073944%; background: #10b981;"></div></div>
         </div>
         
@@ -146,16 +142,16 @@
             <span class="badge">INFERENCE FRAME</span>
             <h3>frame_015.jpg</h3>
             <div class="img-container">
-                <img src="/file/home/soda/vla/docs/inference_reports/session_20260403_050653_images/frame_015.jpg">
-                <div class="bbox" style="top: 42.5%; left: 45.2%; width: 9.600000000000003%; height: 15.299999999999997%;"></div>
+                <img src="assets/frame_015.jpg">
+                <div class="bbox" style="top: 42.5%; left: 45.2%; width: 9.599999999999994%; height: 15.299999999999997%;"></div>
             </div>
             <div class="stats-label">VLM Perception Result:</div>
-            <p style="font-size: 0.8em; color: #7dd3fc;">The gray basket is located at [425, 452, 578, 548]</p>
+            <p style="font-size: 0.8em; color: #7dd3fc; border-left: 2px solid #00ff00; padding-left: 10px;">The gray basket is located at [425, 452, 578, 548]</p>
             
             <div class="stats-label">Action Prob: FORWARD</div>
             <div class="prob-bar"><div class="prob-fill" style="width: 31.454956531524658%"></div></div>
             
-            <div class="stats-label">Action Prob: TURN-LEFT</div>
+            <div class="stats-label">Action Prob: TURN-LEFT (FL)</div>
             <div class="prob-bar"><div class="prob-fill" style="width: 19.078394770622253%; background: #10b981;"></div></div>
         </div>
         
