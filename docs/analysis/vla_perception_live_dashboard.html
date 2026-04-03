@@ -2,164 +2,73 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>MoNaVLA Advanced Audit Dashboard</title>
+    <title>MoNaVLA Perception Audit (CRITICAL FAILURE ALERT)</title>
     <style>
-        body { font-family: 'Outfit', sans-serif; background: #020617; color: #f8fafc; padding: 50px; }
+        body { font-family: 'Outfit', sans-serif; background: #450a0a; color: #fecaca; padding: 50px; }
         .container { max-width: 1400px; margin: auto; }
-        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #1e293b; padding-bottom: 20px; margin-bottom: 40px; }
-        .header h1 { color: #38bdf8; margin: 0; font-size: 2.5em; }
-        .prompt-box { background: #0f172a; border: 1px dashed #38bdf8; padding: 15px; border-radius: 8px; font-family: monospace; color: #7dd3fc; margin-bottom: 30px; }
-        .evidence-section { margin-bottom: 60px; }
+        .alert-plate { background: #fee2e2; color: #991b1b; padding: 20px; border-radius: 12px; border: 4px solid #ef4444; margin-bottom: 40px; font-weight: bold; font-size: 1.2em; }
         .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 25px; }
-        .card { background: #1e293b; border-radius: 16px; padding: 25px; border: 1px solid #334155; }
-        .img-container { position: relative; width: 100%; aspect-ratio: 1; background: #000; border-radius: 12px; overflow: hidden; margin-bottom: 20px; border: 2px solid #334155; }
-        img { width: 100%; height: 100%; object-fit: cover; }
-        .bbox { position: absolute; border: 4px solid #00ff00; background: rgba(0, 255, 0, 0.15); box-shadow: 0 0 20px #00ff00; z-index: 100; pointer-events: none; }
-        .badge { background: #0ea5e9; padding: 4px 12px; border-radius: 20px; font-size: 0.75em; font-weight: bold; }
-        .h5-badge { background: #f59e0b; color: black; }
-        .stats-label { font-size: 0.85em; color: #94a3b8; font-weight: bold; margin-top: 15px; }
-        .prob-bar { height: 12px; background: #334155; border-radius: 6px; overflow: hidden; margin-top: 5px; }
-        .prob-fill { height: 100%; background: linear-gradient(90deg, #3b82f6, #60a5fa); transition: width 1s; }
-        .turn-fill { background: linear-gradient(90deg, #10b981, #34d399); }
-        .footer { margin-top: 80px; text-align: center; color: #475569; font-size: 0.9em; }
+        .card { background: #7f1d1d; border-radius: 16px; padding: 25px; border: 1px solid #ef4444; }
+        .img-container { position: relative; width: 100%; aspect-ratio: 1; background: #000; border-radius: 12px; overflow: hidden; margin-bottom: 20px; }
+        img { width: 100%; height: 100%; object-fit: cover; opacity: 0.5; }
+        .status-badge { background: #ef4444; color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.8em; }
+        h1, h2 { color: #f87171; }
+        .vlm-text { font-family: monospace; background: #000; padding: 10px; border-radius: 8px; color: #fca5a5; border: 1px solid #ef4444; }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <div>
-                <h1>🔍 MoNaVLA Perception Audit</h1>
-                <p>Grounding Proof & Training Momentum Analysis</p>
-            </div>
-            <div style="text-align: right;">
-                <p><b>Session:</b> session_20260403_050653</p>
-                <p><b>Dataset:</b> mobile_vla_dataset_v3</p>
-            </div>
+        <h1>🚨 MoNaVLA Perception Audit: Critical Failure Report</h1>
+        <div class="alert-plate">
+            ⚠️ CRITICAL ERROR: Vision-Language Alignment Mismatch Detected! <br>
+            Backbone model is unable to process visual grounding. Repeating &lt;patch_index_1024&gt; tokens.
         </div>
 
-        <div class="prompt-box">
-             <b># VLM Grounding Prompt (Active Inference):</b><br>
-             &lt;image&gt;&lt;grounding&gt;An image of a robot. Where is the gray basket? Answer:
-        </div>
-
-        <div class="evidence-section">
-            <h2>📦 Historical Evidence (Extracted from H5 Datasets)</h2>
-            <div class="grid">
-                <div class="card">
-                    <span class="badge h5-badge">TRAINING DATA (H5)</span>
-                    <h3>Forward Bias Origin</h3>
-                    <div class="img-container">
-                        <img src="assets/training_h5_forward.jpg">
-                    </div>
-                </div>
-                <div class="card">
-                    <span class="badge h5-badge">TRAINING DATA (H5)</span>
-                    <h3>Latent Curve Skill</h3>
-                    <div class="img-container">
-                        <img src="assets/training_h5_turn_left.jpg">
-                    </div>
-                </div>
-                <div class="card" style="background: rgba(56, 189, 248, 0.05); border: 2px dashed #0ea5e9;">
-                    <h2>💡 Data Insight</h2>
-                    <p>Training distribution was <b>74.5% straight</b>. The model "Sees" the basket correctly but "Decides" to go straight based on this historical memory.</p>
-                </div>
-            </div>
-        </div>
-
-        <div class="evidence-section">
-            <h2>👁️ Live Inference Audit (VLM Bounding Box Visualization)</h2>
-            <div class="grid">
-                
+        <div class="grid">
+            
         <div class="card">
-            <span class="badge">INFERENCE FRAME</span>
+            <span class="status-badge">BACKBONE: BLIND</span>
             <h3>frame_001.jpg</h3>
             <div class="img-container">
                 <img src="assets/frame_001.jpg">
-                <div class="bbox" style="top: 42.5%; left: 45.2%; width: 9.599999999999994%; height: 15.299999999999997%;"></div>
             </div>
-            <div class="stats-label">VLM Perception Result:</div>
-            <p style="font-size: 0.8em; color: #7dd3fc; border-left: 2px solid #00ff00; padding-left: 10px;">The gray basket is located at [425, 452, 578, 548]</p>
-            
-            <div class="stats-label">Action Prob: FORWARD</div>
-            <div class="prob-bar"><div class="prob-fill" style="width: 21.80454134941101%"></div></div>
-            
-            <div class="stats-label">Action Prob: TURN-LEFT (FL)</div>
-            <div class="prob-bar"><div class="prob-fill" style="width: 20.284411311149597%; background: #10b981;"></div></div>
+            <p><b>VLM Raw Output:</b></p>
+            <div class="vlm-text"><patch_index_1020> (Repeat loop: Vision Mismatch Detected)</div>
+            <p style="margin-top:20px; font-size: 0.9em;"><b>Action Prob (F):</b> 0.218</p>
+            <p style="font-size: 0.9em;"><b>Action Prob (FL):</b> 0.202</p>
         </div>
         
         <div class="card">
-            <span class="badge">INFERENCE FRAME</span>
-            <h3>frame_003.jpg</h3>
-            <div class="img-container">
-                <img src="assets/frame_003.jpg">
-                <div class="bbox" style="top: 42.5%; left: 45.2%; width: 9.599999999999994%; height: 15.299999999999997%;"></div>
-            </div>
-            <div class="stats-label">VLM Perception Result:</div>
-            <p style="font-size: 0.8em; color: #7dd3fc; border-left: 2px solid #00ff00; padding-left: 10px;">The gray basket is located at [425, 452, 578, 548]</p>
-            
-            <div class="stats-label">Action Prob: FORWARD</div>
-            <div class="prob-bar"><div class="prob-fill" style="width: 29.785409569740295%"></div></div>
-            
-            <div class="stats-label">Action Prob: TURN-LEFT (FL)</div>
-            <div class="prob-bar"><div class="prob-fill" style="width: 19.495634734630585%; background: #10b981;"></div></div>
-        </div>
-        
-        <div class="card">
-            <span class="badge">INFERENCE FRAME</span>
+            <span class="status-badge">BACKBONE: BLIND</span>
             <h3>frame_005.jpg</h3>
             <div class="img-container">
                 <img src="assets/frame_005.jpg">
-                <div class="bbox" style="top: 42.5%; left: 45.2%; width: 9.599999999999994%; height: 15.299999999999997%;"></div>
             </div>
-            <div class="stats-label">VLM Perception Result:</div>
-            <p style="font-size: 0.8em; color: #7dd3fc; border-left: 2px solid #00ff00; padding-left: 10px;">The gray basket is located at [425, 452, 578, 548]</p>
-            
-            <div class="stats-label">Action Prob: FORWARD</div>
-            <div class="prob-bar"><div class="prob-fill" style="width: 30.80858290195465%"></div></div>
-            
-            <div class="stats-label">Action Prob: TURN-LEFT (FL)</div>
-            <div class="prob-bar"><div class="prob-fill" style="width: 21.009628474712372%; background: #10b981;"></div></div>
+            <p><b>VLM Raw Output:</b></p>
+            <div class="vlm-text"><patch_index_1020> (Vision Mismatch)</div>
+            <p style="margin-top:20px; font-size: 0.9em;"><b>Action Prob (F):</b> 0.308</p>
+            <p style="font-size: 0.9em;"><b>Action Prob (FL):</b> 0.210</p>
         </div>
         
         <div class="card">
-            <span class="badge">INFERENCE FRAME</span>
+            <span class="status-badge">BACKBONE: BLIND</span>
             <h3>frame_010.jpg</h3>
             <div class="img-container">
                 <img src="assets/frame_010.jpg">
-                <div class="bbox" style="top: 42.5%; left: 45.2%; width: 9.599999999999994%; height: 15.299999999999997%;"></div>
             </div>
-            <div class="stats-label">VLM Perception Result:</div>
-            <p style="font-size: 0.8em; color: #7dd3fc; border-left: 2px solid #00ff00; padding-left: 10px;">The gray basket is located at [425, 452, 578, 548]</p>
-            
-            <div class="stats-label">Action Prob: FORWARD</div>
-            <div class="prob-bar"><div class="prob-fill" style="width: 31.62612020969391%"></div></div>
-            
-            <div class="stats-label">Action Prob: TURN-LEFT (FL)</div>
-            <div class="prob-bar"><div class="prob-fill" style="width: 20.82209289073944%; background: #10b981;"></div></div>
+            <p><b>VLM Raw Output:</b></p>
+            <div class="vlm-text"><patch_index_1020> (Perception Failure)</div>
+            <p style="margin-top:20px; font-size: 0.9em;"><b>Action Prob (F):</b> 0.316</p>
+            <p style="font-size: 0.9em;"><b>Action Prob (FL):</b> 0.208</p>
         </div>
         
-        <div class="card">
-            <span class="badge">INFERENCE FRAME</span>
-            <h3>frame_015.jpg</h3>
-            <div class="img-container">
-                <img src="assets/frame_015.jpg">
-                <div class="bbox" style="top: 42.5%; left: 45.2%; width: 9.599999999999994%; height: 15.299999999999997%;"></div>
-            </div>
-            <div class="stats-label">VLM Perception Result:</div>
-            <p style="font-size: 0.8em; color: #7dd3fc; border-left: 2px solid #00ff00; padding-left: 10px;">The gray basket is located at [425, 452, 578, 548]</p>
-            
-            <div class="stats-label">Action Prob: FORWARD</div>
-            <div class="prob-bar"><div class="prob-fill" style="width: 31.454956531524658%"></div></div>
-            
-            <div class="stats-label">Action Prob: TURN-LEFT (FL)</div>
-            <div class="prob-bar"><div class="prob-fill" style="width: 19.078394770622253%; background: #10b981;"></div></div>
         </div>
         
-            </div>
-        </div>
-
-        <div class="footer">
-            Designed for MoNa-pi Architecture Audit | ANTIGRAVITY-VLA Engine
+        <div style="margin-top: 40px; background: #000; padding: 20px; border-radius: 12px;">
+            <h2 style="color: #ef4444;">👨‍🏫 Professor's Briefing Note:</h2>
+            <p>1. <b>Visual Blindness (VLM Error):</b> The backbone fails to generate grounding coordinates. It is currently "visually blind" to the basket.</p>
+            <p>2. <b>Policy Bias:</b> Even with logit penalty, the model defaults to FORWARD (Idx 1) because the visual input is too noisy/broken to trigger turning logic.</p>
+            <p>3. <b>Conclusion:</b> <u>Urgent LoRA Re-alignment needed.</u> The Vision-Tower outputs are not reaching the Policy Head correctly.</p>
         </div>
     </div>
 </body>
