@@ -1,0 +1,107 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MoNaVLA Perception Audit Dashboard</title>
+    <style>
+        body { font-family: 'Inter', sans-serif; background: #0f172a; color: white; padding: 40px; }
+        .container { max-width: 1200px; margin: auto; }
+        .card { background: #1e293b; border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 1px solid #334155; }
+        .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+        .img-container { position: relative; width: 448px; height: 448px; background: #000; border-radius: 8px; overflow: hidden; }
+        img { width: 100%; height: 100%; object-fit: contain; }
+        .bbox { position: absolute; border: 3px solid #10b981; background: rgba(16, 185, 129, 0.2); pointer-events: none; }
+        .stats { font-size: 0.9em; color: #94a3b8; }
+        .prob-bar { height: 10px; background: #334155; border-radius: 5px; overflow: hidden; margin-top: 5px; }
+        .prob-fill { height: 100%; background: #3b82f6; }
+        h1, h2 { color: #38bdf8; }
+        .badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 0.8em; font-weight: bold; background: #0ea5e9; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 MoNaVLA Perception Audit Dashboard</h1>
+        <p>Analysis of VLM Visual Anchoring vs Policy Head Bias</p>
+        
+        <div class="grid">
+            
+                <div class="card">
+                    <h3>frame_001.jpg <span class="badge">Perception: ACTIVE</span></h3>
+                    <div class="img-container">
+                        <img src="file:///home/soda/vla/docs/inference_reports/session_20260403_050653_images/frame_001.jpg">
+                        <div class="bbox" style="top: 42.5%; left: 45.2%; width: 9.600000000000003%; height: 15.299999999999997%;"></div>
+                    </div>
+                    <div style="margin-top:20px;">
+                        <p class="stats"><b>VLM Logic:</b> The gray basket is located at [425, 452, 578, 548]</p>
+                        <p><b>Action Probability: FORWARD</b></p>
+                        <div class="prob-bar"><div class="prob-fill" style="width: 21.80454134941101%"></div></div>
+                        <p><b>Action Probability: TURN (FL+FR)</b></p>
+                        <div class="prob-bar"><div class="prob-fill" style="width: 20.284411311149597%; background: #10b981;"></div></div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h3>frame_003.jpg <span class="badge">Perception: ACTIVE</span></h3>
+                    <div class="img-container">
+                        <img src="file:///home/soda/vla/docs/inference_reports/session_20260403_050653_images/frame_003.jpg">
+                        <div class="bbox" style="top: 42.5%; left: 45.2%; width: 9.600000000000003%; height: 15.299999999999997%;"></div>
+                    </div>
+                    <div style="margin-top:20px;">
+                        <p class="stats"><b>VLM Logic:</b> The gray basket is located at [425, 452, 578, 548]</p>
+                        <p><b>Action Probability: FORWARD</b></p>
+                        <div class="prob-bar"><div class="prob-fill" style="width: 29.785409569740295%"></div></div>
+                        <p><b>Action Probability: TURN (FL+FR)</b></p>
+                        <div class="prob-bar"><div class="prob-fill" style="width: 19.495634734630585%; background: #10b981;"></div></div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h3>frame_005.jpg <span class="badge">Perception: ACTIVE</span></h3>
+                    <div class="img-container">
+                        <img src="file:///home/soda/vla/docs/inference_reports/session_20260403_050653_images/frame_005.jpg">
+                        <div class="bbox" style="top: 42.5%; left: 45.2%; width: 9.600000000000003%; height: 15.299999999999997%;"></div>
+                    </div>
+                    <div style="margin-top:20px;">
+                        <p class="stats"><b>VLM Logic:</b> The gray basket is located at [425, 452, 578, 548]</p>
+                        <p><b>Action Probability: FORWARD</b></p>
+                        <div class="prob-bar"><div class="prob-fill" style="width: 30.80858290195465%"></div></div>
+                        <p><b>Action Probability: TURN (FL+FR)</b></p>
+                        <div class="prob-bar"><div class="prob-fill" style="width: 21.009628474712372%; background: #10b981;"></div></div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h3>frame_010.jpg <span class="badge">Perception: ACTIVE</span></h3>
+                    <div class="img-container">
+                        <img src="file:///home/soda/vla/docs/inference_reports/session_20260403_050653_images/frame_010.jpg">
+                        <div class="bbox" style="top: 42.5%; left: 45.2%; width: 9.600000000000003%; height: 15.299999999999997%;"></div>
+                    </div>
+                    <div style="margin-top:20px;">
+                        <p class="stats"><b>VLM Logic:</b> The gray basket is located at [425, 452, 578, 548]</p>
+                        <p><b>Action Probability: FORWARD</b></p>
+                        <div class="prob-bar"><div class="prob-fill" style="width: 31.62612020969391%"></div></div>
+                        <p><b>Action Probability: TURN (FL+FR)</b></p>
+                        <div class="prob-bar"><div class="prob-fill" style="width: 20.82209289073944%; background: #10b981;"></div></div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h3>frame_015.jpg <span class="badge">Perception: ACTIVE</span></h3>
+                    <div class="img-container">
+                        <img src="file:///home/soda/vla/docs/inference_reports/session_20260403_050653_images/frame_015.jpg">
+                        <div class="bbox" style="top: 42.5%; left: 45.2%; width: 9.600000000000003%; height: 15.299999999999997%;"></div>
+                    </div>
+                    <div style="margin-top:20px;">
+                        <p class="stats"><b>VLM Logic:</b> The gray basket is located at [425, 452, 578, 548]</p>
+                        <p><b>Action Probability: FORWARD</b></p>
+                        <div class="prob-bar"><div class="prob-fill" style="width: 31.454956531524658%"></div></div>
+                        <p><b>Action Probability: TURN (FL+FR)</b></p>
+                        <div class="prob-bar"><div class="prob-fill" style="width: 19.078394770622253%; background: #10b981;"></div></div>
+                    </div>
+                </div>
+                
+        </div>
+    </div>
+</body>
+</html>
+    
