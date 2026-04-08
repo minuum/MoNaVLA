@@ -118,7 +118,7 @@ from robovlm_nav.serve.vla_control_utils import VLAControlManager
 # --- Configuration ---
 API_URL = "http://localhost:8000"
 API_KEY = os.getenv("VLA_API_KEY", "vla_devel_key_2026")
-DEFAULT_INSTRUCTION = "Navigate toward the gray basket until it is centered in the frame"
+DEFAULT_INSTRUCTION = "Navigate toward the gray basket until it gets closer"
 LINEAR_SPEED_VLA = 1.15
 ANGULAR_SPEED_VLA = 1.15
 
@@ -329,6 +329,44 @@ class ROSDashboardNode(Node):
         
         return fig
 
+import re
+def draw_bounding_box_from_text(img, text, patch_size=32, grid_size=32):
+    """
+    Parse <patch_index_XXXX> from text and draw a bounding box.
+    Kosmos-2 divides the image into a grid of 32x32 patches.
+    """
+    # Look for a pair of patch tokens like <patch_index_0015><patch_index_1012>
+    pattern = r"<patch_index_(\d{4})>\s*<patch_index_(\d{4})>"
+    matches = re.finditer(pattern, text)
+    
+    img_cv = np.array(img.convert('RGB'))
+    img_cv = cv2.cvtColor(img_cv, cv2.COLOR_RGB2BGR)
+    
+    h, w = img_cv.shape[:2]
+    patch_w = w / grid_size
+    patch_h = h / grid_size
+    
+    has_boxes = False
+    for match in matches:
+        start_idx = int(match.group(1))
+        end_idx = int(match.group(2))
+        
+        y1 = (start_idx // grid_size) * patch_h
+        x1 = (start_idx % grid_size) * patch_w
+        
+        y2 = ((end_idx // grid_size) + 1) * patch_h
+        x2 = ((end_idx % grid_size) + 1) * patch_w
+        
+        # Draw bounding box (Green)
+        cv2.rectangle(img_cv, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 3)
+        # Add label
+        cv2.putText(img_cv, "Target", (int(x1), int(y1)-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+        has_boxes = True
+        
+    if has_boxes:
+        return Image.fromarray(cv2.cvtColor(img_cv, cv2.COLOR_BGR2RGB))
+    return img
+
 ros_node = None
 if ROS_AVAILABLE:
     if not rclpy.ok(): rclpy.init()
@@ -422,6 +460,16 @@ def update_ui(mode, instr, apply_cc, is_running_ui):
                 fig = None
                 if ROS_AVAILABLE and ros_node:
                     fig = ros_node.generate_trajectory_plot(raw_chunk)
+
+                # [VISUALIZATION] Try drawing bounding box if text is available from model
+                # Note: Currently predict() only returns action, lat, chunk. 
+                # For Phase 1.5, we parse from current_log or if predict is updated.
+                # Since we don't have text directly, we apply standard rendering if text is injected later.
+                try:
+                    if hasattr(local_model_instance, 'last_text_output'):
+                        img = draw_bounding_box_from_text(img, local_model_instance.last_text_output)
+                except Exception as e:
+                    pass
 
                 # [LOGGING] Unified step logging
                 if logger_instance: 

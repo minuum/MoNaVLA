@@ -320,3 +320,10 @@ fi
 # Basket Training Aliases
 alias vla-train-log='tail -f /home/billy/25-1kp/vla/logs/train_basket_chunk5_20260129_204053.log'
 alias vla-train-stop='pkill -f main.py'
+
+# MoNaVLA Shortcuts
+alias vla-analyze='python3 /home/soda/MoNaVLA/scripts/gradio_offline_h5_analyzer.py'
+alias vla-dashboard='python3 /home/soda/MoNaVLA/scripts/gradio_inference_dashboard.py'
+alias vla-collect='python3 /home/soda/MoNaVLA/scripts/gradio_data_collector.py'
+alias vla-server='python3 /home/soda/MoNaVLA/robovlm_nav/serve/inference_server.py'
+alias vla-reset='kill -9 $(pgrep -f "gradio_") || true; kill -9 $(pgrep -f "inference_server") || true'

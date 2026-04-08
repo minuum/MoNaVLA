@@ -4,7 +4,7 @@ echo "🚀 Mobile VLA Data Collector 시작..."
 echo "=================================="
 
 # ROS 환경 설정 (절대 경로 사용, 현재 작업 디렉토리 무관)
-ROS_ACTION_DIR="/home/soda/vla/ROS_action"
+ROS_ACTION_DIR="/home/soda/MoNaVLA/ROS_action"
 
 # ROS_action 디렉토리로 이동 (존재 확인)
 if [ ! -d "$ROS_ACTION_DIR" ]; then

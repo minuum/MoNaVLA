@@ -83,20 +83,23 @@ class MobileVLADataCollector(Node):
         }
         self.time_period_stats = defaultdict(int)  # 시간대별 통계
         
-        # 4가지 탄산음료 페트병 도달 시나리오 목표 설정 (총 1000개 목표)
+        # 9가지 탄산음료 페트병 도달 시나리오 목표 설정 (각 최소 15~20회 목표)
         if self.mode == "2":
             # V3 Phase 1.5 (장애물 없는 Target-reahing 수집)
             self.cup_scenarios = {
-                "v3_center": {"target": 40, "description": "V3 정중앙 (Center)", "key": "1"},
-                "v3_left": {"target": 30, "description": "V3 좌측 (Left)", "key": "2"},
-                "v3_right": {"target": 30, "description": "V3 우측 (Right)", "key": "3"},
-                "v3_recovery": {"target": 40, "description": "V3 오류 회복 (Recovery)", "key": "4"},
-                "v3_noise": {"target": 20, "description": "V3 잡음 (Noise)", "key": "5"}
+                "target_left_left_path": {"target": 15, "description": "목표: 좌측 | 경로: 왼쪽 곡선 (Left Path)", "key": "1"},
+                "target_left_straight_path": {"target": 20, "description": "목표: 좌측 | 경로: 메인 직선 (Straight Path)", "key": "2"},
+                "target_left_right_path": {"target": 15, "description": "목표: 좌측 | 경로: 오른쪽 곡선 (Right Path)", "key": "3"},
+                "target_center_left_path": {"target": 15, "description": "목표: 중앙 | 경로: 왼쪽 곡선 (Left Path)", "key": "4"},
+                "target_center_straight_path": {"target": 20, "description": "목표: 중앙 | 경로: 메인 직선 (Straight Path)", "key": "5"},
+                "target_center_right_path": {"target": 15, "description": "목표: 중앙 | 경로: 오른쪽 곡선 (Right Path)", "key": "6"},
+                "target_right_left_path": {"target": 15, "description": "목표: 우측 | 경로: 왼쪽 곡선 (Left Path)", "key": "7"},
+                "target_right_straight_path": {"target": 20, "description": "목표: 우측 | 경로: 메인 직선 (Straight Path)", "key": "8"},
+                "target_right_right_path": {"target": 15, "description": "목표: 우측 | 경로: 오른쪽 곡선 (Right Path)", "key": "9"}
             }
-            # 장애물(박스) 위치 대체 (화분 위치 대신 바구니 거리/위치로 활용)
+            # 장애물(박스) 위치 대체 (화분 위치 대신 거리/위치로 활용)
             self.distance_levels = {
-                "close":   {"label": "1m 내외 (Close)",  "hint": "바구니와 로봇 거리 약 1m", "samples_per_scenario": 5},
-                "medium":  {"label": "2m 내외 (Medium)", "hint": "바구니와 로봇 거리 약 2m", "samples_per_scenario": 5}
+                "fixed":   {"label": "고정 위치 (Fixed)",  "hint": "고정된 시야 및 타겟 접근 방식", "samples_per_scenario": 15}
             }
         else:
             # 기존 1번 모드 (장애물 회피 기반)
@@ -268,8 +271,8 @@ class MobileVLADataCollector(Node):
             if ros_action_dir is None or not ros_action_dir.exists():
                 raise RuntimeError(f"❌ ROS_action 디렉토리를 찾을 수 없습니다. 환경변수 VLA_DATASET_DIR을 설정하거나, 올바른 위치에 설치하세요.")
             
-            # 2번 모드(V3)는 별도 디렉토리 사용 (데이터 섞임 방지)
-            dataset_name = "mobile_vla_dataset_v3" if self.mode == "2" else "mobile_vla_dataset"
+            # 2번 모드(V5)는 별도 디렉토리 사용 (데이터 섞임 방지)
+            dataset_name = "mobile_vla_dataset_v5" if self.mode == "2" else "mobile_vla_dataset"
             self.data_dir = ros_action_dir.resolve() / dataset_name
             # 한 번 더 resolve()하여 절대 경로 확실히 보장 (상대 경로 문제 방지)
             self.data_dir = self.data_dir.resolve()
@@ -349,10 +352,10 @@ class MobileVLADataCollector(Node):
         self.get_logger().info("   X: 리셋 (첫 화면으로 돌아가기, 수집 중에도 가능)")
         
         if self.mode == "2":
-            self.get_logger().info("   T: 수집 플랜 표 보기 (V3 1.5 Phase 160개 플랜)")
-            self.get_logger().info("🎯 수집 단계: N → 시나리오(1-4) → 패턴(C/V) → 거리(J/K/L)")
-            self.get_logger().info("   (※ V3 수동 수집에서는 B: 자동복귀, A: 자동측정을 허용하지 않습니다)")
-            self.get_logger().info("🎯 V3 Target-Reaching 시나리오 (총 160개 목표):")
+            self.get_logger().info("   T: 수집 플랜 표 보기 (V5 1.5 Phase 150개 플랜)")
+            self.get_logger().info("🎯 수집 단계: N → 시나리오(1-9) → 패턴(C/V) → 거리(Fixed)")
+            self.get_logger().info("   (※ V5 수동 수집에서는 B: 자동복귀, A: 자동측정을 허용하지 않습니다)")
+            self.get_logger().info("🎯 V5 Target-Reaching 시나리오 (총 150개 목표):")
             self.get_logger().info("   📦 100% 수동으로 바구니를 향해 접근 및 조향")
         else:
             self.get_logger().info("   B: 자동 복귀 (에피소드 종료 후 시작 위치로 복귀)")
@@ -486,7 +489,7 @@ class MobileVLADataCollector(Node):
         elif key == 't' and not self.collecting:
             # 측정 태스크 표 보기
             self.show_measurement_task_table()
-        elif key in ['1', '2', '3', '4', '5'] and not self.repeat_count_mode:
+        elif key in ['1', '2', '3', '4', '5', '6', '7', '8', '9'] and not self.repeat_count_mode:
             if self.scenario_selection_mode:
                 # 동적 시나리오 매핑
                 scenario_map = {v["key"]: k for k, v in self.cup_scenarios.items()}
@@ -2192,7 +2195,7 @@ class MobileVLADataCollector(Node):
         self.get_logger().info("📋 환경을 설정한 후 원하는 시나리오 번호를 누르세요:")
         self.get_logger().info("")
         
-        # 시나리오별 상세 정보 표시 (4개로 축소)
+        # 시나리오별 상세 정보 표시
         scenario_details = []
         for s_id, s_info in self.cup_scenarios.items():
             if self.mode == "2":
@@ -2244,7 +2247,7 @@ class MobileVLADataCollector(Node):
         self.get_logger().info("🏁 전체 진행률:")
         self.get_logger().info(f"   {overall_progress} ({total_completed}/{total_target}) {overall_percentage:.1f}%")
         self.get_logger().info("")
-        self.get_logger().info("✨ 1-4번 중 원하는 시나리오를 선택하세요!")
+        self.get_logger().info("✨ 1-9번 중 원하는 시나리오를 선택하세요!")
         self.get_logger().info("💡 환경 설정 후 숫자키를 누르면 배치 타입 선택으로 넘어갑니다.")
         self.get_logger().info("🚫 취소하려면 다른 키를 누르세요.")
 
@@ -3413,26 +3416,27 @@ class MobileVLADataCollector(Node):
 
 def main(args=None):
     import termios, tty, sys, select
-    mode = "1"
+    mode = "2"
     try:
         print("\n" + "="*70)
         print("🚀 VLA 데이터 수집 모드 선택")
-        print("  [1] 기존 모드 (Default)   : 1box/2box 장애물 포함 경로 (기존 로직)")
-        print("  [2] V3 수집 모드 (Phase 1.5): Target-Reaching Only (장애물 없이 바구니 목표)")
+        print("  [1] 기존 모드            : 1box/2box 장애물 포함 경로 (기존 로직)")
+        print("  [2] V5 수집 모드 (Default): Target-Reaching Only (장애물 없이 바구니 목표)")
         print("="*70)
-        print("원하는 모드 번호를 입력 후 Enter (아무 입력 없으면 5초 뒤 기본값 1 적용): ", end='', flush=True)
+        print("원하는 모드 번호를 입력 후 Enter (아무 입력 없으면 5초 뒤 기본값 2 적용): ", end='', flush=True)
         i, o, e = select.select([sys.stdin], [], [], 5)
         if i:
             val = sys.stdin.readline().strip()
-            if val == "2":
-                mode = "2"
-                print("\n✅ V3 수집 모드(Phase 1.5 - 장애물 없음)로 시작합니다!\n")
-            else:
+            if val == "1":
+                mode = "1"
                 print("\n✅ 기존 1번 모드로 시작합니다.\n")
+            else:
+                mode = "2"
+                print("\n✅ V5 수집 모드(Phase 1.5 - 장애물 없음)로 시작합니다!\n")
         else:
-            print("\n⏳ 시간 초과: 기본값인 1번(기존 모드)으로 시작합니다.\n")
+            print("\n⏳ 시간 초과: 기본값인 2번(V5 모드)으로 시작합니다.\n")
     except EOFError:
-        print("\n✅ 기존 1번 모드로 시작합니다.\n")
+        print("\n✅ V5 수집 모드로 시작하는 중...\n")
     except KeyboardInterrupt:
         sys.exit(0)
 
