@@ -88,7 +88,7 @@ class GradioCollectorNode(Node):
             'q': (1.15, 1.15, 0.0), 'w': (1.15, 0.0, 0.0), 'e': (1.15, -1.15, 0.0),
             'a': (0.0, 1.15, 0.0), 's': (0.0, 0.0, 0.0), 'd': (0.0, -1.15, 0.0),
             'z': (-1.15, 1.15, 0.0), 'x': (-1.15, 0.0, 0.0), 'c': (-1.15, -1.15, 0.0),
-            'r': (0.0, 0.0, 0.25), 't': (0.0, 0.0, -0.25),
+            'r': (0.0, 0.0, 0.20), 't': (0.0, 0.0, -0.20),
             'g': (0.0, 0.0, 0.0)
         }
         
@@ -352,6 +352,7 @@ def get_feed(_=None):
 
 def update_ui_state(_=None):
     if not node: return "ROS Offline", ""
+    node.load_all_stats() # 주기적으로 파일 개수 갱신
     with node.lock:
         s = f"● REC [%d] - %s" % (len(node.episode_buffer), V5_SCENARIOS.get(node.current_scenario_key, {}).get('name', '')) if node.collecting else "IDLE"
         if node.is_auto_playing: s = f"🚀 REPLAYING..."
