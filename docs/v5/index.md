@@ -6,7 +6,7 @@
 
 | 실험 ID | 핵심 주제 (Core Theme) | 기반 모델 (Base) | 액션 체계 | 핵심 기술 | Val Loss | 상태 |
 | :--- | :--- | :--- | :---: | :--- | :---: | :---: |
-| **Exp 01** | Baseline Discrete | V4 Checkpoint | 9-Class | 기본 분류 학습 | 2.270 | ⚠️ Bias |
+| **Exp 01** | Baseline Discrete | V4 Checkpoint | 6-Class | 기본 분류 학습 | 2.270 | ⚠️ Bias |
 | **Exp 02** | Rotation Focus | V4 Checkpoint | 6-Class | 직선 데이터 제거 | 2.210 | 🟢 Improved |
 | **Exp 03** | Semantic Mapping | Exp 02 Base | 6-Class | **CLIP Norm Loss** | 1.784 | 🟢 Advancing |
 | **Exp 04** | Foundation Shift | **Google-Robot** | 6-Class | Pretrained Transfer | **0.776** | 🚀 Breakthrough |
