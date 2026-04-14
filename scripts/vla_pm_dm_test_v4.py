@@ -77,7 +77,7 @@ def parse_action_logits(outputs):
     ndim = pred_np.ndim
     if ndim == 4:
         # (B, seq_len, chunk_n, num_classes) -> 마지막 window, 마지막 chunk step
-        class_logits = pred_np[0, -1, -1, :]  # (num_classes,)
+        class_logits = pred_np[0, -1, 0, :]  # (num_classes,)
     elif ndim == 3:
         # (B, chunk_n, num_classes)
         class_logits = pred_np[0, -1, :]  # (num_classes,)

@@ -1,0 +1,29 @@
+{
+    "_comment": "V5 Exp03: CLIP Norm Loss 추가 (use_clip_norm=true). Exp02-no-straight best ckpt(val_loss=2.210)에서 계속 학습",
+    "parent": "configs/mobile_vla_v5_exp01_discrete.json",
+    "exp_name": "v5-exp03-clip-norm",
+    "task_name": "mobile_vla_v5_exp03",
+    "output_root": "runs/v5_nav",
+    "log_root": "runs/v5_nav",
+
+    "_comment_clip": "CLIP Norm Loss: action_hs (from LLM) ↔ CLIP text embedding (raw_text) smooth L1 loss 추가",
+    "use_clip_norm": true,
+
+    "_comment_ckpt": "V5 exp02-no-straight best checkpoint (val_loss=2.210)",
+    "model_load_path": "/home/billy/25-1kp/MoNaVLA/runs/v5_nav/kosmos/mobile_vla_v5_exp02/2026-04-10/v5-exp02-no-straight/epoch_epoch=epoch=05-val_loss=val_loss=2.210.ckpt",
+    "model_load_source": "lightning",
+    "resume": null,
+
+    "_comment_lr": "CLIP loss 추가로 인한 학습 불안정 방지 위해 LR 낮춤",
+    "learning_rate": 5e-5,
+    "max_epochs": 20,
+
+    "trainer": {
+        "precision": "16-mixed",
+        "limit_val_batches": 0.5,
+        "check_val_every_n_epoch": 1,
+        "early_stopping": true,
+        "patience": 5,
+        "monitor": "val_loss"
+    }
+}

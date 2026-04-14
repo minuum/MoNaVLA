@@ -1,6 +1,0 @@
-{
-  "package_name": "ros_action_msgs",
-  "non_idl_tuples": [
-    "/home/soda/vla/ROS_action/src/ros_action_msgs:msg/ObjectInfo.msg"
-  ]
-}

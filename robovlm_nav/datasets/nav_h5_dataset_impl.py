@@ -223,9 +223,9 @@ class MobileVLAH5Dataset(Dataset):
         curr_act_type = "forward"
         # 제자리 회전 (lx≈0, ly≈0, az≠0) — discrete label 변환과 동일
         if abs(tx) < 0.3 and abs(ty) < 0.3 and taz > 0.15:
-            curr_act_type = "right"
+            curr_act_type = "left"  # Positive az is Left (CCW)
         elif abs(tx) < 0.3 and abs(ty) < 0.3 and taz < -0.15:
-            curr_act_type = "left"
+            curr_act_type = "right" # Negative az is Right (CW)
         elif abs(tx) < 0.3 and abs(ty) < 0.3:
             curr_act_type = "stop"
         elif tx > 0.3 and abs(ty) < 0.3:
@@ -305,7 +305,7 @@ class MobileVLAH5Dataset(Dataset):
             variations = ["Navigate to the gray basket"]
         
 
-        return f"<grounding>An image of a robot {random.choice(variations)}"
+        return f"<grounding>Instruction: {random.choice(variations)}. Action:"
 
     def _get_path_type_instruction(self, ep_file_path):
         """에피소드 파일명의 path_type(left/right/straight)을 감지해 direction-specific instruction 반환."""
@@ -318,8 +318,14 @@ class MobileVLAH5Dataset(Dataset):
             key = "straight"
         else:
             key = "default"
-        variations = self.PATH_TYPE_INSTRUCTIONS[key]
-        return f"<grounding>An image of a robot {random.choice(variations)}"
+            
+        # [V5 BugFix] instruction_override 가 있으면 해당 값 사용, 없으면 하드코딩된 PATH_TYPE_INSTRUCTIONS 사용
+        if self.instruction_override is not None and key in self.instruction_override:
+            variations = self.instruction_override[key]
+        else:
+            variations = self.PATH_TYPE_INSTRUCTIONS[key]
+            
+        return f"<grounding>Instruction: {random.choice(variations)}. Action:"
 
     def __getitem__(self, idx):
         ep_idx, start_frame = self.frame_indices[idx]
@@ -407,7 +413,7 @@ class MobileVLAH5Dataset(Dataset):
                     "Freeze and stay still", "Do not move", "정지해", "움직이지 마",
                     "Stop moving", "Wait here", "그 자리에서 멈춰",
                 ]
-                language_base = f"<grounding>An image of a robot {random.choice(stop_variations)}"
+                language_base = f"<grounding>Instruction: {random.choice(stop_variations)}. Action:"
                 actions = np.zeros_like(actions)
                 
             elif _apply_counterfactual_steer:
@@ -434,7 +440,7 @@ class MobileVLAH5Dataset(Dataset):
                         # [lx, ly, az] -> [0.0, -0.6, 0.0] (Right Strafe)
                         actions = np.tile(np.array([0.0, -0.6, 0.0]), (actions.shape[0], 1))
                 
-                language_base = f"<grounding>An image of a robot {random.choice(steer_vars)}"
+                language_base = f"<grounding>Instruction: {random.choice(steer_vars)}. Action:"
                     
             else:
                 # [Track 1] 100% Strict Action-Aware 강제 적용 ('action_aware_train' 이거나 'strict_action_aware' 인 경우)
@@ -507,9 +513,9 @@ class MobileVLAH5Dataset(Dataset):
 
                 # 8-classes: 0:Stop, 1:F, 2:L, 3:R, 4:FL, 5:FR, 6:L-Angle, 7:R-Angle
                 if not is_x and not is_y:
-                    if az < -0.1:   # L-Angle (t)
+                    if az > 0.1:     # Left-Angle (CCW, positive)
                         label = 6
-                    elif az > 0.1:  # R-Angle (r)
+                    elif az < -0.1:  # Right-Angle (CW, negative)
                         label = 7
                     else:
                         label = 0
