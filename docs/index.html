@@ -348,6 +348,80 @@
           <a href="reports/vlm_text_gen_comparison.html" class="button is-small is-fullwidth is-outlined is-link">View Report</a>
         </div>
       </div>
+      <div class="column is-one-third">
+        <div class="card methodology-box" style="padding: 20px;">
+          <div class="mb-2">
+            <span class="tag is-success">2026.03.12</span>
+          </div>
+          <p class="title is-5">VLA Comparison Analysis</p>
+          <p class="subtitle is-6">다양한 VLA 아키텍처별 특성 및 효율성 비교 요약</p>
+          <a href="reports/viewer.html?file=vla_comparison_analysis.md" class="button is-small is-fullwidth is-outlined is-link">View MD Report</a>
+        </div>
+      </div>
+
+      <!-- Category: Architecture & Logic -->
+      <div class="column is-12 mt-5">
+        <h4 class="title is-4 has-text-warning border-bottom-thick">
+          <i class="fas fa-microchip mr-2"></i>Architecture & Training Logic
+        </h4>
+      </div>
+      <div class="column is-one-third">
+        <div class="card methodology-box" style="padding: 20px;">
+          <div class="mb-2">
+            <span class="tag is-warning">Architecture</span>
+          </div>
+          <p class="title is-5">RoboVLMs Core Analysis</p>
+          <p class="subtitle is-6">Upstream RoboVLMs 코드 베이스 및 데이터 파이프라인 정밀 분석</p>
+          <a href="reports/viewer.html?file=RoboVLMs_분석.md" class="button is-small is-fullwidth is-outlined is-link">View MD Report</a>
+        </div>
+      </div>
+      <div class="column is-one-third">
+        <div class="card methodology-box" style="padding: 20px;">
+          <div class="mb-2">
+            <span class="tag is-warning">Logic</span>
+          </div>
+          <p class="title is-5">Config & I/O Structure</p>
+          <p class="subtitle is-6">VLA 학습을 위한 구성 파일 및 입출력 인터페이스 정의서 (2025.11)</p>
+          <a href="reports/viewer.html?file=TRAINING_CONFIG_AND_IO_STRUCTURE_20251119.md" class="button is-small is-fullwidth is-outlined is-link">View MD Report</a>
+        </div>
+      </div>
+      <div class="column is-one-third">
+        <div class="card methodology-box" style="padding: 20px;">
+          <div class="mb-2">
+            <span class="tag is-warning">Strategy</span>
+          </div>
+          <p class="title is-5">Optimization Strategy</p>
+          <p class="subtitle is-6">VLA 학습 효율 극대화를 위한 하이퍼파라미터 및 증강 전략</p>
+          <a href="reports/viewer.html?file=VLA_학습_최적화_전략.md" class="button is-small is-fullwidth is-outlined is-link">View MD Report</a>
+        </div>
+      </div>
+
+      <!-- Category: Control & Trajectory -->
+      <div class="column is-12 mt-5">
+        <h4 class="title is-4 has-text-primary border-bottom-thick">
+          <i class="fas fa-route mr-2"></i>Control & Trajectory
+        </h4>
+      </div>
+      <div class="column is-one-third">
+        <div class="card methodology-box" style="padding: 20px;">
+          <div class="mb-2">
+            <span class="tag is-primary">V2/V3</span>
+          </div>
+          <p class="title is-5">Classification Stages</p>
+          <p class="subtitle is-6">다단계 분류 기반 액션 예측 실험 및 결과 보고서</p>
+          <a href="reports/viewer.html?file=V2_CLASSIFICATION_STAGES_REPORT.md" class="button is-small is-fullwidth is-outlined is-link">View MD Report</a>
+        </div>
+      </div>
+      <div class="column is-one-third">
+        <div class="card methodology-box" style="padding: 20px;">
+          <div class="mb-2">
+            <span class="tag is-primary">Control</span>
+          </div>
+          <p class="title is-5">Trajectory Analysis</p>
+          <p class="subtitle is-6">추종 제어 및 궤적 예측 정확도 분석 (Baseline 2025.11)</p>
+          <a href="reports/viewer.html?file=TRAJECTORY_ANALYSIS_20251114.md" class="button is-small is-fullwidth is-outlined is-link">View MD Report</a>
+        </div>
+      </div>
 
       <!-- Category: Infrastructure & Tools -->
       <div class="column is-12 mt-5">
@@ -367,16 +441,13 @@
       </div>
     </div>
 
-    <!-- Legacy MD Reports (Briefing) -->
+    <!-- Legacy Briefings (Historical) -->
     <div class="notification is-light mt-6">
-      <p class="title is-5"><i class="fas fa-archive mr-2"></i>Legacy MD Summaries</p>
-      <div class="content is-small">
-        <ul>
-          <li>V2 Classification Stages Report (2026.03.12)</li>
-          <li>VLA Optimization Strategies (2026.03.12)</li>
-          <li>Unified Inference Architecture (2026.02.18)</li>
-        </ul>
-        <p class="help">Raw Markdown 파일들은 프로젝트 루트의 <code>docs/reports/</code> 디렉토리에서 직접 확인 가능합니다.</p>
+      <p class="title is-5"><i class="fas fa-history mr-2"></i>Historical Briefings</p>
+      <div class="buttons">
+        <a href="reports/viewer.html?file=TRAINING_ANALYSIS_BRIEFING_20251112.md" class="button is-small is-info is-light">Training Briefing (2025.11.12)</a>
+        <a href="reports/viewer.html?file=undergraduate_briefing.md" class="button is-small is-info is-light">Undergraduate Orientation</a>
+        <a href="reports/viewer.html?file=remaining_tasks_summary.md" class="button is-small is-info is-light">Task Summary (2026.03)</a>
       </div>
     </div>
   </div>
