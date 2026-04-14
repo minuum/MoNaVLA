@@ -14,6 +14,11 @@ import sys
 import os
 from pathlib import Path
 
+# ── MPI hang 방지: mpi4py가 설치된 환경에서 Lightning이 orted 데몬을 spawn해 블로킹됨
+# MPI.COMM_WORLD.Get_size() 호출 시 hang → _MPI4PY_AVAILABLE=False로 패치해 detect() 스킵
+import lightning.fabric.plugins.environments.mpi as _mpi_env_mod
+_mpi_env_mod._MPI4PY_AVAILABLE = False
+
 # ── Path 설정 ─────────────────────────────────────────────────
 ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT_DIR))
@@ -37,7 +42,7 @@ from robovlm_nav.models.policy_head.nav_policy_impl import (
 from robovlm_nav.models.policy_head.hybrid_action_head import HybridActionHead
 
 # Trainer
-from robovlm_nav.trainer.nav_trainer import MobileVLATrainer as NavTrainer
+from robovlm_nav.trainer.nav_trainer import NavTrainer
 
 # ── robovlms 네임스페이스에 동적 주입 ──────────────────────────
 # Datasets (configs에서 type으로 참조하는 이름들)
@@ -57,7 +62,14 @@ from robovlms.model.backbone.robokosmos import RoboKosMos
 setattr(robovlms.model.backbone, "RoboVLM-Nav", RoboKosMos)
 
 # Trainer
-setattr(robovlms.train, "MobileVLATrainer", NavTrainer)
+import robovlms.train.base_trainer as base_trainer_mod
+base_trainer_mod.BaseTrainer = NavTrainer
+setattr(robovlms.train, "NavTrainer", NavTrainer)
+setattr(robovlms.train, "BaseTrainer", NavTrainer)
+
+# main 모듈의 BaseTrainer 교체
+import main
+main.BaseTrainer = NavTrainer
 
 if __name__ == "__main__":
     # third_party/RoboVLMs/main.py의 함수들을 직접 import해서 사용.

@@ -236,9 +236,9 @@ def main():
     
     # 분석할 체크포인트들
     checkpoints = [
-        "Robo+/Mobile_VLA/results/simple_clip_lstm_results_extended/best_simple_clip_lstm_model.pth",
-        "Robo+/Mobile_VLA/results/simple_lstm_results_extended/best_simple_lstm_model.pth",
-        "Robo+/Mobile_VLA/results/simple_lstm_results_extended/final_simple_lstm_model.pth"
+        "Mobile_VLA/results/simple_clip_lstm_results_extended/best_simple_clip_lstm_model.pth",
+        "Mobile_VLA/results/simple_lstm_results_extended/best_simple_lstm_model.pth",
+        "Mobile_VLA/results/simple_lstm_results_extended/final_simple_lstm_model.pth"
     ]
     
     try:
@@ -252,7 +252,7 @@ def main():
         summary = analyzer.create_architecture_summary(results)
         
         # 결과 저장
-        output_path = "Robo+/Mobile_VLA/architecture_analysis_results.json"
+        output_path = "Mobile_VLA/architecture_analysis_results.json"
         with open(output_path, "w") as f:
             json.dump({
                 'analysis_results': results,

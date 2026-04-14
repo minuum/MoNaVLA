@@ -1,22 +1,21 @@
-# Mobile VLA Project - Vision-Language-Action for Mobile Robot Navigation
+# MoNaVLA (Mobile Navigation Vision-Language-Action)
+> 음료수 병을 향한 장애물 회피 주행을 위한 연구 및 구현
 
-> 모바일 로봇(Jetson AGX Orin)의 시각-언어 기반 장애물 회피 주행을 위한 VLA 모델 연구
-
-**프로젝트 기간**: 2025-11 ~ 현재  
-**최종 업데이트**: 2026-03-06
-**Status**: ✅ Phase 1 완료 (V1~V3 학습 최적화) | 🚀 Phase 2 진행중 (데이터 증강 및 추론 테스트)
+**최종 업데이트**: 2026-03-26  
+**Status**: ✅ Phase 1.5 완료 (데이터 수집 고도화) | 🚀 Phase 2 진행중 (연속 제어 기반 정밀 주행 및 가중치 손실 도입)
 
 ---
 
 ## 📋 목차
 
 - [프로젝트 개요](#-프로젝트-개요)
-- [주요 성과 (V3-EXP08)](#-주요-성과-v3-exp08)
+- [주요 성과 (V4-Regression)](#-주요-성과-v4-regression)
 - [시스템 아키텍처](#-시스템-아키텍처)
-- [VLA 모델 진화 역사 (V1~V3)](#-vla-모델-진화-역사-v1v3)
+- [VLA 모델 진화 역사 (V1~V4)](#-vla-모델-진화-역사-v1v4)
 - [현재 한계점 및 Phase 2 계획](#-현재-한계점-및-phase-2-계획)
 - [디렉토리 구조](#-디렉토리-구조)
 - [문서](#-문서)
+- [복구 문서](#-복구-문서)
 
 ---
 
@@ -27,28 +26,28 @@
 
 ### 핵심 제원
 - **Input**: RGB 이미지 (720x1280, Fisheye) + 자연어 명령(Instruction)
-- **Output**: 9-Class Discrete Action (Mecanum wheel 제어를 위한 이산화된 이동 명령)
+- **Output**: Continuous Regression (선속도/각속도의 2D 실수값 직접 예측)
 - **VLM Backbone**: Kosmos-2 (`microsoft/kosmos-2-patch14-224`)
-- **Optimization**: LoRA Fine-tuning (rank=32, alpha=64) 기반 시각-언어 그라운딩
+- **Optimization**: Weighted Huber Loss (Non-forward 가중치 5배 적용) + LoRA Fine-tuning
 
 ---
 
-## 🏆 주요 성과 (V3-EXP08)
+## 🏆 주요 성과 (V4-Regression)
 
-현재 최고 성능 모델인 **V3-EXP08**은 데이터 불균형 문제를 해소하고, "목표물 중심(Goal-Centric)" Instruction을 적용하여 오프라인 평가에서 완벽한 수렴을 달성했습니다.
+현재 최신 모델인 **V4-Regression-v2**는 기존의 이산적(Discrete) 제어에서 벗어나 매끄러운 연속 제어를 실현하고, 불균형 데이터셋 문제를 손실 함수 가중치로 해결했습니다.
 
 ```text
-Model: mobile_vla_v3_exp08_center_goal
-Checkpoint: epoch=07-val_loss=0.031.ckpt
-Strategy: Kosmos-2 + LoRA (r=32) + 9-Class Discrete Classification (Class Weights 역수 적용)
-Performance: In-Distribution Offline PM(Perfect Match) 100%, DM(Direction Match) 100%
+Model: v4_regression_v2_weighted_v2
+Checkpoint: runs/v4_nav/kosmos/mobile_vla_v4_regression_v2/.../last.ckpt
+Strategy: Huber Loss + Non-forward Weight (5.0x) + ColorJitter/RandomCrop Aug
+Impact: 기존 V1의 직진 편향(Forward Bias)을 완전히 극복하고 미세한 회전 조향 성공률 대폭 향상
 ```
 
 ---
 
 ## 🏗️ 시스템 아키텍처
 
-### 1. VLA 모델 파이프라인 (Current: V3)
+### 1. VLA 모델 파이프라인 (Current: V4)
 
 ```mermaid
 graph TD
@@ -68,46 +67,29 @@ graph TD
         CONCAT --> LORA[Attention Layers + LoRA <br> rank=32, alpha=64]
     end
 
-    subgraph "History & Policy Head"
+    subgraph "Continuous Policy Head"
         LORA --> RESAMPLE[Perceiver Resampler <br> 64 Latents]
         RESAMPLE --> LSTM[LSTM Decoder <br> Window Size = 8]
-        LSTM --> LINEAR[Linear Layer <br> 9-Class Logits]
+        LSTM --> REG[Regression Layer <br> Continuous 2D/10D Output]
     end
 
-    LINEAR --> OUT[Discrete Action <br> Forward, Left, Right, etc.]
+    REG --> OUT[Smooth Action <br> Linear_x, Linear_y]
 
     style LORA fill:#f9f,stroke:#333,stroke-width:2px
-    style LINEAR fill:#bbf,stroke:#333,stroke-width:2px
+    style REG fill:#bbf,stroke:#333,stroke-width:2px
     style LSTM fill:#bbf,stroke:#333,stroke-width:2px
-```
-
-### 2. 전체 시스템 구조
-
-```mermaid
-graph LR
-    subgraph Jetson AGX Orin
-        CAM[Camera] --> ROS[ROS2 Node]
-        ROS --> VLA_CLIENT[VLA API Client]
-        VLA_CLIENT -->|HTTP Base64| API
-        API_RES[HTTP Action JSON] --> ROS_CMD[cmd_vel Publisher]
-        ROS_CMD --> WHEEL[Mecanum Wheels]
-    end
-
-    subgraph GPU Server
-        API[FastAPI Server] --> MODEL[V3-EXP08 Model]
-        MODEL --> API_RES
-    end
 ```
 
 ---
 
-## 📈 VLA 모델 진화 역사 (V1~V3)
+## 📈 VLA 모델 진화 역사 (V1~V4)
 
 | 설계 | 접근 방식 | VLM 상태 | Action Head | 주요 발견 및 한계 |
 |:---:|:---|:---:|:---|:---|
 | **V1** | Continuous Regression | Frozen | Linear (Continuous 2D) | 직진(다수 클래스)으로 수렴하는 심각한 편향 발생 |
-| **V2** | Discrete Classification | Frozen | Linear (9-Class) | 분류 문제로 변환하여 편향 극복. 그러나 VLM이 Frozen되어 이미지-텍스트 간 Grounding(상호 이해) 불가 |
-| **V3** | Classification + LoRA | **LoRA** | LSTM + Linear (9-Class) | LoRA를 통한 Grounding 성공, Class Weighting으로 불균형 해소. 오프라인 평가(PM/DM) 100% 수렴 |
+| **V2** | Discrete Classification | Frozen | Linear (9-Class) | 분류 문제로 변환하여 편향 극복. VLM Frozen으로 상호 이해 부족 |
+| **V3** | Classification + LoRA | **LoRA** | LSTM + Linear (9-Class) | LoRA를 통한 Grounding 성공. 그러나 이산 제어로 인한 주행 불연속성 존재 |
+| **V4** | **Weighted Regression** | **LoRA** | **LSTM + Continuous Head** | **Huber Loss + 가중치(5x)** 적용. 연속 제어의 부드러움과 회전 정밀도를 동시 확보 |
 
 > 📌 **상세 실험 기록**: 모든 실험 메트릭과 히스토리는 [`docs/experiments_v1_to_v3_comprehensive.md`](docs/experiments_v1_to_v3_comprehensive.md)에서 확인할 수 있습니다.
 
@@ -132,11 +114,7 @@ vla/
 ├── RoboVLMs/                # VLM 백본 라이브러리 및 훈련 코어 (Kosmos-2 통합)
 ├── robovlm_nav/             # Customized Training Pipeline 및 Nav-Policy 구현
 ├── scripts/                 # 훈련 및 추론 실험용 유틸리티 스크립트 모음
-├── docs/                    # 분석 보고서, 설계 문서, 가이드라인 (V1~V3 포함)
-│   ├── experiments_v1_to_v3_comprehensive.md  # V1~V3 종합 실험 기록
-│   ├── training_plan_dataset_v3_20260306.md   # 차세대 학습 전략
-│   ├── dataset_analysis_basket_v2_20260306.md # 데이터 편향 정량 분석
-│   └── research_progress_report_20260306.md   # 전체 연구 진행 상황 보고서
+├── docs/                    # 분석 보고서, 설계 문서, 가이드라인 (V1~V4 포함)
 ├── ROS_action/              # 로봇에서 수집된 실제 주행 데이터셋 경로
 └── README.md                # 현재 개요 파일
 ```

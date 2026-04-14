@@ -37,7 +37,7 @@ class MobileVLATensorRTConverter:
         self.load_original_model()
         
         # 출력 디렉토리
-        self.output_dir = "Robo+/Mobile_VLA/tensorrt_quantized"
+        self.output_dir = "Mobile_VLA/tensorrt_quantized"
         os.makedirs(self.output_dir, exist_ok=True)
         
     def load_original_model(self):

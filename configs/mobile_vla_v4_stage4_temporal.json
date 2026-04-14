@@ -1,0 +1,26 @@
+{
+    "parent": "configs/mobile_vla_v3_stage3_robust.json",
+    "train_setup": {
+        "exp_name": "mobile_vla_v4_stage4_temporal",
+        "num_epochs": 15,
+        "batch_size": 4,
+        "learning_rate": 5e-5,
+        "weight_decay": 0.01,
+        "use_lora": true,
+        "lora_rank": 32,
+        "lora_alpha": 16,
+        "discrete_action": false,
+        "predict_action": true
+    },
+    "act_head": {
+        "type": "NavPolicyRegression",
+        "action_dim": 2,
+        "down_sample": "pooling",
+        "latent": 16,
+        "fwd_pred_next_n": 4,
+        "window_size": 8,
+        "hidden_size": 1024,
+        "num_layers": 4,
+        "action_weight_non_forward": 2.5
+    }
+}

@@ -1,5 +1,4 @@
 import os
-import sys
 import argparse
 import json
 from pathlib import Path
@@ -10,19 +9,7 @@ from re import L
 from typing import Dict, Any
 import datetime
 
-# Ensure lightning module can be imported
-try:
-    from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint, EarlyStopping
-except ImportError:
-    # Try alternative import path
-    try:
-        import lightning
-        from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint, EarlyStopping
-    except ImportError:
-        print("Error: Cannot import lightning module. Please ensure it is installed.")
-        print(f"Python path: {sys.path}")
-        print(f"Python executable: {sys.executable}")
-        sys.exit(1)
+from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint, EarlyStopping
 from lightning.pytorch.trainer import Trainer
 from lightning.pytorch.loggers import TensorBoardLogger, CSVLogger
 from lightning.pytorch.strategies import DDPStrategy
@@ -31,8 +18,6 @@ import torch
 import torch.distributed as dist
 
 from robovlms.train.base_trainer import BaseTrainer
-from robovlms.train.mobile_vla_trainer import MobileVLATrainer
-from robovlms.train.mobile_vla_qat_trainer import MobileVLAQATTrainer
 from robovlms.data.datamodule.gr_datamodule import GRDataModule
 from robovlms.data.data_utils import preprocess_image
 from robovlms.utils.setup_callback import SetupCallback
@@ -143,21 +128,24 @@ def init_trainer_config(configs):
         init_setup_callback(configs),
         init_lr_monitor_callback(),
         ModelCheckpoint(
-            dirpath=configs["output_dir"],
-            save_top_k=3,              # 최고 성능 3개만 저장 (디스크 공간 절약)
-            every_n_epochs=1,          # 매 epoch마다 체크 (최고 성능 갱신 시 저장)
-            monitor="val_loss",        # validation loss 기준
-            mode="min",                # loss 최소화
-            save_last=True,            # 마지막 epoch도 저장
-            filename="epoch_{epoch:02d}-val_loss={val_loss:.3f}"
+            dirpath=configs["output_dir"], 
+            save_top_k=3, 
+            monitor="val_loss", 
+            mode="min",
+            save_last=True,
+            filename="epoch_epoch={epoch:02d}-val_loss={val_loss:.3f}"
         ),
         EarlyStopping(
-            monitor="val_loss",
-            patience=3,              # 3 epoch 동안 개선 안되면 중단
+            monitor=configs["trainer"].get("monitor", "val_loss"),
+            patience=configs["trainer"].get("patience", 3),
             mode="min",
-            verbose=True
+            verbose=True,
         ),
     ]
+
+    # Trainer.__init__에 직접 전달되면 안 되는 키들 제거
+    for custom_key in ["early_stopping", "patience", "monitor"]:
+        trainer_config.pop(custom_key, None)
 
     return trainer_config
 
@@ -237,23 +225,13 @@ def experiment(variant):
     variant["gpus"] = trainer.num_devices
     variant["train_setup"]["precision"] = variant["trainer"]["precision"]
 
-    if variant["fwd_head"] is not None:
-        variant["train_setup"]["predict_forward_hand"] = variant["fwd_head"].get(
-            "pred_hand_image", False
+    if model_load_path and os.path.exists(model_load_path):
+        model = BaseTrainer.from_checkpoint(
+            model_load_path, variant.get("model_load_source", "torch"), variant
         )
-    
-    # Trainer 타입 선택 (Mobile VLA QAT, Mobile VLA, Base)
-    trainer_type = variant.get("trainer_type", "BaseTrainer")
-    if trainer_type == "MobileVLAQATTrainer":
-        TrainerClass = MobileVLAQATTrainer
-    elif trainer_type == "MobileVLATrainer":
-        TrainerClass = MobileVLATrainer
     else:
-        TrainerClass = BaseTrainer
-    
-    model = TrainerClass.from_checkpoint(
-        model_load_path, variant.get("model_load_source", "torch"), variant
-    )
+        print(f"INFO: model_load_path is empty or not found: '{model_load_path}'. Initializing fresh model.")
+        model = BaseTrainer(variant)
 
     # MPS 호환성을 위해 모델 전체를 float32로 명시적 변환
     if trainer_config.get("accelerator") == "mps":
@@ -283,13 +261,17 @@ def experiment(variant):
                 image_processor=image_preprocess,
                 model_type=variant["model"],
             ),
+            # [CRITICAL] Determine if discrete action classification is used
+            # Both action_space=="discrete" and discrete_action==True should be supported
             discrete=(
-                variant.get("discrete_action", False) or 
-                (variant["act_head"].get("action_space", "continuous") == "discrete" if variant["act_head"] is not None else False)
+                False
+                if variant["act_head"] is None
+                else (variant["act_head"].get("action_space", "continuous") == "discrete" or variant["act_head"].get("discrete_action", False))
             ),
             discrete_action=(
-                variant.get("discrete_action", False) or 
-                (variant["act_head"].get("action_space", "continuous") == "discrete" if variant["act_head"] is not None else False)
+                False
+                if variant["act_head"] is None
+                else (variant["act_head"].get("action_space", "continuous") == "discrete" or variant["act_head"].get("discrete_action", False))
             ),
             use_mu_law=variant.get("use_mu_law", False),
             mu_val=variant.get("mu_val", 255),
@@ -323,9 +305,9 @@ def experiment(variant):
         ),
         "ckpt_path": variant["resume"],
     }
-    if _kwargs["ckpt_path"] is not None:
-        print(f"Resuming from {variant['resume']}...")
-
+    # Verify discrete action setup in datamodule
+    print(f"DEBUG: DataModule initialized with discrete_action={_kwargs['datamodule'].kwargs.get('discrete_action')}")
+    
     trainer.fit(**_kwargs)
 
 

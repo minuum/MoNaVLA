@@ -1,0 +1,19 @@
+{
+    "_comment": "V4 Hard Counterfactual: 50% 확률로 Stop 주입 + 가중치 10x 상향 → 이미지 바이어스 완전 타파 목표",
+    "parent": "configs/mobile_vla_v4_regression_v2_weighted.json",
+    "exp_name": "v4-hard-counterfactual-v1",
+    "task_name": "mobile_vla_v4_hard",
+    "max_epochs": 10,
+    "learning_rate": 2e-5,
+    "model_load_path": "/home/billy/25-1kp/MoNaVLA/runs/v4_nav/kosmos/mobile_vla_v4_regression_v2/2026-03-26/v4-regression-v2-weighted-v2/last.ckpt",
+    "model_load_source": "lightning",
+    "act_head": {
+        "action_weight_non_forward": 10.0
+    },
+    "train_dataset": {
+        "counterfactual_stop_prob": 0.5
+    },
+    "val_dataset": {
+        "counterfactual_stop_prob": 0.0
+    }
+}

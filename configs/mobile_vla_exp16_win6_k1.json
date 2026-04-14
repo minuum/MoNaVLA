@@ -1,5 +1,5 @@
 {
-    "robovlm_name": "RoboVLM-Nav",
+    "robovlm_name": "RoboKosMos",
     "exp_name": "exp16_win6_k1",
     "parent": null,
     "task_name": "mobile_vla_exp16_win6_k1",

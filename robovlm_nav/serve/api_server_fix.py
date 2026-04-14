@@ -179,6 +179,21 @@ class MobileVLAInference:
         
         from robovlms.train.mobile_vla_trainer import MobileVLATrainer
         
+        # Inject model backbone mapping required by newer V3 configs
+        try:
+            from robovlms.model.backbone.robokosmos import RoboKosMos
+            import robovlms.model.backbone as backbone
+            backbone.__dict__["RoboVLM-Nav"] = RoboKosMos
+            
+            import robovlms.model.policy_head as policy_head
+            from robovlms.model.policy_head.mobile_vla_policy import MobileVLAClassificationDecoder, MobileVLALSTMDecoder
+            policy_head.__dict__["NavPolicy"] = MobileVLAClassificationDecoder
+            policy_head.__dict__["NavPolicyRegression"] = MobileVLALSTMDecoder
+            
+            logger.info("🔧 Injected RoboVLM-Nav & NavPolicy mapping")
+        except Exception as base_e:
+            logger.warning(f"⚠️ Failed to inject model mapping: {base_e}")
+
         # Load from Lightning checkpoint
         logger.info(f"Loading checkpoint: {self.checkpoint_path}")
         logger.info(f"Using config: {self.config_path}")
@@ -476,9 +491,13 @@ def get_model():
         
         # 모델별 체크포인트 및 config 경로
         model_configs = {
+            "v3_exp08_center_goal": {
+                "checkpoint": "/home/soda/vla/runs/v3_classification/kosmos/mobile_vla_v3_exp08_center_goal/2026-03-05/v3-exp08-center-goal/epoch_epoch=07-val_loss=val_loss=0.031.ckpt",
+                "config": "/home/soda/vla/configs/mobile_vla_v3_exp08_center_goal.json"
+            },
             "v3_exp07_lora": {
-                "checkpoint": "third_party/RoboVLMs/runs/v3_classification/kosmos/mobile_vla_v3_exp07_lora/2026-02-28/v3-exp07-lora/epoch_epoch=05-val_loss=val_loss=0.044.ckpt",
-                "config": "configs/mobile_vla_v3_exp07_lora.json"
+                "checkpoint": "/home/soda/vla/epoch_epoch=05-val_loss=val_loss=0.044.ckpt",
+                "config": "/home/soda/vla/configs/mobile_vla_v3_exp07_lora.json"
             },
             "unified_regression_win12": {
                 "checkpoint": "runs/unified_regression_win12/kosmos/mobile_vla_unified_finetune/2026-02-05/unified_regression_win12_20260205/epoch=9-step=600.ckpt",
@@ -641,6 +660,13 @@ async def list_models(api_key: str = Depends(verify_api_key)):
     """사용 가능한 모델 목록 조회 (API Key 필수)"""
     # 모델별 체크포인트 및 config 경로 (get_model 함수와 동일)
     model_configs = {
+        "v3_exp08_center_goal": {
+            "checkpoint": "/home/soda/vla/runs/v3_classification/kosmos/mobile_vla_v3_exp08_center_goal/2026-03-05/v3-exp08-center-goal/epoch_epoch=07-val_loss=val_loss=0.031.ckpt",
+            "config": "/home/soda/vla/configs/mobile_vla_v3_exp08_center_goal.json",
+            "description": "V3 EXP-08 Center Goal (Epoch 7)",
+            "fwd_pred_next_n": 1,
+            "recommended": True
+        },
         "basket_chunk5_legacy": {
             "checkpoint": "runs/mobile_vla_no_chunk_20251209/kosmos/mobile_vla_finetune/2025-12-17/mobile_vla_chunk5_20251217/epoch_epoch=06-val_loss=val_loss=0.067.ckpt",
             "config": "Mobile_VLA/configs/mobile_vla_chunk5_20251217.json",
@@ -657,12 +683,11 @@ async def list_models(api_key: str = Depends(verify_api_key)):
             "checkpoint": "runs/basket_left_only/kosmos/mobile_vla_left_only_finetune/2026-02-01/basket_left_only_20260201/last-v1.ckpt",
             "config": "Mobile_VLA/configs/mobile_vla_basket_left_only.json",
             "description": "Basket Navigation - LEFT ONLY (Epoch 10, v2)",
-            "fwd_pred_next_n": 5,
-            "recommended": True
+            "fwd_pred_next_n": 5
         }
     }
     
-    current_model = os.getenv("VLA_MODEL_NAME", "basket_left_only")
+    current_model = os.getenv("VLA_MODEL_NAME", "v3_exp08_center_goal")
     
     return {
         "available_models": model_configs,
@@ -688,7 +713,7 @@ async def switch_model(request: ModelSwitchRequest, api_key: str = Depends(verif
         # Get list of models from get_model's local model_configs (conceptually)
         # For simplicity, update the hardcoded list
         available_models = [
-            "unified_regression_win12", "basket_chunk5", "chunk10_epoch8", 
+            "v3_exp08_center_goal", "v3_exp07_lora", "unified_regression_win12", "basket_chunk5", "chunk10_epoch8", 
             "basket_left_only", "basket_chunk5_legacy", "basket_no_suffix_v1",
             "basket_grounding_v1", "basket_grounding_v2_win12",
             "exp_v2_17_win8", "exp_v2_12_hybrid"

@@ -1,0 +1,48 @@
+{
+    "session_id": "20260303_225026",
+    "timestamp": "2026-03-03T22:50:26.183003",
+    "model_name": "Test-Model-V3",
+    "instruction": "Test image saving",
+    "history": [
+        {
+            "step": 1,
+            "timestamp": "2026-03-03T22:50:26.183106",
+            "action": [
+                0.1,
+                -0.1
+            ],
+            "latency_ms": 1600.0,
+            "image_file": "session_20260303_225026_images/frame_001.jpg"
+        },
+        {
+            "step": 2,
+            "timestamp": "2026-03-03T22:50:26.192450",
+            "action": [
+                0.2,
+                -0.2
+            ],
+            "latency_ms": 1700.0,
+            "image_file": "session_20260303_225026_images/frame_002.jpg"
+        },
+        {
+            "step": 3,
+            "timestamp": "2026-03-03T22:50:26.193028",
+            "action": [
+                0.30000000000000004,
+                -0.30000000000000004
+            ],
+            "latency_ms": 1800.0,
+            "image_file": "session_20260303_225026_images/frame_003.jpg"
+        }
+    ],
+    "status": "completed",
+    "end_time": "2026-03-03T22:50:26.193521",
+    "summary": {
+        "avg_latency": 1700.0,
+        "total_steps": 3,
+        "last_action": [
+            0.30000000000000004,
+            -0.30000000000000004
+        ]
+    }
+}

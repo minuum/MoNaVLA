@@ -128,7 +128,7 @@ print("✅ Simple PyTorch model created successfully!")
 '''
     
     # 파일로 저장
-    with open("Robo+/Mobile_VLA/simple_pytorch_model.py", "w") as f:
+    with open("Mobile_VLA/simple_pytorch_model.py", "w") as f:
         f.write(alternative_code)
     
     print("✅ Alternative PyTorch-only solution created!")

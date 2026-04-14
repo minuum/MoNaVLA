@@ -36,8 +36,9 @@ except ImportError:
     ROBOT_AVAILABLE = False
 
 class MobileVLADataCollector(Node):
-    def __init__(self):
+    def __init__(self, mode="1"):
         super().__init__('mobile_vla_data_collector')
+        self.mode = mode
         self.WASD_TO_CONTINUOUS = {
             'w': {"linear_x": 1.15, "linear_y": 0.0, "angular_z": 0.0},
             'a': {"linear_x": 0.0, "linear_y": 1.15, "angular_z": 0.0},
@@ -82,29 +83,40 @@ class MobileVLADataCollector(Node):
         }
         self.time_period_stats = defaultdict(int)  # 시간대별 통계
         
-        # 4가지 탄산음료 페트병 도달 시나리오 목표 설정 (총 1000개 목표)
-        # 시나리오별 목표: 각 250개 (1000개 ÷ 4개 시나리오)
-        # 배치 타입(vert/hori)은 메타데이터로만 기록, 학습에는 영향 없음
-        self.cup_scenarios = {
-            "1box_left": {"target": 250, "description": "1박스-왼쪽경로", "key": "1"},
-            "1box_right": {"target": 250, "description": "1박스-오른쪽경로", "key": "2"},
-            "2box_left": {"target": 250, "description": "2박스-왼쪽경로", "key": "3"},
-            "2box_right": {"target": 250, "description": "2박스-오른쪽경로", "key": "4"}
-        }
+        # 9가지 탄산음료 페트병 도달 시나리오 목표 설정 (각 최소 15~20회 목표)
+        if self.mode == "2":
+            # V3 Phase 1.5 (장애물 없는 Target-reahing 수집)
+            self.cup_scenarios = {
+                "target_left_left_path": {"target": 15, "description": "목표: 좌측 | 경로: 왼쪽 곡선 (Left Path)", "key": "1"},
+                "target_left_straight_path": {"target": 20, "description": "목표: 좌측 | 경로: 메인 직선 (Straight Path)", "key": "2"},
+                "target_left_right_path": {"target": 15, "description": "목표: 좌측 | 경로: 오른쪽 곡선 (Right Path)", "key": "3"},
+                "target_center_left_path": {"target": 15, "description": "목표: 중앙 | 경로: 왼쪽 곡선 (Left Path)", "key": "4"},
+                "target_center_straight_path": {"target": 20, "description": "목표: 중앙 | 경로: 메인 직선 (Straight Path)", "key": "5"},
+                "target_center_right_path": {"target": 15, "description": "목표: 중앙 | 경로: 오른쪽 곡선 (Right Path)", "key": "6"},
+                "target_right_left_path": {"target": 15, "description": "목표: 우측 | 경로: 왼쪽 곡선 (Left Path)", "key": "7"},
+                "target_right_straight_path": {"target": 20, "description": "목표: 우측 | 경로: 메인 직선 (Straight Path)", "key": "8"},
+                "target_right_right_path": {"target": 15, "description": "목표: 우측 | 경로: 오른쪽 곡선 (Right Path)", "key": "9"}
+            }
+            # 장애물(박스) 위치 대체 (화분 위치 대신 거리/위치로 활용)
+            self.distance_levels = {
+                "fixed":   {"label": "고정 위치 (Fixed)",  "hint": "고정된 시야 및 타겟 접근 방식", "samples_per_scenario": 15}
+            }
+        else:
+            # 기존 1번 모드 (장애물 회피 기반)
+            self.cup_scenarios = {
+                "1box_left": {"target": 250, "description": "1박스-왼쪽경로", "key": "1"},
+                "1box_right": {"target": 250, "description": "1박스-오른쪽경로", "key": "2"},
+                "2box_left": {"target": 250, "description": "2박스-왼쪽경로", "key": "3"},
+                "2box_right": {"target": 250, "description": "2박스-오른쪽경로", "key": "4"}
+            }
+            self.distance_levels = {
+                "close":   {"label": "로봇과 가까운 위치",   "hint": "로봇 바로 앞에 가까운 장애물", "samples_per_scenario": 3},
+                "medium":  {"label": "중간 거리",          "hint": "장애물이 중간 거리에 배치", "samples_per_scenario": 4},
+                "far":     {"label": "로봇과 먼 위치",     "hint": "로봇에서 멀리 배치된 장애물", "samples_per_scenario": 3}
+            }
         
         # 장애물 배치 타입 기본값 설정 (학습에 불필요하지만 호환성을 위해 기본값 사용)
         self.default_layout_type = "hori"  # 기본값: 가로 배치
-        
-        # 장애물(박스) 위치 단계 (3단계)
-        # label: 안내용 텍스트, hint: 콘솔 힌트
-        self.distance_levels = {
-            "close":   {"label": "로봇과 가까운 위치",   "hint": "로봇 바로 앞에 가까운 장애물",
-                         "samples_per_scenario": 3},
-            "medium":  {"label": "중간 거리",          "hint": "장애물이 중간 거리에 배치",
-                         "samples_per_scenario": 4},
-            "far":     {"label": "로봇과 먼 위치",     "hint": "로봇에서 멀리 배치된 장애물",
-                         "samples_per_scenario": 3}
-        }
         
         self.dataset_stats = defaultdict(int)
         self.scenario_stats = defaultdict(int)
@@ -115,11 +127,18 @@ class MobileVLADataCollector(Node):
         # 시나리오당 250개 목표를 패턴/거리별로 분배
         # Core: 150개 (60%), Variant: 100개 (40%)
         # 거리 분배: Core(50/75/25), Variant(25/25/50)
-        self.pattern_targets = {"core": 150, "variant": 100}
-        self.distance_targets_per_pattern = {
-            "core": {"close": 50, "medium": 75, "far": 25},
-            "variant": {"close": 25, "medium": 25, "far": 50},
-        }
+        if self.mode == "2":
+            self.pattern_targets = {"core": 20, "variant": 20}
+            self.distance_targets_per_pattern = {
+                "core": {"close": 10, "medium": 10, "far": 0},
+                "variant": {"close": 10, "medium": 10, "far": 0},
+            }
+        else:
+            self.pattern_targets = {"core": 150, "variant": 100}
+            self.distance_targets_per_pattern = {
+                "core": {"close": 50, "medium": 75, "far": 25},
+                "variant": {"close": 25, "medium": 25, "far": 50},
+            }
         
         # 시나리오/패턴/거리 선택 모드 및 상태 (배치 타입 제거로 단순화)
         self.scenario_selection_mode = False
@@ -232,24 +251,30 @@ class MobileVLADataCollector(Node):
             # 방법 2: 홈 디렉토리 기준으로 찾기 (절대 경로)
             if ros_action_dir is None or not ros_action_dir.exists():
                 try:
-                    candidate = Path.home().resolve() / "vla" / "ROS_action"
-                    if candidate.exists() and candidate.is_absolute():
-                        ros_action_dir = candidate
+                    # MoNaVLA 우선, 없으면 vla 확인
+                    for project_name in ["MoNaVLA", "vla"]:
+                        candidate = Path.home().resolve() / project_name / "ROS_action"
+                        if candidate.exists() and candidate.is_absolute():
+                            ros_action_dir = candidate
+                            break
                 except (OSError, ValueError) as e:
                     self.get_logger().warn(f"⚠️ 홈 디렉토리 기준으로 ROS_action 찾기 실패: {e}")
             
             # 방법 3: 절대 경로 직접 지정 (getcwd() 의존 없음)
             if ros_action_dir is None or not ros_action_dir.exists():
-                candidate = Path("/home/soda/vla/ROS_action")
-                if candidate.exists() and candidate.is_absolute():
-                    ros_action_dir = candidate
+                for project_path in ["/home/soda/MoNaVLA/ROS_action", "/home/soda/vla/ROS_action"]:
+                    candidate = Path(project_path)
+                    if candidate.exists() and candidate.is_absolute():
+                        ros_action_dir = candidate
+                        break
             
             if ros_action_dir is None or not ros_action_dir.exists():
                 raise RuntimeError(f"❌ ROS_action 디렉토리를 찾을 수 없습니다. 환경변수 VLA_DATASET_DIR을 설정하거나, 올바른 위치에 설치하세요.")
             
-            # ROS_action 바로 아래에 저장 (절대 경로 사용, resolve()로 확실히 절대 경로 보장)
-            self.data_dir = ros_action_dir.resolve() / "mobile_vla_dataset"
-            # 한 번 더 resolve()하여 절대 경로 확실히 보장
+            # 2번 모드(V5)는 별도 디렉토리 사용 (데이터 섞임 방지)
+            dataset_name = "mobile_vla_dataset_v5" if self.mode == "2" else "mobile_vla_dataset"
+            self.data_dir = ros_action_dir.resolve() / dataset_name
+            # 한 번 더 resolve()하여 절대 경로 확실히 보장 (상대 경로 문제 방지)
             self.data_dir = self.data_dir.resolve()
             
             # 기존 install/mobile_vla_dataset 경로 호환성: 데이터 마이그레이션 (절대 경로 사용)
@@ -291,7 +316,7 @@ class MobileVLADataCollector(Node):
                                 pass
                         except Exception as e:
                             self.get_logger().warn(f"⚠️ 데이터 병합 실패: {e}. 기존 위치 파일은 그대로 유지됩니다.")
-            
+        
             # install 경로 사용 방지 확인 (절대 경로로 확인)
             if str(self.data_dir).endswith("/install/mobile_vla_dataset") or "install/mobile_vla_dataset" in str(self.data_dir):
                 self.get_logger().error(f"❌ 잘못된 경로: install 안에 저장되지 않도록 설정되었습니다!")
@@ -310,11 +335,12 @@ class MobileVLADataCollector(Node):
         self.time_period_file = self.data_dir / "time_period_stats.json"
         self.core_pattern_file = self.data_dir / "core_patterns.json"
         
-        # 데이터셋 통계 로드
+        # 데이터셋 통계 로드 및 실제 파일 기준 재동기화 (데이터 폴더 분리 및 마이그레이션 호환성 보장)
         self.load_dataset_stats()
         self.load_scenario_progress()
         self.load_time_period_stats()
         self.load_core_patterns()
+        self.resync_scenario_progress()  # 시작 시 항상 실제 파일들과 동기화하여 정확한 진행률 표시
         
         self.get_logger().info("🤖 Mobile VLA Data Collector 준비 완료!")
         self.get_logger().info("📋 조작 방법:")
@@ -324,16 +350,25 @@ class MobileVLADataCollector(Node):
         self.get_logger().info("   M: 에피소드 종료, P: 현재 진행 상황 확인")
         self.get_logger().info("   V: H5 파일 검증 및 추출 (최신 파일 또는 선택)")
         self.get_logger().info("   X: 리셋 (첫 화면으로 돌아가기, 수집 중에도 가능)")
-        self.get_logger().info("   B: 자동 복귀 (에피소드 종료 후 시작 위치로 복귀)")
-        self.get_logger().info("   A: 자동 측정 (가이드 기반 자동 측정)")
-        self.get_logger().info("   T: 측정 태스크 표 보기")
-        self.get_logger().info("🎯 수집 단계: N → 시나리오(1-4) → 패턴(C/V) → 장애물 위치(J/K/L)")
-        self.get_logger().info("🎯 탄산음료 페트병 도달 시나리오 (총 1000개 목표):")
-        self.get_logger().info("   📦 4개 시나리오 × 250개 샘플 × 18프레임 고정 (RoboVLMs 기준: window=8 + pred_next=10)")
-        self.get_logger().info("   🎯 수집 목표: 18프레임 기준 (RoboVLMs 학습에 최적화)")
-        self.get_logger().info("   💡 총 목표: 1000개 (시나리오당 250개)")
-        self.get_logger().info("   🌅 시간대 분포: 새벽(200) + 아침(200) + 저녁(300) + 밤(300)")
-        self.get_logger().info("   🔬 패턴 분포: Core(150) + Variant(100) / 시나리오")
+        
+        if self.mode == "2":
+            self.get_logger().info("   T: 수집 플랜 표 보기 (V5 1.5 Phase 150개 플랜)")
+            self.get_logger().info("🎯 수집 단계: N → 시나리오(1-9) → 패턴(C/V) → 거리(Fixed)")
+            self.get_logger().info("   (※ V5 수동 수집에서는 B: 자동복귀, A: 자동측정을 허용하지 않습니다)")
+            self.get_logger().info("🎯 V5 Target-Reaching 시나리오 (총 150개 목표):")
+            self.get_logger().info("   📦 100% 수동으로 바구니를 향해 접근 및 조향")
+        else:
+            self.get_logger().info("   B: 자동 복귀 (에피소드 종료 후 시작 위치로 복귀)")
+            self.get_logger().info("   A: 자동 측정 (가이드 기반 자동 측정)")
+            self.get_logger().info("   T: 측정 태스크 표 보기")
+            self.get_logger().info("🎯 수집 단계: N → 시나리오(1-4) → 패턴(C/V) → 장애물 위치(J/K/L)")
+            self.get_logger().info("🎯 탄산음료 페트병 도달 시나리오 (총 1000개 목표):")
+            self.get_logger().info("   📦 4개 시나리오 × 250개 샘플 × 18프레임 고정 (RoboVLMs 기준: window=8 + pred_next=10)")
+            self.get_logger().info("   🎯 수집 목표: 18프레임 기준 (RoboVLMs 학습에 최적화)")
+            self.get_logger().info("   💡 총 목표: 1000개 (시나리오당 250개)")
+            self.get_logger().info("   🌅 시간대 분포: 새벽(200) + 아침(200) + 저녁(300) + 밤(300)")
+            self.get_logger().info("   🔬 패턴 분포: Core(150) + Variant(100) / 시나리오")
+            
         self.get_logger().info("   📊 카테고리 분류: 데이터셋 통계 모니터링용 (수집 목표와는 별개)")
         self.get_logger().info("   ✨ 단순화: 배치 타입 선택 단계 제거 (학습에 불필요)")
         self.get_logger().info("   Ctrl+C: 프로그램 종료")
@@ -349,8 +384,11 @@ class MobileVLADataCollector(Node):
     def keyboard_loop(self):
         """Separate thread loop for handling keyboard input"""
         while rclpy.ok():
-            key = self.get_key()
-            self.handle_key_input(key)
+            try:
+                key = self.get_key()
+                self.handle_key_input(key)
+            except Exception as e:
+                self.get_logger().error(f"❌ 키 입력 처리 오류: {e}")
             time.sleep(0.01)
 
     def handle_key_input(self, key: str):
@@ -401,7 +439,7 @@ class MobileVLADataCollector(Node):
                 self.stop_episode()
         elif key == 'p':
             self.resync_and_show_progress()
-        elif key == 'v':
+        elif key == 'v' and not self.pattern_selection_mode:
             if self.collecting:
                 self.get_logger().warn("⚠️ 수집 중에는 H5 파일 검증을 할 수 없습니다. 먼저 M키로 에피소드를 종료하세요.")
             else:
@@ -448,16 +486,16 @@ class MobileVLADataCollector(Node):
                 self.get_logger().warn("⚠️ 복귀할 경로가 없습니다. 먼저 에피소드를 수집하세요.")
             else:
                 self.start_auto_return()
-        elif key == 't':
+        elif key == 't' and not self.collecting:
             # 측정 태스크 표 보기
             self.show_measurement_task_table()
-        elif key in ['1', '2', '3', '4']:
+        elif key in ['1', '2', '3', '4', '5', '6', '7', '8', '9'] and not self.repeat_count_mode:
             if self.scenario_selection_mode:
-                # 시나리오 선택 모드에서 숫자키 입력 (4개 시나리오로 축소)
-                scenario_map = {
-                    '1': "1box_left", '2': "1box_right",
-                    '3': "2box_left", '4': "2box_right"
-                }
+                # 동적 시나리오 매핑
+                scenario_map = {v["key"]: k for k, v in self.cup_scenarios.items()}
+                if key not in scenario_map:
+                    self.get_logger().info(f"⚠️ 유효하지 않은 시나리오입니다 (입력: {key})")
+                    return
                 self.selected_scenario = scenario_map[key]
                 self.scenario_selection_mode = False  # 시나리오 선택 모드 해제
                 if self.guide_edit_selection_mode:
@@ -471,46 +509,47 @@ class MobileVLADataCollector(Node):
                     self.show_pattern_selection()
             else:
                 self.get_logger().info("⚠️ 먼저 'N' 키를 눌러 에피소드 시작을 해주세요.")
-        elif key in ['c', 'v']:
-            if self.pattern_selection_mode:
-                # 패턴 선택 모드에서 c/v 키 입력
-                pattern_map = {
-                    'c': "core",      # 핵심 패턴
-                    'v': "variant"   # 변형 패턴  
-                }
-                pattern_type = pattern_map[key]
-                self.pattern_selection_mode = False  # 패턴 선택 모드 해제
-                self.selected_pattern_type = pattern_type
-                
-                if self.guide_edit_selection_mode:
-                    # 가이드 편집을 위한 선택 모드: 핵심 패턴만 지원
-                    if pattern_type == "variant":
-                        self.get_logger().warn("⚠️ 가이드 편집은 핵심 패턴(Core)만 지원합니다. 'C' 키를 눌러주세요.")
-                        self.show_pattern_selection()  # 다시 패턴 선택
-                    else:
-                        # 핵심 패턴 선택 시 거리 선택으로 전환
-                        self.show_distance_selection()
-                elif self.auto_measurement_mode:
-                    # 자동 측정 모드: 핵심 패턴만 지원
-                    if pattern_type == "variant":
-                        self.get_logger().warn("⚠️ 자동 측정은 핵심 패턴(Core)만 지원합니다. 'C' 키를 눌러주세요.")
-                        self.show_pattern_selection()  # 다시 패턴 선택
-                    else:
-                        # 핵심 패턴 선택 시 거리 선택으로 전환
-                        self.show_distance_selection()
+        elif key in ['c', 'v'] and self.pattern_selection_mode:
+            # 패턴 선택 모드에서 c/v 키 입력
+            pattern_map = {
+                'c': "core",      # 핵심 패턴
+                'v': "variant"   # 변형 패턴  
+            }
+            pattern_type = pattern_map[key]
+            self.pattern_selection_mode = False  # 패턴 선택 모드 해제
+            self.selected_pattern_type = pattern_type
+            
+            if self.guide_edit_selection_mode:
+                # 가이드 편집을 위한 선택 모드: 핵심 패턴만 지원
+                if pattern_type == "variant":
+                    self.get_logger().warn("⚠️ 가이드 편집은 핵심 패턴(Core)만 지원합니다. 'C' 키를 눌러주세요.")
+                    self.show_pattern_selection()  # 다시 패턴 선택
                 else:
-                    # 일반 모드: 거리 선택으로 전환
+                    # 핵심 패턴 선택 시 거리 선택으로 전환
+                    self.show_distance_selection()
+            elif self.auto_measurement_mode:
+                # 자동 측정 모드: 핵심 패턴만 지원
+                if pattern_type == "variant":
+                    self.get_logger().warn("⚠️ 자동 측정은 핵심 패턴(Core)만 지원합니다. 'C' 키를 눌러주세요.")
+                    self.show_pattern_selection()  # 다시 패턴 선택
+                else:
+                    # 핵심 패턴 선택 시 거리 선택으로 전환
                     self.show_distance_selection()
             else:
-                # 패턴 선택 모드가 아닐 때는 일반 대각선 움직임으로 처리
-                if key == 'c':
-                    # C키가 패턴 선택에 사용되지 않을 때만 움직임으로 처리
-                    pass  # 아래 WASD 처리로 넘어감
+                # 일반 모드: 거리 선택으로 전환
+                self.show_distance_selection()
         elif key in ['j', 'k', 'l']:
             if self.distance_selection_mode:
                 # 거리 선택 모드: j=근거리, k=중거리, l=원거리
                 distance_map = {'j': 'close', 'k': 'medium', 'l': 'far'}
-                self.selected_distance_level = distance_map[key]
+                distance_level = distance_map[key]
+                
+                # 현재 모드에서 지원하는 거리인지 확인
+                if distance_level not in self.distance_levels:
+                    self.get_logger().warn(f"⚠️ 현재 모드에서는 '{key.upper()}' 거리를 지원하지 않습니다.")
+                    return
+
+                self.selected_distance_level = distance_level
                 self.distance_selection_mode = False
                 
                 if self.guide_edit_selection_mode:
@@ -1210,7 +1249,10 @@ class MobileVLADataCollector(Node):
         
         # 간소화된 로그: 현재 수집 개수와 남은 개수만 표시
         current_count = len(self.episode_data)
-        total_target = self.fixed_episode_length
+        if self.mode == "2":
+            total_target = float("inf")
+        else:
+            total_target = self.fixed_episode_length
         remaining = max(0, total_target - current_count)
         
         # 핵심 패턴 불일치 감지 및 다음 키 가져오기
@@ -1223,9 +1265,9 @@ class MobileVLADataCollector(Node):
             current_key = self._infer_key_from_action(action)
             
             # 불일치 감지 (Core일 때만, 로그 없이 통계만 업데이트)
-            if planned_seq and len(self.current_episode_keys) < self.fixed_episode_length:
+            if planned_seq and len(self.current_episode_keys) < len(planned_seq):
                 next_key = planned_seq[len(self.current_episode_keys)]
-                if planned_seq and next_key and pattern_for_guide == 'core':
+                if next_key and pattern_for_guide == 'core':
                     if current_key != next_key:
                         self.core_mismatch_count += 1
         
@@ -1441,6 +1483,11 @@ class MobileVLADataCollector(Node):
         end_time = time.time()
         total_duration = end_time - self.episode_start_time
         
+        # V3 모드에서 아무것도 수집하지 않고 종료했을 때 방어
+        if len(self.episode_data) <= 1:
+            self.get_logger().warn("너무 짧은 에피소드(1 프레임 이하)는 저장하지 않습니다.")
+            return
+
         save_path = self.save_episode_data(self.episode_data, self.episode_name, total_duration)
 
         # 핵심 패턴 표준 저장/갱신
@@ -1448,7 +1495,10 @@ class MobileVLADataCollector(Node):
         if scenario and ("_core_" in self.episode_name or self.episode_name.endswith("_core")):
             if self.record_core_pattern and len(self.current_episode_keys) > 0:
                 # SPACE는 명시적 정지일 때만 기록. 자동 패딩은 저장 시 제거
-                normalized = self._normalize_to_18_keys(self.current_episode_keys)
+                if self.mode != "2":
+                    normalized = self._normalize_to_18_keys(self.current_episode_keys)
+                else:
+                    normalized = self.current_episode_keys
                 # 끝에 SPACE만 남았을 경우 제거하여 불필요한 SPACE 표준 방지
                 while normalized and normalized[-1] == 'SPACE':
                     normalized.pop()
@@ -1533,6 +1583,9 @@ class MobileVLADataCollector(Node):
     def reset_to_initial_state(self):
         """모든 상태를 초기화하고 첫 화면으로 리셋"""
         self.get_logger().info("🔄 리셋 중...")
+        
+        # 실제 파일 현황과 진행률 동기화 (삭제 반영 등)
+        self.resync_scenario_progress()
         
         # 수집 중이면 에피소드 취소 (저장하지 않음)
         if self.collecting:
@@ -1882,9 +1935,9 @@ class MobileVLADataCollector(Node):
         
     def extract_scenario_from_episode_name(self, episode_name: str) -> str:
         """에피소드명에서 시나리오 추출 (기존 형식 호환: vert/hori 포함된 형식도 처리)"""
-        # 먼저 새로운 형식(4개 시나리오) 확인
+        # 먼저 새로운 형식(4개 시나리오) 확인 - 부분 일치가 아닌 언더바 포함 패턴으로 정확히 매칭
         for scenario in self.cup_scenarios.keys():
-            if scenario in episode_name:
+            if f"_{scenario}_" in episode_name or episode_name.endswith(f"_{scenario}"):
                 return scenario
         
         # 기존 형식 호환: 1box_vert_left → 1box_left로 변환
@@ -1923,6 +1976,7 @@ class MobileVLADataCollector(Node):
         pattern_targets = self.pattern_targets
         dist_targets = self.distance_targets_per_pattern
         # 표 헤더
+        # 표 헤더 (Far는 모드에 따라 숨김 가능하지만 일단 유지)
         header = "패턴/위치  Close  Medium  Far   소계 (목표)"
         rows = []
         total_close = total_medium = total_far = total_all = 0
@@ -1933,7 +1987,22 @@ class MobileVLADataCollector(Node):
             c_far = counts[pattern]["far"]
             subtotal = c_close + c_medium + c_far
             target_pd = dist_targets[pattern]
-            row = f"{pattern.capitalize():<10}  {c_close:>5}/{target_pd['close']}  {c_medium:>6}/{target_pd['medium']}  {c_far:>4}/{target_pd['far']}   {subtotal:>3}/{pattern_targets[pattern]}"
+            
+            # targets
+            t_close = target_pd.get('close', 0)
+            t_medium = target_pd.get('medium', 0)
+            t_far = target_pd.get('far', 0)
+            
+            # 패턴별 목표 가로채기 (모드 2 대응)
+            p_target = pattern_targets[pattern]
+            if self.mode == "2":
+                 # 시나리오 선택 시의 목표 기반으로 (Center 40 -> 20)
+                 # scenario_id를 알 수 없으나 현재 메서드 인자로 scenario가 들어옴
+                 config = self.cup_scenarios.get(scenario, {})
+                 total_scenario_target = config.get('target', 40)
+                 p_target = total_scenario_target // 2 if pattern == "core" else total_scenario_target - (total_scenario_target // 2)
+
+            row = f"{pattern.capitalize():<10}  {c_close:>5}/{t_close}  {c_medium:>6}/{t_medium}  {c_far:>4}/{t_far}   {subtotal:>3}/{p_target}"
             rows.append(row)
             total_close += c_close
             total_medium += c_medium
@@ -2126,28 +2195,37 @@ class MobileVLADataCollector(Node):
         self.get_logger().info("📋 환경을 설정한 후 원하는 시나리오 번호를 누르세요:")
         self.get_logger().info("")
         
-        # 시나리오별 상세 정보 표시 (4개로 축소)
-        scenario_details = [
-            {"key": "1", "id": "1box_left", "path": "W W W → A A → W W → D D"},
-            {"key": "2", "id": "1box_right", "path": "W W → D D → W W W → A A"},
-            {"key": "3", "id": "2box_left", "path": "W W → A A A → W W → D D D"},
-            {"key": "4", "id": "2box_right", "path": "W → D D D → W W W → A A A"}
-        ]
+        # 시나리오별 상세 정보 표시
+        scenario_details = []
+        for s_id, s_info in self.cup_scenarios.items():
+            if self.mode == "2":
+                path_info = "수동 조작 (직진/조향/정지)"
+            else:
+                pm = {
+                    "1box_left": "W W W → A A → W W → D D",
+                    "1box_right": "W W → D D → W W W → A A",
+                    "2box_left": "W W → A A A → W W → D D D",
+                    "2box_right": "W → D D D → W W W → A A A"
+                }
+                path_info = pm.get(s_id, "")
+            scenario_details.append({"key": s_info["key"], "id": s_id, "path": path_info})
         
         for scenario in scenario_details:
             scenario_id = scenario["id"]
             description = self.cup_scenarios[scenario_id]["description"]
             # 기존 통계는 vert/hori 포함 형식도 집계하도록 호환 처리
             current = self.scenario_stats.get(scenario_id, 0)
-            # 기존 형식(vert/hori 포함)도 카운트
-            for layout in ["vert", "hori"]:
-                old_id = f"{scenario_id.replace('_left', '_vert_left').replace('_right', '_vert_right')}"
-                if "_left" in scenario_id:
-                    old_id = old_id.replace("_vert_left", f"_{layout}_left")
-                elif "_right" in scenario_id:
-                    old_id = old_id.replace("_vert_right", f"_{layout}_right")
-                if old_id in self.scenario_stats:
-                    current += self.scenario_stats[old_id]
+            # 기존 형식(vert/hori 포함)도 카운트 (V3 모드가 아닌 경우만 호환성 유지)
+            if self.mode != "2":
+                for layout in ["vert", "hori"]:
+                    old_id = f"{scenario_id.replace('_left', '_vert_left').replace('_right', '_vert_right')}"
+                    if "_left" in scenario_id:
+                        old_id = old_id.replace("_vert_left", f"_{layout}_left")
+                    elif "_right" in scenario_id:
+                        old_id = old_id.replace("_vert_right", f"_{layout}_right")
+                    
+                    if old_id != scenario_id and old_id in self.scenario_stats:
+                        current += self.scenario_stats[old_id]
             
             target = self.cup_scenarios[scenario_id]["target"]
             remaining = max(0, target - current)
@@ -2169,7 +2247,7 @@ class MobileVLADataCollector(Node):
         self.get_logger().info("🏁 전체 진행률:")
         self.get_logger().info(f"   {overall_progress} ({total_completed}/{total_target}) {overall_percentage:.1f}%")
         self.get_logger().info("")
-        self.get_logger().info("✨ 1-4번 중 원하는 시나리오를 선택하세요!")
+        self.get_logger().info("✨ 1-9번 중 원하는 시나리오를 선택하세요!")
         self.get_logger().info("💡 환경 설정 후 숫자키를 누르면 배치 타입 선택으로 넘어갑니다.")
         self.get_logger().info("🚫 취소하려면 다른 키를 누르세요.")
 
@@ -2224,13 +2302,15 @@ class MobileVLADataCollector(Node):
                                         pass  # 추정 실패해도 계속 진행
                         except:
                             pass  # 시간대 정보가 없어도 계속 진행
-                        scenario_matched += 1
-                        self.get_logger().info(f"✅ {h5_file.name} → {scenario}")
+                        # scenario_matched += 1
+                        # self.get_logger().info(f"✅ {h5_file.name} → {scenario}")
                     else:
                         old_format_files.append(h5_file.name)
-                        self.get_logger().info(f"⚠️ {h5_file.name} → 시나리오 이름 없음 (구형 파일)")
+                        # self.get_logger().info(f"⚠️ {h5_file.name} → 시나리오 이름 없음 (구형 파일)")
                 except Exception as e:
-                    self.get_logger().warning(f"⚠️ {h5_file.name} 분석 실패: {e}")
+                    self.get_logger().debug(f"⚠️ {h5_file.name} 분석 실패: {e}")
+            
+            self.get_logger().info(f"✅ 동기화 완료! 총 {len(h5_files)}개 중 {len(h5_files) - len(old_format_files)}개의 시나리오 매칭 완료")
             
             # 구형 파일들 정보 출력
             if old_format_files:
@@ -2346,13 +2426,25 @@ class MobileVLADataCollector(Node):
         # 핵심 패턴 가이드 표시
         core_pattern = self.get_core_pattern_guide(self.selected_scenario)
         
-        self.get_logger().info("📍 C키: 핵심 패턴 (Core) - 6개 수집 목표")
+        # 시나리오 목표 대비 50/50 분배 (V3) 또는 기존 분배
+        if self.mode == "2":
+            total_target = config.get('target', 40)
+            core_target = total_target // 2
+            variant_target = total_target - core_target
+        else:
+            core_target = self.pattern_targets.get('core', 150)
+            variant_target = self.pattern_targets.get('variant', 100)
+
+        self.get_logger().info(f"📍 C키: 핵심 패턴 (Core) - 목표: {core_target}개")
         self.get_logger().info(f"   🎮 가이드: {core_pattern}")
         self.get_logger().info("   💡 위 순서를 참고하여 정확히 따라하세요!")
         self.get_logger().info("")
         
-        self.get_logger().info("🔄 V키: 변형 패턴 (Variant) - 4개 수집 목표")
-        self.get_logger().info("   🎮 핵심 패턴의 타이밍이나 순서를 조금 변경")
+        self.get_logger().info(f"🔄 V키: 변형 패턴 (Variant) - 목표: {variant_target}개")
+        if self.mode == "2":
+            self.get_logger().info("   🎮 목표물 도달을 위한 스네이크 주행/시야 변경 등 의도적 변형")
+        else:
+            self.get_logger().info("   🎮 핵심 패턴의 타이밍이나 순서를 조금 변경")
         self.get_logger().info("   💡 창의적으로 변형하여 움직이세요!")
         self.get_logger().info("")
         
@@ -2372,7 +2464,10 @@ class MobileVLADataCollector(Node):
         }
         pattern_display = pattern_names.get(self.selected_pattern_type, self.selected_pattern_type)
         
-        self.get_logger().info("🎯 장애물 위치 선택")
+        if self.mode == "2":
+            self.get_logger().info("🎯 바구니 목표 거리(Distance) 선택")
+        else:
+            self.get_logger().info("🎯 장애물 위치 선택")
         self.get_logger().info("=" * 50)
         self.get_logger().info(f"📦 선택된 시나리오: {scenario_config.get('description', self.selected_scenario)}")
         self.get_logger().info(f"📋 선택된 패턴: {pattern_display}")
@@ -2381,15 +2476,23 @@ class MobileVLADataCollector(Node):
         self.get_logger().info(f"   📍 {levels['close']['label']}")
         self.get_logger().info(f"   💡 {levels['close']['hint']}")
         self.get_logger().info("")
+        
         self.get_logger().info("K키: MEDIUM")
         self.get_logger().info(f"   📍 {levels['medium']['label']}")
         self.get_logger().info(f"   💡 {levels['medium']['hint']}")
         self.get_logger().info("")
-        self.get_logger().info("L키: FAR")
-        self.get_logger().info(f"   📍 {levels['far']['label']}")
-        self.get_logger().info(f"   💡 {levels['far']['hint']}")
-        self.get_logger().info("")
-        self.get_logger().info("✨ J/K/L 중 장애물 위치를 선택하세요!")
+        
+        if 'far' in levels:
+            self.get_logger().info("L키: FAR")
+            self.get_logger().info(f"   📍 {levels['far']['label']}")
+            self.get_logger().info(f"   💡 {levels['far']['hint']}")
+            self.get_logger().info("")
+            
+        keys_hint = "J/K/L" if 'far' in levels else "J/K"
+        if self.mode == "2":
+            self.get_logger().info(f"✨ {keys_hint} 중 거리를 선택하세요!")
+        else:
+            self.get_logger().info(f"✨ {keys_hint} 중 장애물 위치를 선택하세요!")
         self.get_logger().info("🚫 취소하려면 다른 키를 누르세요.")
         
     def show_repeat_count_selection(self):
@@ -2630,15 +2733,17 @@ class MobileVLADataCollector(Node):
             self.get_logger().warn("⚠️ 알 수 없는 거리 레벨, 기본값 medium 사용")
             distance_level = 'medium'
         label = levels[distance_level]['label']
-        
-        # 에피소드명 생성 (배치 타입은 기본값으로 자동 설정)
+        # 배치 타입 제거
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        # 기존 형식 호환: episode_..._{num_box}_{layout_type}_{direction}_{pattern_type}_{distance_level}
-        # 기본값으로 가로(hori) 배치 사용
-        num_box = scenario_id.split("_")[0]  # "1box" or "2box"
-        direction = scenario_id.split("_")[1]  # "left" or "right"
-        layout_type = self.default_layout_type  # 기본값: "hori"
-        episode_name = f"episode_{timestamp}_{num_box}_{layout_type}_{direction}_{pattern_type}_{distance_level}"
+        if self.mode == "2":
+            episode_name = f"episode_{timestamp}_{scenario_id}_{pattern_type}_{distance_level}"
+        else:
+            # 기존 형식 호환: episode_..._{num_box}_{layout_type}_{direction}_{pattern_type}_{distance_level}
+            # 기본값으로 가로(hori) 배치 사용
+            num_box = scenario_id.split("_")[0]  # "1box" or "2box"
+            direction = scenario_id.split("_")[1]  # "left"  or "right"
+            layout_type = self.default_layout_type  # 기본값: "hori"
+            episode_name = f"episode_{timestamp}_{num_box}_{layout_type}_{direction}_{pattern_type}_{distance_level}"
         
         # 현재 선택 상태를 저장해서 종료 시 통계 업데이트에 사용
         self.selected_scenario = scenario_id
@@ -3005,10 +3110,15 @@ class MobileVLADataCollector(Node):
         return_actions.reverse()
         
         # 🔴 17개 액션으로 정규화 (초기 프레임 1개 + 17개 액션 = 18프레임)
-        target_action_count = self.fixed_episode_length - 1  # 18 - 1 = 17
-        if len(return_actions) < target_action_count:
-            padding_count = target_action_count - len(return_actions)
-            self.get_logger().info(f"📏 복귀 액션 정규화: {len(return_actions)}개 → {target_action_count}개 (STOP {padding_count}개 추가)")
+        if self.mode == "2":
+            target_action_count = len(return_actions) # 무제한/제한없음
+        else:
+            target_action_count = self.fixed_episode_length - 1  # 18 - 1 = 17
+            
+        if self.mode != "2":
+            if len(return_actions) < target_action_count:
+                padding_count = target_action_count - len(return_actions)
+                self.get_logger().info(f"📏 복귀 액션 정규화: {len(return_actions)}개 → {target_action_count}개 (STOP {padding_count}개 추가)")
             return_actions.extend([self.STOP_ACTION.copy() for _ in range(padding_count)])
         elif len(return_actions) > target_action_count:
             self.get_logger().warn(f"⚠️ 복귀 액션이 {target_action_count}개를 초과합니다 ({len(return_actions)}개). 첫 {target_action_count}개만 사용합니다.")
@@ -3305,6 +3415,31 @@ class MobileVLADataCollector(Node):
 
 
 def main(args=None):
+    import termios, tty, sys, select
+    mode = "2"
+    try:
+        print("\n" + "="*70)
+        print("🚀 VLA 데이터 수집 모드 선택")
+        print("  [1] 기존 모드            : 1box/2box 장애물 포함 경로 (기존 로직)")
+        print("  [2] V5 수집 모드 (Default): Target-Reaching Only (장애물 없이 바구니 목표)")
+        print("="*70)
+        print("원하는 모드 번호를 입력 후 Enter (아무 입력 없으면 5초 뒤 기본값 2 적용): ", end='', flush=True)
+        i, o, e = select.select([sys.stdin], [], [], 5)
+        if i:
+            val = sys.stdin.readline().strip()
+            if val == "1":
+                mode = "1"
+                print("\n✅ 기존 1번 모드로 시작합니다.\n")
+            else:
+                mode = "2"
+                print("\n✅ V5 수집 모드(Phase 1.5 - 장애물 없음)로 시작합니다!\n")
+        else:
+            print("\n⏳ 시간 초과: 기본값인 2번(V5 모드)으로 시작합니다.\n")
+    except EOFError:
+        print("\n✅ V5 수집 모드로 시작하는 중...\n")
+    except KeyboardInterrupt:
+        sys.exit(0)
+
     # ROS2 초기화
     try:
         rclpy.init(args=args)
@@ -3314,7 +3449,7 @@ def main(args=None):
     
     collector = None
     try:
-        collector = MobileVLADataCollector()
+        collector = MobileVLADataCollector(mode=mode)
         rclpy.spin(collector)
     except KeyboardInterrupt:
         pass

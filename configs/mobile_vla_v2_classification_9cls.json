@@ -1,6 +1,6 @@
 {
     "inference_mode": "classification",
-    "robovlm_name": "RoboVLM-Nav",
+    "robovlm_name": "RoboKosMos",
     "exp_name": "v2-classification-9cls",
     "parent": null,
     "task_name": "mobile_vla_v2_classification",

@@ -1,8 +1,8 @@
 <package format="3">
   <name>mobile_vla_package</name>
   <version>1.0.0</version>
-  <description>Mobile VLA Data Collection System for RoboVLMs Action Chunks</description>
-  <maintainer email="soda@mobile-vla.io">Mobile VLA Team</maintainer>
+  <description>MoNaVLA (Mobile Navigation VLA) Data Collection System</description>
+  <maintainer email="soda@monavla.io">MoNaVLA Team</maintainer>
   <license>MIT</license>
 
   <exec_depend>rclpy</exec_depend>

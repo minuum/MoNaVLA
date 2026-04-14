@@ -53,6 +53,8 @@ class MobileVLALSTMDecoder(BasePolicyHead):
         self.velocities = MLPTanhHead(
             self.hidden_size * latent, fwd_pred_next_n * action_dim
         )
+        # [NEW] Weighting for Non-Forward Actions (C)
+        self._action_weight_non_forward = kwargs.get("action_weight_non_forward", 1.0)
         
         self.hidden_state = None
         if self.down_sample == "pooling":
@@ -140,45 +142,105 @@ class MobileVLALSTMDecoder(BasePolicyHead):
         # gripper 없음 (None 반환)
         return velocities, None
 
+    def get_labels(self, pred_actions, labels, action_masks, **kwargs):
+        """
+        입력된 전체 액션 시퀀스에서 다중 스텝 정답을 추출하여 반환
+        labels[0]: (B, Total_L, 2) 형태의 전체 액션 시퀀스
+        결과: (B, L, n, 2) 형태의 레이블 (L: window_size, n: fwd_pred_next_n)
+        """
+        arm_labels = labels[0]
+        if arm_labels is None:
+            return pred_actions, labels, action_masks
+            
+        # pred_actions는 (velocities, None) 형태
+        logits = pred_actions[0] if isinstance(pred_actions, (tuple, list)) else pred_actions
+        
+        bs = arm_labels.shape[0]
+        L = logits.shape[1] 
+        n = self.fwd_pred_next_n
+        
+        # MobileVLATrainer에서 이미 chunked된 labels를 보냈을 경우 처리
+        if arm_labels.dim() == 4: # (B, L_full, n, 2)
+            if arm_labels.size(1) != L:
+                arm_labels = arm_labels[:, :L]
+            return pred_actions, (arm_labels, labels[1]), action_masks
+
+        # 만약 (B, Total_L, 2) 형태라면 직접 chunking
+        chunked = []
+        for t in range(L):
+            # t 시점부터 t + n 시점까지의 정답 추출
+            if t + n <= arm_labels.shape[1]:
+                chunk_t = arm_labels[:, t : t + n] # (B, n, 2)
+            else:
+                # 패딩 처리
+                pad_size = (t + n) - arm_labels.shape[1]
+                chunk_t = arm_labels[:, t:]
+                padding = torch.zeros(bs, pad_size, 2).to(arm_labels.device)
+                chunk_t = torch.cat([chunk_t, padding], dim=1)
+            chunked.append(chunk_t)
+            
+        # (B, L, n, 2) 형태로 스택
+        new_arm_labels = torch.stack(chunked, dim=1).to(arm_labels.device)
+        
+        return pred_actions, (new_arm_labels, labels[1]), action_masks
+
     def loss(self, pred_action, labels, attention_mask=None):
         """
-        Mobile VLA용 Loss 계산
-        2D 속도 (linear_x, linear_y)만 처리 - 0.4초 동안의 이동 방향 속도 조정
-        
-        Args:
-            pred_action: (velocities, gripper) - gripper는 None
-            labels: (velocity_chunck, gripper_action_chunck) - gripper_action_chunck는 None
-            attention_mask: (B, seq_len, chunk_size)
-        
-        Returns:
-            dict: {"loss_velocity": ..., "loss_gripper": None, "acc_gripper": None}
+        Mobile VLA용 Loss 계산 (2D Regression)
         """
         if labels is None or labels[0] is None:
-            return {"loss_velocity": None, "loss_gripper": None, "acc_gripper": None}
+            return {"loss_arm_act": None, "loss_gripper": None, "acc_gripper": None}
 
         # pred_action는 (velocities, None) 형태
         if isinstance(pred_action, tuple) or isinstance(pred_action, list):
-            velocities = pred_action[0]  # (B, seq_len, chunk_size, 2) - [linear_x, linear_y]
+            velocities = pred_action[0]  # (B, seq_len, chunk_size, 2)
         else:
             velocities = pred_action
 
         # labels는 (velocity_chunck, None) 형태
-        velocity_labels = labels[0]  # (B, seq_len, chunk_size, 2) - [linear_x, linear_y]
+        velocity_labels = labels[0]  # (B, seq_len, chunk_size, 2)
 
-        # 2D 속도 Loss 계산 (Huber Loss) - 0.4초 동안의 이동 방향 속도 조정
+        # 2D 속도 Loss 계산 (Huber Loss)
         if attention_mask is None:
-            loss_velocity = torch.nn.functional.huber_loss(velocities, velocity_labels)
+            loss_velocity = torch.nn.functional.huber_loss(velocities, velocity_labels, reduction="none")
+            
+            # [Directional Awareness] Weighting
+            if hasattr(self, "_action_weight_non_forward") and self._action_weight_non_forward != 1.0:
+                # linear_x(0)가 크고 linear_y(1)가 작은 경우를 forward로 정의
+                is_forward = (velocity_labels[..., 0] > 0.5) & (torch.abs(velocity_labels[..., 1]) < 0.2)
+                weights = torch.ones_like(loss_velocity)
+                weights[~is_forward] = self._action_weight_non_forward
+                loss_velocity = loss_velocity * weights
+            
+            loss_velocity = loss_velocity.mean()
         else:
             loss_velocity = torch.nn.functional.huber_loss(
                 velocities, velocity_labels, reduction="none"
             )
+            
+            # [Directional Awareness] Weighting
+            if hasattr(self, "_action_weight_non_forward") and self._action_weight_non_forward != 1.0:
+                is_forward = (velocity_labels[..., 0] > 0.5) & (torch.abs(velocity_labels[..., 1]) < 0.2)
+                weights = torch.ones_like(loss_velocity)
+                weights[~is_forward] = self._action_weight_non_forward
+                loss_velocity = loss_velocity * weights
+                
+            # mask 차원 맞춤
             attention_mask = attention_mask.bool()
-            loss_velocity = loss_velocity[attention_mask].mean()
+            while attention_mask.dim() < loss_velocity.dim():
+                attention_mask = attention_mask.unsqueeze(-1)
+            
+            if attention_mask.any():
+                loss_velocity = loss_velocity[attention_mask.expand_as(loss_velocity)].mean()
+            else:
+                loss_velocity = loss_velocity.mean() * 0.0
 
         return {
-            "loss_velocity": loss_velocity,  # loss_arm -> loss_velocity
-            "loss_gripper": None,  # Mobile VLA는 gripper 없음
-            "acc_gripper": None,  # Mobile VLA는 gripper 없음
+            "loss_arm_act": loss_velocity,
+            "loss_velocity": loss_velocity,
+            "loss_gripper": None,
+            "acc_arm": None,
+            "acc_gripper": None,
         }
 
 
@@ -244,6 +306,12 @@ class MobileVLAClassificationDecoder(BasePolicyHead):
         self.history_memory = []
 
     def forward(self, tok_seq, h_0=None, **kwargs):
+        # 강제로 그래디언트 계산 활성화
+        torch.set_grad_enabled(True)
+        if not tok_seq.requires_grad:
+            tok_seq.requires_grad_(True)
+            
+        self.debug_tok_seq_grad = tok_seq.requires_grad
         if len(tok_seq.shape) == 4:
             if self.down_sample == "pooling":
                 bs, seq_len = tok_seq.shape[:2]
@@ -280,24 +348,102 @@ class MobileVLAClassificationDecoder(BasePolicyHead):
 
         return logits, None
 
+    def get_labels(self, pred_actions, labels, action_masks, **kwargs):
+        """
+        입력된 전체 액션 시퀀스에서 다중 스텝 정답을 추출하여 반환
+        labels[0]: (B, 17) 형태의 전체 액션 시퀀스
+        결과: (B, L, n) 형태의 레이블 (L: window_size, n: fwd_pred_next_n)
+        """
+        arm_labels = labels[0]
+        if arm_labels is None:
+            return pred_actions, labels, action_masks
+            
+        # pred_actions는 (logits, gripper) 형태일 수 있음
+        logits = pred_actions[0] if isinstance(pred_actions, (tuple, list)) else pred_actions
+        
+        bs = arm_labels.shape[0]
+        L = logits.shape[1] 
+        n = self.fwd_pred_next_n # 5
+        
+        # 이미 쪼개진 데이터(B, L, n)가 왔을 경우 중복 처리 방지
+        if arm_labels.dim() >= 3:
+            return pred_actions, labels, action_masks
+            
+        chunked = []
+        for t in range(L):
+            # t 시점부터 t + n 시점까지의 정답 추출
+            # arm_labels의 길이가 충분할 때만 chunking 수행
+            if t + n <= arm_labels.shape[1]:
+                chunk_t = arm_labels[:, t : t + n] # (B, n)
+            else:
+                # 마지막 구간 패딩 (마지막 값 복사)
+                last_val = arm_labels[:, -1:]
+                pad_len = (t + n) - arm_labels.shape[1]
+                chunk_t = torch.cat([arm_labels[:, t:], last_val.repeat(1, pad_len)], dim=1)
+            chunked.append(chunk_t)
+            
+        # (B, L, n) 형태로 스택
+        new_arm_labels = torch.stack(chunked, dim=1).to(arm_labels.device)
+        
+        return pred_actions, (new_arm_labels, labels[1]), action_masks
+
     def loss(self, pred_action, labels, attention_mask=None):
         if labels is None or labels[0] is None:
             return {"loss_velocity": None, "loss_gripper": None, "acc_velocity": None}
 
         logits = pred_action[0] if isinstance(pred_action, (tuple, list)) else pred_action
-        class_labels = labels[0] # (B, L, chunk)
+        class_labels = labels[0] # (B, L, n_steps)
+        
+        # 차원 확인 (B, L, n_steps)가 아닐 경우에만 확장 (backward compatibility)
+        if class_labels.dim() == 2:
+            class_labels = class_labels.unsqueeze(-1)
+
+        # Check sequence length mismatch (L)
+        l_logits = logits.size(1)
+        l_labels = class_labels.size(1)
+        if l_logits != l_labels:
+            min_l = min(l_logits, l_labels)
+            logits = logits[:, :min_l]
+            class_labels = class_labels[:, :min_l]
+            if attention_mask is not None:
+                attention_mask = attention_mask[:, :min_l]
 
         flat_logits = rearrange(logits, "b l n d -> (b l n) d")
         flat_labels = rearrange(class_labels, "b l n -> (b l n)").long()
 
         if attention_mask is not None:
+            # attention_mask도 차원 확인 (B, L) -> (B, L, 1)
+            if attention_mask.dim() == 2:
+                attention_mask = attention_mask.unsqueeze(-1)
             flat_mask = rearrange(attention_mask, "b l n -> (b l n)").bool()
-            flat_logits = flat_logits[flat_mask]
-            flat_labels = flat_labels[flat_mask]
+            
+            # mask와 labels 크기 일치 확인 (간혹 BaseTrainer에서 text_mask를 넘길 경우 n=1이 아닐 수 있음)
+            if flat_mask.size(0) != flat_labels.size(0):
+                # 크기가 다르면 마스킹 생략 (로그 출력)
+                # print(f"⚠️ [NavPolicy] Mask size {flat_mask.size(0)} mismatch with labels {flat_labels.size(0)}")
+                pass
+            else:
+                flat_logits = flat_logits[flat_mask]
+                flat_labels = flat_labels[flat_mask]
+
+        if list(flat_logits.shape)[0] != list(flat_labels.shape)[0]:
+            print(f"!!! Error in loss shapes: logits={flat_logits.shape}, labels={flat_labels.shape}")
+            # match size 0 by trimming the larger one
+            min_size = min(flat_logits.shape[0], flat_labels.shape[0])
+            flat_logits = flat_logits[:min_size]
+            flat_labels = flat_labels[:min_size]
 
         if flat_labels.size(0) == 0:
-            return {"loss_velocity": torch.tensor(0.0).to(logits.device), "acc_velocity": 0.0}
+            # logits에 0을 곱해 더함으로써 grad_fn을 유지하고 값은 0이 되도록 함
+            return {
+                "loss_arm_act": logits.sum() * 0.0,
+                "loss_velocity": logits.sum() * 0.0,
+                "acc_arm_act": 0.0,
+                "acc_velocity": 0.0,
+            }
 
+        # [DEBUG]
+        print(f"DEBUG: [loss] flat_logits shape={flat_logits.shape}, flat_labels shape={flat_labels.shape}, n={self.fwd_pred_next_n}", flush=True)
         loss = F.cross_entropy(flat_logits, flat_labels, weight=self.class_weights_tensor)
         
         # Accuracy 계산
@@ -305,7 +451,9 @@ class MobileVLAClassificationDecoder(BasePolicyHead):
         acc = (preds == flat_labels).float().mean()
 
         return {
+            "loss_arm_act": loss,
             "loss_velocity": loss,
             "loss_gripper": None,
-            "acc_velocity": acc.item(),
+            "acc_arm_act": acc,
+            "acc_velocity": acc,
         }

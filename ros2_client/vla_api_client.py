@@ -174,6 +174,7 @@ def test_client():
     test_cases = [
         ("Left", "Navigate around obstacles and reach the front of the beverage bottle on the left"),
         ("Right", "Navigate around obstacles and reach the front of the beverage bottle on the right"),
+        ("Target-Only", "Navigate directly to the gray basket"),
     ]
     
     for name, instruction in test_cases:

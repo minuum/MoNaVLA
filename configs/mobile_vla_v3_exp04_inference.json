@@ -1,7 +1,7 @@
 {
     "_comment": "EXP-V3-01: V2 + Color Jitter + Random Crop (\uc2dc\uac01\uc801 \uc77c\ubc18\ud654 \uac1c\uc120)",
     "inference_mode": "classification",
-    "robovlm_name": "RoboVLM-Nav",
+    "robovlm_name": "RoboKosMos",
     "exp_name": "v3-exp04-lora",
     "parent": "configs/mobile_vla_v3_exp01_aug.json",
     "task_name": "mobile_vla_v3_exp04_lora",

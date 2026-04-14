@@ -18,7 +18,9 @@ os.environ["RMW_IMPLEMENTATION"] = "rmw_fastrtps_cpp"
 print(f"🔧 Forced ROS_DOMAIN_ID={os.environ['ROS_DOMAIN_ID']}, RMW={os.environ['RMW_IMPLEMENTATION']}")
 
 # --- Load .vla_env_settings manually ---
-env_path = "/home/billy/25-1kp/vla/.vla_env_settings"
+env_path = os.getenv("VLA_ENV_PATH", "/home/soda/MoNaVLA/.vla_env_settings")
+if not os.path.exists(env_path):
+    env_path = "/home/billy/25-1kp/vla/.vla_env_settings" # fallback
 if os.path.exists(env_path):
     with open(env_path, "r") as f:
         for line in f:
@@ -70,6 +72,10 @@ def correct_image(img_pil):
     return Image.fromarray(img_final)
 
 # --- Matplotlib Optimization ---
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import io
 import warnings
 warnings.filterwarnings("ignore", message="Unable to import Axes3D")
 
@@ -105,14 +111,14 @@ except ImportError as e:
     print(f"⚠️ ROS2 environment partially missing: {e}")
 
 # --- Custom Control Library ---
-sys.path.insert(0, "/home/billy/25-1kp/vla")
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from robovlm_nav.serve.vla_control_utils import VLAControlManager
 
 
 # --- Configuration ---
 API_URL = "http://localhost:8000"
 API_KEY = os.getenv("VLA_API_KEY", "vla_devel_key_2026")
-DEFAULT_INSTRUCTION = "Navigate to the brown pot on the left"
+DEFAULT_INSTRUCTION = "Navigate toward the gray basket until it gets closer"
 LINEAR_SPEED_VLA = 1.15
 ANGULAR_SPEED_VLA = 1.15
 
@@ -131,12 +137,40 @@ try:
     from robovlm_nav.serve.inference_server import MobileVLAInference
     LOCAL_MODEL_AVAILABLE = True
 except ImportError as e:
-    print(f"⚠️ Local model modules not found: {e}")
     LOCAL_MODEL_AVAILABLE = False
+    print(f"⚠️ Local model modules not found: {e}")
 
 local_model_instance = None
 
-def init_local_model(use_quant_str):
+def scan_local_files():
+    """Scan project root for models and configs"""
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    # Checkpoints: [(DisplayName, FullPath), ...]
+    ckpt_tuples = [(f, os.path.join(root, f)) for f in os.listdir(root) if f.endswith('.ckpt') or f.endswith('.pth')]
+    
+    # Checkpoints recursively from runs/
+    runs_dir = os.path.join(root, "runs")
+    if os.path.exists(runs_dir):
+        for r, d, f in os.walk(runs_dir):
+            for file in f:
+                if file.endswith(('.ckpt', '.pth')):
+                    full_p = os.path.join(r, file)
+                    # Show as 'Folder/filename.ckpt' for clarity. 
+                    # Use two levels of parent folders if available for better context.
+                    parts = full_p.split(os.sep)
+                    if len(parts) >= 3:
+                        display_name = f"{parts[-3]}/{parts[-2]}/{file}"
+                    else:
+                        display_name = f"{parts[-2]}/{file}"
+                    ckpt_tuples.append((display_name, full_p))
+    
+    # Configs: [(DisplayName, FullPath), ...]
+    configs_dir = os.path.join(root, "configs")
+    conf_tuples = [(f, os.path.join(configs_dir, f)) for f in os.listdir(configs_dir) if f.endswith('.json')]
+    
+    return sorted(ckpt_tuples), sorted(conf_tuples)
+
+def init_local_model(use_quant_str, manual_ckpt=None, manual_conf=None):
     global local_model_instance
     if not LOCAL_MODEL_AVAILABLE:
         return "❌ Module Missing"
@@ -153,14 +187,30 @@ def init_local_model(use_quant_str):
              torch.cuda.empty_cache()
              print("🔄 Unloaded existing model")
 
-        ckpt = os.getenv("VLA_CHECKPOINT_PATH")
+        # Dynamically reload env settings to catch VSCode changes
+        env_path = os.getenv("VLA_ENV_PATH", "/home/soda/MoNaVLA/.vla_env_settings")
+        if not os.path.exists(env_path):
+            env_path = "/home/billy/25-1kp/vla/.vla_env_settings" # fallback
+        if os.path.exists(env_path):
+            with open(env_path, "r") as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith("export "):
+                        try:
+                            key, val = line.replace("export ", "", 1).split("=", 1)
+                            os.environ[key] = val.strip('"').strip("'")
+                        except ValueError:
+                            continue
+            print("🔄 Reloaded .vla_env_settings dynamically")
+
+        ckpt = manual_ckpt if manual_ckpt else os.getenv("VLA_CHECKPOINT_PATH")
         if not ckpt:
-            state["model_status"] = "Missing VLA_CHECKPOINT_PATH"
+            state["model_status"] = "Missing Checkpoint Path"
             state["model_path"] = "N/A"
-            return "❌ VLA_CHECKPOINT_PATH not set"
+            return "❌ No Checkpoint Selected"
             
-        # --- Auto-Detect Configuration based on Checkpoint Path ---
-        config = os.getenv("VLA_CONFIG_PATH", "")
+        # Priority: Manual Selection > Env Variable > Auto-detect
+        config = manual_conf if manual_conf else os.getenv("VLA_CONFIG_PATH", "")
         if not config or not os.path.exists(config):
             import re
             import glob
@@ -196,7 +246,9 @@ def init_local_model(use_quant_str):
             
         state["model_status"] = f"Loaded ({'INT8' if use_quant else 'FP16'})"
         state["model_path"] = ckpt
-        return f"✅ Loaded: {os.path.basename(ckpt)} ({'INT8' if use_quant else 'FP16'})"
+        # Get parent directory name for better context instead of just epoch_epoch...ckpt
+        short_name = f"{os.path.basename(os.path.dirname(ckpt))}/{os.path.basename(ckpt)}"
+        return f"✅ Loaded: {short_name} ({'INT8' if use_quant else 'FP16'})"
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -234,6 +286,87 @@ class ROSDashboardNode(Node):
             except: pass
         return None
 
+    def generate_trajectory_plot(self, full_chunk, model_name="VLA"):
+        """Generate 2D Matplotlib plot for the given chunk"""
+        if full_chunk is None or len(full_chunk) == 0:
+            return None
+        
+        # Trajectory Integration
+        DT = 0.2
+        traj_x = [0]
+        traj_y = [0]
+        curr_x, curr_y = 0, 0
+        
+        for step in full_chunk:
+            vx, vy = float(step[0]), float(step[1])
+            curr_x += vx * DT
+            curr_y += vy * DT
+            traj_x.append(curr_x)
+            traj_y.append(curr_y)
+            
+        fig, ax = plt.subplots(figsize=(5, 5))
+        # Start point
+        ax.plot(0, 0, 'ko', markersize=8, label='Start')
+        # Orientation arrow (x-axis)
+        ax.arrow(0, 0, 0.2, 0, head_width=0.05, head_length=0.05, fc='k', ec='k')
+        
+        # Trajectory line
+        ax.plot(traj_x, traj_y, 'b-', linewidth=3, alpha=0.8, label=f'{model_name}')
+        ax.plot(traj_x[-1], traj_y[-1], 'b*', markersize=10) # End point
+        
+        ax.set_title("Predicted Trajectory (2D XY)")
+        ax.set_xlabel("Forward (X) [m]")
+        ax.set_ylabel("Left/Right (Y) [m]")
+        ax.grid(True, linestyle='--', alpha=0.6)
+        ax.set_aspect('equal')
+        
+        # Auto-scale with some margin
+        all_points = np.column_stack((traj_x, traj_y))
+        mins = np.min(all_points, axis=0) - 0.5
+        maxs = np.max(all_points, axis=0) + 0.5
+        ax.set_xlim(min(mins[0], -0.5), max(maxs[0], 2.0))
+        ax.set_ylim(min(mins[1], -1.0), max(maxs[1], 1.0))
+        
+        return fig
+
+import re
+def draw_bounding_box_from_text(img, text, patch_size=32, grid_size=32):
+    """
+    Parse <patch_index_XXXX> from text and draw a bounding box.
+    Kosmos-2 divides the image into a grid of 32x32 patches.
+    """
+    # Look for a pair of patch tokens like <patch_index_0015><patch_index_1012>
+    pattern = r"<patch_index_(\d{4})>\s*<patch_index_(\d{4})>"
+    matches = re.finditer(pattern, text)
+    
+    img_cv = np.array(img.convert('RGB'))
+    img_cv = cv2.cvtColor(img_cv, cv2.COLOR_RGB2BGR)
+    
+    h, w = img_cv.shape[:2]
+    patch_w = w / grid_size
+    patch_h = h / grid_size
+    
+    has_boxes = False
+    for match in matches:
+        start_idx = int(match.group(1))
+        end_idx = int(match.group(2))
+        
+        y1 = (start_idx // grid_size) * patch_h
+        x1 = (start_idx % grid_size) * patch_w
+        
+        y2 = ((end_idx // grid_size) + 1) * patch_h
+        x2 = ((end_idx % grid_size) + 1) * patch_w
+        
+        # Draw bounding box (Green)
+        cv2.rectangle(img_cv, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 3)
+        # Add label
+        cv2.putText(img_cv, "Target", (int(x1), int(y1)-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+        has_boxes = True
+        
+    if has_boxes:
+        return Image.fromarray(cv2.cvtColor(img_cv, cv2.COLOR_BGR2RGB))
+    return img
+
 ros_node = None
 if ROS_AVAILABLE:
     if not rclpy.ok(): rclpy.init()
@@ -259,19 +392,19 @@ state = {
 def update_ui(mode, instr, apply_cc, is_running_ui):
     # Global Concurrency Guard: If previous tick is still processing VLM inference, skip this tick.
     if state["is_busy"]:
-        return gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update()
+        return gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update()
     
     # Sync UI state to internal state if needed, but primarily controlled by buttons
     state["auto_inference"] = (mode == "Inference (18-step)")
     
     if not ROS_AVAILABLE or ros_node is None:
         state["camera_status"] = "ROS Not Available"
-        return None, "ROS Not Available", "N/A", "N/A", "N/A", gr.update(value="Stopped"), state["camera_status"], state["model_path"]
+        return None, "ROS Not Available", "N/A", "N/A", "N/A", gr.update(value="Stopped"), state["camera_status"], state["model_path"], None
     
     img = ros_node.get_inference_frame()
     if img is None:
         state["camera_status"] = "Waiting for get_image_service"
-        return state["last_img"], "⚠️ Camera Service Waiting...", "N/A", "N/A", "N/A", gr.update(), state["camera_status"], state["model_path"]
+        return state["last_img"], "⚠️ Camera Service Waiting...", "N/A", "N/A", "N/A", gr.update(), state["camera_status"], state["model_path"], None
     
     if apply_cc:
         try:
@@ -315,7 +448,7 @@ def update_ui(mode, instr, apply_cc, is_running_ui):
                 if logger_instance:
                     logger_instance.log_step(current_step, [0.0, 0.0], 0, image=img)
                 
-                return img, log, lat, act, chunk_info, gr.update(value="Running (1/18)..."), state["camera_status"], state["model_path"]
+                return img, log, lat, act, chunk_info, gr.update(value="Running (1/18)..."), state["camera_status"], state["model_path"], None
 
             # Step 2~18: Run Inference (17 steps of action)
             elif current_step <= state["max_steps"]:
@@ -323,12 +456,27 @@ def update_ui(mode, instr, apply_cc, is_running_ui):
                 res = run_api_inference(img, instr, use_local=True)
                 log_inf, lat_str, act_str, chunk_str, raw_act, raw_lat, raw_chunk = res
                 
+                # [VISUALIZATION] Generate Trajectory Plot
+                fig = None
+                if ROS_AVAILABLE and ros_node:
+                    fig = ros_node.generate_trajectory_plot(raw_chunk)
+
+                # [VISUALIZATION] Try drawing bounding box if text is available from model
+                # Note: Currently predict() only returns action, lat, chunk. 
+                # For Phase 1.5, we parse from current_log or if predict is updated.
+                # Since we don't have text directly, we apply standard rendering if text is injected later.
+                try:
+                    if hasattr(local_model_instance, 'last_text_output'):
+                        img = draw_bounding_box_from_text(img, local_model_instance.last_text_output)
+                except Exception as e:
+                    pass
+
                 # [LOGGING] Unified step logging
                 if logger_instance: 
                     logger_instance.log_step(current_step, raw_act, raw_lat, raw_chunk, image=img)
                 
                 log = f"{current_step}/18 | {log_inf}"
-                return img, log, lat_str, act_str, chunk_str, gr.update(value=f"Running ({current_step}/18)"), state["camera_status"], state["model_path"]
+                return img, log, lat_str, act_str, chunk_str, gr.update(value=f"Running ({current_step}/18)"), state["camera_status"], state["model_path"], fig
                 
             # Step > 18: Finish
             else:
@@ -342,13 +490,13 @@ def update_ui(mode, instr, apply_cc, is_running_ui):
                     
                 if ROS_AVAILABLE and ros_node:
                      ros_node.control.robust_stop(source="inference_done")
-                return img, completion_msg, "0 ms", "STOP", "N/A", gr.update(value="Stopped (Finished)"), state["camera_status"], state["model_path"]
+                return img, completion_msg, "0 ms", "STOP", "N/A", gr.update(value="Stopped (Finished)"), state["camera_status"], state["model_path"], None
 
         finally:
             state["is_busy"] = False # UNLOCK
             
     # Not running or Manual Mode
-    return img, f"📡 Live | {state['current_log']}", "N/A", "N/A", "N/A", gr.update(), state["camera_status"], state["model_path"]
+    return img, f"📡 Live | {state['current_log']}", "N/A", "N/A", "N/A", gr.update(), state["camera_status"], state["model_path"], None
 
 
 def run_api_inference(image, instruction, use_local):
@@ -440,8 +588,13 @@ with gr.Blocks(title="VLA PRO Dashboard") as demo:
                 
                 with gr.Row(visible=False) as inference_panel:
                     with gr.Column():
+                        # --- Manual File Selection Dropdowns ---
+                        ckpts, confs = scan_local_files()
+                        ckpt_dropdown = gr.Dropdown(choices=ckpts, label="🎯 Select Checkpoint (.ckpt/.pth)", value=ckpts[0][1] if ckpts else None)
+                        conf_dropdown = gr.Dropdown(choices=confs, label="⚙️ Select Config (.json)", value=confs[0][1] if confs else None)
+                        
                         quant_radio = gr.Radio(choices=["INT8 (Fast)", "FP16 (Accurate)"], value="FP16 (Accurate)", label="Model Precision")
-                        btn_load_model = gr.Button("📂 Load Local Model (Checkpoints)")
+                        btn_load_model = gr.Button("📂 Load Selected Model", variant="primary")
                         load_status = gr.Textbox(label="Model Status", value="Not Loaded", interactive=False)
                         model_path = gr.Textbox(label="Loaded Checkpoint Path", value="N/A", interactive=False)
                         toggle_cc = gr.Checkbox(label="🎨 RGB Red Gain Boost", value=False)
@@ -469,7 +622,7 @@ with gr.Blocks(title="VLA PRO Dashboard") as demo:
 
             mode_radio.change(fn=on_mode_change, inputs=[mode_radio], outputs=[inference_panel])
             mode_radio.change(fn=on_mode_change, inputs=[mode_radio], outputs=[inference_panel])
-            btn_load_model.click(fn=init_local_model, inputs=[quant_radio], outputs=load_status)
+            btn_load_model.click(fn=init_local_model, inputs=[quant_radio, ckpt_dropdown, conf_dropdown], outputs=load_status)
             
             btn_start_inf.click(fn=lambda: set_running(True), outputs=run_status_box)
             btn_stop_inf.click(fn=lambda: set_running(False), outputs=run_status_box)
@@ -490,6 +643,10 @@ with gr.Blocks(title="VLA PRO Dashboard") as demo:
             latency_val = gr.Textbox(label="Latency", value="0 ms")
             action_val = gr.Textbox(label="Predicted Action [v, w]", value="0, 0")
             chunk_val = gr.Textbox(label="Action Chunk Preview", value="N/A", lines=2)
+            
+            # --- Trajectory Visualization ---
+            traj_plot = gr.Plot(label="Predicted Trajectory (XY)")
+            
             btn_reset = gr.Button("🔄 Reset Model History")
             
             gr.Markdown("---")
@@ -514,7 +671,7 @@ with gr.Blocks(title="VLA PRO Dashboard") as demo:
     timer.tick(
         fn=update_ui,
         inputs=[mode_radio, instr_box, toggle_cc, run_status_box],
-        outputs=[camera_output, status_log, latency_val, action_val, chunk_val, run_status_box, camera_status, model_path]
+        outputs=[camera_output, status_log, latency_val, action_val, chunk_val, run_status_box, camera_status, model_path, traj_plot]
     )
 
 

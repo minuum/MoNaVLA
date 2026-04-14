@@ -1,5 +1,5 @@
 {
-    "robovlm_name": "RoboVLM-Nav",
+    "robovlm_name": "RoboKosMos",
     "exp_name": "exp09_resampler_latent128",
     "parent": null,
     "task_name": "mobile_vla_exp09_resampler_latent128",

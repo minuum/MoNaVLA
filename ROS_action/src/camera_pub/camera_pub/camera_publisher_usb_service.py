@@ -41,8 +41,8 @@ class USBCameraServiceServer(Node):
             # 1. Jetson CSI 카메라 시도
             self.get_logger().info('📷 Jetson CSI 카메라 시도 중...')
             gst_str = (
-                "nvarguscamerasrc ! video/x-raw(memory:NVMM), width=640, height=480, "
-                "format=NV12, framerate=30/1 ! nvvidconv ! video/x-raw, format=BGRx ! "
+                "nvarguscamerasrc ! video/x-raw(memory:NVMM), width=1280, height=720, "
+                "format=NV12, framerate=60/1 ! nvvidconv ! video/x-raw, format=BGRx ! "
                 "videoconvert ! video/x-raw, format=BGR ! appsink drop=true max-buffers=1"
             )
             self.cap = cv2.VideoCapture(gst_str, cv2.CAP_GSTREAMER)

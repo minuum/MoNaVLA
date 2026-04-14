@@ -15,3 +15,6 @@ __all__ = [
     "RoboQwen",
     "RoboUform",
 ]
+
+# Alias for V3 configs
+globals()["RoboVLM-Nav"] = RoboKosMos

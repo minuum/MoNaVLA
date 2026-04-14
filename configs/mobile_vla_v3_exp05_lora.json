@@ -1,5 +1,5 @@
 {
-    "robovlm_name": "RoboVLM-Nav",
+    "robovlm_name": "RoboKosMos",
     "exp_name": "v3-exp05-lora",
     "parent": "configs/mobile_vla_v3_exp01_aug.json",
     "task_name": "mobile_vla_v3_exp05_lora",

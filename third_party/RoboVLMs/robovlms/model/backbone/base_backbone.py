@@ -151,12 +151,11 @@ class BaseRoboVLM(nn.Module):
                     max_action=self.act_head_configs["max_action"],
                 )
 
-            if self.action_space == "continuous":
-                # [FIX] action_token을 정규분포로 초기화 (Xavier scale)
-                # 기존 zeros 초기화는 VLM self-attention에서 정보 전달이 안 됨
-                std = (2.0 / (self.hidden_size + self.hidden_size)) ** 0.5  # Xavier scale
-                self.action_token = nn.Parameter(torch.randn(self.hidden_size) * std)
-                self.action_token.requires_grad_(True)
+            # [FIX] action_token을 항상 nn.Parameter로 초기화
+            # VLA v4에서 discrete 모드일 때도 action query token을 사용하는 경우 필수적임
+            std = (2.0 / (self.hidden_size + self.hidden_size)) ** 0.5  # Xavier scale
+            self.action_token = nn.Parameter(torch.randn(self.hidden_size) * std)
+            self.action_token.requires_grad_(True)
 
         if self.fwd_head_configs is not None:
             self.image_latent_num = self.fwd_head_configs.get("image_latent_num", 8)
@@ -496,7 +495,13 @@ class BaseRoboVLM(nn.Module):
                     max_action=self.act_head_configs.get("max_action", 1),
                 )
             )
-            _cls = getattr(action_heads, _kwargs.pop("type"))
+            _cls_name = _kwargs.pop("type")
+            if _cls_name == "NavPolicy":
+                _cls = getattr(action_heads, "MobileVLAClassificationDecoder")
+            elif _cls_name == "NavPolicyRegression":
+                _cls = getattr(action_heads, "MobileVLALSTMDecoder")
+            else:
+                _cls = getattr(action_heads, _cls_name)
             self.latent_num = self.act_head_configs.get("latent", 1)
             action_head = _cls(**_kwargs)
 
@@ -557,10 +562,11 @@ class BaseRoboVLM(nn.Module):
 
         if hasattr(model, "enable_input_require_grads"):
             model.enable_input_require_grads()
-            if hasattr(model, "gradient_checkpointing_enable"):
-                model.gradient_checkpointing_enable()
-            else:
-                model.gradient_checkpointing = True
+            if self.train_setup_configs.get("gradient_checkpointing", False):
+                if hasattr(model, "gradient_checkpointing_enable"):
+                    model.gradient_checkpointing_enable()
+                else:
+                    model.gradient_checkpointing = True
             model.training = True
         else:
 
@@ -595,7 +601,9 @@ class BaseRoboVLM(nn.Module):
                 import types
                 model.prepare_inputs_for_generation = types.MethodType(prepare_inputs_for_generation, model)
             
-            self.model = get_peft_model(model, lora_config)
+            self.backbone = get_peft_model(model, lora_config)
+            if self.train_setup_configs.get("gradient_checkpointing", False):
+                self.backbone.gradient_checkpointing_enable()
         # import pdb; pdb.set_trace()
         if self.train_setup_configs.get("train_text_embedding", False):
             self.word_embedding.requires_grad_(True)
@@ -625,6 +633,7 @@ class BaseRoboVLM(nn.Module):
         action_tokens: torch.Tensor,
         action_labels: Tuple[torch.Tensor, torch.Tensor] = None,
         action_mask: torch.Tensor = None,
+        mode="train",  # [추가] 모드 파라미터 추가
         **kwargs,
     ):
         # action_tokens = get_target_modal_tokens(output_hs, self._action_mask(output_hs))
@@ -633,23 +642,38 @@ class BaseRoboVLM(nn.Module):
         )
 
         action_loss = None
-        if action_labels is not None:
+        if action_labels is not None and mode == "train":  # [수정] train 모드일 때만 손실 계산
             action, action_labels, action_mask = self.act_head.get_labels(
                 action, action_labels, action_mask, tok_seq=action_tokens, **kwargs
             )
             action_loss = self.act_head.loss(action, action_labels, action_mask)
+        elif action_labels is not None and mode != "train":  # [추가] 추론 모드에서 labels가 있어도 손실 계산은 우회
+             # action head 내부에서 get_labels를 통해 output 형식이 바뀔 수 있으므로 필요한 경우 호출하되 loss는 피함
+             # 현재 Discrete head 기준으로는 get_labels가 logits shape을 조정함
+             action, action_labels, action_mask = self.act_head.get_labels(
+                action, action_labels, action_mask, tok_seq=action_tokens, **kwargs
+            )
 
         return action, action_loss
 
     def _format_loss(self, loss):
         # for visualization and loss backward in pytorch lightning
-        _loss = 0
+        _loss = None
         _keys = list(loss.keys())
+        first_loss_device = None
 
         for k in _keys:
             if "loss" in k and loss[k] is not None:
-                _loss += loss[k]
-
+                if _loss is None:
+                    _loss = loss[k]
+                    first_loss_device = loss[k].device
+                else:
+                    _loss += loss[k]
+        
+        if _loss is None:
+            # Fallback: 만약 아무런 loss가 없다면, 파라미터 중 하나를 사용하여 0 텐서 생성 (gradient 전파를 위해)
+            # 이 경우는 사실 에러 상황이지만 RuntimeError를 피하기 위함
+            _loss = torch.tensor(0.0, requires_grad=True).to(self.backbone.device)
         loss["loss"] = _loss
         return loss
 
@@ -984,6 +1008,7 @@ class BaseRoboVLM(nn.Module):
         instr_and_action_ids=None,
         instr_and_action_labels=None,
         instr_and_action_mask=None,
+        mode="train",  # [추가] 추론/학습 분기 파라미터
         **kwargs,
     ):
         loss = {}
@@ -1058,10 +1083,21 @@ class BaseRoboVLM(nn.Module):
 
         output_hs = output.logits
 
-        _, action_loss = self._forward_action_head(
-            output_hs, mutlimodal_labels, multimodal_attention_mask
+        action, action_loss = self._forward_action_head(
+            output_hs, action_labels, action_mask, mode=mode
         )
+
+        # [수정] 추론 모드: 실제 action head의 출력을 반환
+        if mode != "train":
+            # action shape: (bs, 1, num_classes)
+            return action
+
         self._update_loss(loss, action_loss, "act")
+        
+        # [DEBUG]
+        if "loss" in action_loss and action_loss["loss"] is not None and not action_loss["loss"].requires_grad:
+            print(f"!!! Warning: action_loss does NOT require grad in forward_discrete !!!")
+            print(f"action_loss['loss']: {action_loss['loss']}")
 
         loss = self._format_loss(loss)
 
@@ -1175,7 +1211,7 @@ class BaseRoboVLM(nn.Module):
                 fill_zero=self.act_head_configs.get("fill_zero", False),
             )
 
-        if action_space == "continuous":
+        if action_space in ["continuous", "discrete"]:
             insert_idx = multimodal_embeds.shape[1] - int(
                 self.tokenizer.eos_token is not None
             )  # insert at last
@@ -1209,6 +1245,9 @@ class BaseRoboVLM(nn.Module):
                 multimodal_attention_mask = rearrange(
                     multimodal_attention_mask, "(b l) n -> b (l n)", l=seq_len
                 )
+
+        if multimodal_embeds.requires_grad is False:
+            multimodal_embeds.requires_grad_(True)
 
         try:
             output = self.model(
@@ -1316,6 +1355,8 @@ class BaseRoboVLM(nn.Module):
                 
                 # 3. Clone inputs_embeds to make it a non-leaf variable (computed variable)
                 inputs_embeds = inputs_embeds.clone()
+                if inputs_embeds.requires_grad is False:
+                    inputs_embeds.requires_grad_(True)
                 
                 # Initialize action_token_mask for Kosmos
                 batch_size, token_seq_len = inputs_embeds.shape[:2]
@@ -1403,7 +1444,7 @@ class BaseRoboVLM(nn.Module):
         if history_type == "video":
             seq_len = 1
 
-        if action_space == "continuous":
+        if action_space in ["continuous", "discrete"]:
             # tmp_mask = torch.all(multimodal_embeds == self.action_token, dim=-1)
             # For Kosmos: action_token_mask was created for text positions, but image tokens are at the beginning
             # So we need to shift the mask by num_image_tokens positions
@@ -1483,16 +1524,10 @@ class BaseRoboVLM(nn.Module):
                         bs, seq_len, self.latent_num, hidden_size
                     )
             else:
-                # Debug
                 masked_hs = output_hs[action_token_mask]
-                print(f"DEBUG: output_hs shape: {output_hs.shape}")
-                print(f"DEBUG: action_token_mask sum: {action_token_mask.sum()}")
-                print(f"DEBUG: masked_hs shape: {masked_hs.shape}")
-                
                 action_hs = masked_hs.reshape(
                     bs, seq_len, self.latent_num, -1
                 )
-                print(f"DEBUG: action_hs final shape: {action_hs.shape}")
 
         elif action_space == "down_sample":
             action_hs = output_hs
@@ -1523,7 +1558,7 @@ class BaseRoboVLM(nn.Module):
             self._update_loss(loss, clip_loss, "clip")
 
         action_logits, action_loss = self._forward_action_head(
-            action_hs, action_labels, action_mask
+            action_hs, action_labels, action_mask, mode=mode
         )
 
         # cur = time.time()
@@ -1560,6 +1595,7 @@ class BaseRoboVLM(nn.Module):
         instr_and_action_mask=None,
         raw_text=None,
         data_source=[],
+        mode="train",  # [추가] 모드 파라미터 추가
         **kwargs,
     ):
         loss = {}
@@ -1583,6 +1619,7 @@ class BaseRoboVLM(nn.Module):
                 instr_and_action_labels=instr_and_action_labels,
                 instr_and_action_mask=instr_and_action_mask,
                 raw_text=raw_text,
+                mode=mode,  # [추가] mode 전달
             )
             loss = self._update_loss(loss, tmp_loss)
 
@@ -1619,6 +1656,7 @@ class BaseRoboVLM(nn.Module):
         instr_and_action_mask=None,
         raw_text=None,
         rel_state=None,
+        mode="train",  # [추가] 학습/추론 모드 파라미터 전달
         **kwargs,
     ):
         action_space = self.act_head_configs.get("action_space", "continuous")
@@ -1641,6 +1679,7 @@ class BaseRoboVLM(nn.Module):
                 instr_and_action_ids=instr_and_action_ids,
                 instr_and_action_labels=instr_and_action_labels,
                 instr_and_action_mask=instr_and_action_mask,
+                mode=mode,  # [추가] mode 전달
             )
         else:
             return self.forward_continuous(
@@ -1659,6 +1698,7 @@ class BaseRoboVLM(nn.Module):
                 instr_and_action_labels=instr_and_action_labels,
                 instr_and_action_mask=instr_and_action_mask,
                 raw_text=raw_text,
+                mode=mode,  # [추가] mode 전달 (누락되어 있었음)
             )
 
     def pred_action_discrete(

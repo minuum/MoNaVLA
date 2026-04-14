@@ -1,5 +1,5 @@
 {
-    "robovlm_name": "RoboVLM-Nav",
+    "robovlm_name": "RoboKosMos",
     "exp_name": "unified_reg_win12_k1_20260205",
     "parent": null,
     "task_name": "mobile_vla_unified_finetune_k1",

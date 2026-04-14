@@ -1,0 +1,14 @@
+{
+    "_comment": "V5 Exp07: Pure HF Kosmos-2 + path_type_aware instruction. 에피소드 타입(left/right/straight)별 direction-specific instruction으로 텍스트-액션 correlation 강제.",
+    "parent": "configs/mobile_vla_v5_exp06_pure_hf.json",
+    "exp_name": "v5-exp07-path-type",
+    "task_name": "mobile_vla_v5_exp07",
+    "train_dataset": {
+        "instruction_preset": "path_type_aware",
+        "data_dir": "/home/billy/25-1kp/MoNaVLA/ROS_action/mobile_vla_dataset_v5"
+    },
+    "val_dataset": {
+        "instruction_preset": "path_type_aware",
+        "data_dir": "/home/billy/25-1kp/MoNaVLA/ROS_action/mobile_vla_dataset_v5"
+    }
+}

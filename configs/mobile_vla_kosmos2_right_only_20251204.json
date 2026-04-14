@@ -1,4 +1,4 @@
-    "robovlm_name": "RoboVLM-Nav",
+    "robovlm_name": "RoboKosMos",
     "exp_name": "mobile_vla_kosmos2_right_only_20251204",
     "parent": null,
     "task_name": "mobile_vla_finetune",

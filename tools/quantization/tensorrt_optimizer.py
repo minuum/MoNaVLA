@@ -317,7 +317,7 @@ class TensorRTOptimizer:
         try:
             import onnxruntime as ort
             
-            onnx_path = "Robo+/Mobile_VLA/tensorrt_best_model/best_model_kosmos2_clip.onnx"
+            onnx_path = "Mobile_VLA/tensorrt_best_model/best_model_kosmos2_clip.onnx"
             if not os.path.exists(onnx_path):
                 print(f"   ONNX model not found, skipping...")
                 return None
@@ -370,14 +370,14 @@ class TensorRTOptimizer:
     def benchmark_tensorrt_optimized(self, num_runs: int = 100):
         """TensorRT 최적화 벤치마크"""
         # ONNX 모델 생성
-        onnx_path = "Robo+/Mobile_VLA/tensorrt_optimized/model.onnx"
-        os.makedirs("Robo+/Mobile_VLA/tensorrt_optimized", exist_ok=True)
+        onnx_path = "Mobile_VLA/tensorrt_optimized/model.onnx"
+        os.makedirs("Mobile_VLA/tensorrt_optimized", exist_ok=True)
         
         if not os.path.exists(onnx_path):
             self.create_onnx_model(onnx_path)
         
         # TensorRT 엔진 생성
-        engine_path = "Robo+/Mobile_VLA/tensorrt_optimized/model_fp16.engine"
+        engine_path = "Mobile_VLA/tensorrt_optimized/model_fp16.engine"
         if not os.path.exists(engine_path):
             self.build_tensorrt_engine(onnx_path, engine_path, 'fp16')
         
@@ -435,7 +435,7 @@ class TensorRTOptimizer:
             print(f"   ❌ May cause control delays")
         
         # 결과 저장
-        report_path = "Robo+/Mobile_VLA/tensorrt_comparison_results.json"
+        report_path = "Mobile_VLA/tensorrt_comparison_results.json"
         with open(report_path, "w") as f:
             json.dump({
                 "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),

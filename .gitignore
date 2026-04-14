@@ -1,6 +1,6 @@
 # ============================================================
-# VLA Project .gitignore
-# Updated: 2026-02-19
+# MoNaVLA Project .gitignore
+# Updated: 2026-03-13
 # ============================================================
 
 # ─── Python ──────────────────────────────────────────────────
@@ -62,6 +62,7 @@ Thumbs.db
 # ─── Log Files ───────────────────────────────────────────────
 *.log
 logs/
+log/
 
 # ─── Temporary Files ─────────────────────────────────────────
 *.tmp
@@ -75,10 +76,11 @@ ROS_action/log/
 whisper2/ros2_ws/build/
 whisper2/ros2_ws/install/
 whisper2/ros2_ws/log/
-devel/
 devel_isolated/
 build_isolated/
 install_isolated/
+install/
+
 
 # ─── Model Files (대용량 / Git LFS 처리 권장) ─────────────────
 *.pt
@@ -91,6 +93,7 @@ install_isolated/
 
 # 단, 특정 데이터셋 h5는 경로 지정
 ROS_action/mobile_vla_dataset/*.h5
+ROS_action/mobile_vla_dataset_v3/*.h5
 
 # ─── Model Caches / Checkpoints ──────────────────────────────
 .vla_models_cache/
@@ -117,7 +120,7 @@ Model_ws/log/
 # ─── Robo+ / External Repos (별도 관리) ──────────────────────
 Robo+/
 simpler_env_repo/
-RoboVLMs_upstream/
+
 
 # ─── Auto-generated Setup Scripts ────────────────────────────
 setup_aliases_docker.sh
@@ -138,8 +141,9 @@ JETSON_HANDOFF_INFO.txt
 # ─── Git Recovery ────────────────────────────────────────────
 git_recovery_backup/
 
-# ─── API Test Results (임시) ─────────────────────────────────
+# ─── API Test Results & Reports (임시/대용량) ────────────────
 api_test_results.json
+docs/inference_reports/*_images/
 
 # ─── ROS / VLA Source Wheels ─────────────────────────────────
 ROS_action/src/*.whl
@@ -151,3 +155,8 @@ mobile-vla-omniwheel/
 .menemory/sessions/
 .menemory/longterm/chroma_db/
 .menemory/longterm/memory.jsonl
+
+# ─── V5 Dataset (Large Scale) ────────────────────────────────
+ROS_action/mobile_vla_dataset_v5/
+ROS_action/mobile_vla_dataset_v5(Image)/
+ROS_action/v5_data_bak/

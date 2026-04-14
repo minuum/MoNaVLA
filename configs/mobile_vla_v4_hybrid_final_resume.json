@@ -1,0 +1,5 @@
+{
+    "_comment": "[RESUME] Hybrid Final: Resuming from last.ckpt after disk full error",
+    "parent": "configs/mobile_vla_v4_hybrid_final.json",
+    "resume": "/home/billy/25-1kp/MoNaVLA/runs/v4_nav/kosmos/mobile_vla_v4_hybrid_eval/2026-03-28/v4-hybrid-final-v1/last.ckpt"
+}

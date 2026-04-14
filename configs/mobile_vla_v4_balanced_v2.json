@@ -1,0 +1,26 @@
+{
+    "_comment": "V4-Balanced v2: Extreme Turn Weights (L:30x, R:45x) + Lower Forward (0.5x) + Higher LR (1e-5). Starting from v1 epoch 2 best.",
+    "robovlm_name": "RoboKosMos",
+    "discrete_action": true,
+    "window_size": 8,
+    "fwd_pred_next_n": 5,
+    "exp_name": "v4-balanced-v2",
+    "parent": "configs/mobile_vla_v4_balanced_v1.json",
+    "task_name": "mobile_vla_v4_balanced_v2",
+    "model": "kosmos",
+    "batch_size": 4,
+    "num_workers": 4,
+    "learning_rate": 5e-05,
+    "max_epochs": 15,
+    "model_load_path": "/home/billy/25-1kp/MoNaVLA/runs/v4_nav/kosmos/mobile_vla_v4_balanced_v1/2026-03-25/v4-balanced-v1/epoch_epoch=epoch=02-val_loss=val_loss=3.193.ckpt",
+    "model_load_source": "lightning",
+    "act_head": {
+        "type": "MobileVLAClassificationDecoder",
+        "num_classes": 6,
+        "hidden_size": 1024,
+        "class_weights": [2.0, 0.5, 10.0, 10.0, 5.0, 5.0],
+        "logit_penalty": {"1": -100.0},
+        "temperature": 1.1,
+        "window_size": 1
+    }
+}

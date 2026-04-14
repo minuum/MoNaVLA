@@ -21,7 +21,7 @@ class SimpleTensorRTConverter:
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         
         # 출력 디렉토리
-        self.output_dir = "Robo+/Mobile_VLA/tensorrt_quantized"
+        self.output_dir = "Mobile_VLA/tensorrt_quantized"
         os.makedirs(self.output_dir, exist_ok=True)
         
         # 모델 로드
@@ -496,7 +496,7 @@ def main():
         print("\n✅ Simple TensorRT conversion completed!")
         print(f"\n📁 Output directory: {converter.output_dir}")
         print("🔧 Next steps:")
-        print("  1. cd Robo+/Mobile_VLA/tensorrt_quantized")
+        print("  1. cd Mobile_VLA/tensorrt_quantized")
         print("  2. ./convert_to_fp16.sh")
         print("  3. Use the generated TensorRT inference node")
         

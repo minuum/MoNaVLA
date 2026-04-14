@@ -17,12 +17,11 @@ import robovlms.model.backbone as RoboVLM_Backbone
 
 
 class BaseTrainer(pl.LightningModule):
-    def __init__(self, configs, quantization_config=None):
+    def __init__(self, configs):
         super().__init__()
         self._main_rank_print("--------------- model configs ---------------")
         self._main_rank_print(configs)
         self.configs = configs
-        self.quantization_config = quantization_config  # BitsAndBytes quantization
         self.model_fn = getattr(RoboVLM_Backbone, configs["robovlm_name"])
         self._initialize()
         self.save_hyperparameters()
@@ -51,7 +50,6 @@ class BaseTrainer(pl.LightningModule):
             vision_resampler_configs=self.configs.get("vision_resampler", None),
             use_clip_norm=self.configs.get("use_clip_norm", False),
             use_state=self.configs.get("use_state, False", False),
-            quantization_config=self.quantization_config,  # BitsAndBytes INT8/INT4
         )
         model = model.train()
         total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -270,18 +268,7 @@ class BaseTrainer(pl.LightningModule):
 
     def _get_loss(self, prediction):
         # print(prediction)
-        # Mobile VLA는 loss_velocity_act 사용
-        loss_velocity_act = prediction.get("loss_velocity_act", None)
-        loss_arm_act = prediction.get("loss_arm_act", None)  # 기존 코드 호환성
-        
-        # loss_velocity_act가 있으면 우선 사용, 없으면 loss_arm_act 사용
-        loss_arm_act = loss_velocity_act if loss_velocity_act is not None else loss_arm_act
-        
-        rmse_velocity_act = None
-        if loss_velocity_act is not None:
-             # MSE loss assumed
-             rmse_velocity_act = torch.sqrt(loss_velocity_act)
-
+        loss_arm_act = prediction.get("loss_arm_act", None)
         loss_gripper_act = prediction.get("loss_gripper_act", None)
         loss_obs = prediction.get("loss_obs_fwd", None)
         loss_hand_obs = prediction.get("loss_hand_obs_fwd", None)
@@ -290,16 +277,13 @@ class BaseTrainer(pl.LightningModule):
         loss_cap = prediction.get("loss_cap", None)
         loss_kl = prediction.get("loss_kl", None)
         loss_vl_cotrain = prediction.get("loss_vl_cotrain", None)
-        
-        acc_velocity_act = prediction.get("acc_velocity_act", None)
 
         ### loss logout for discrete setting
         action_l1 = prediction.get("action_l1_act", None)
 
         clip_l1 = prediction.get("text_l1_clip", None)
 
-        # Use tensor with requires_grad=True to avoid gradient error
-        loss = torch.tensor(0.0, requires_grad=True).to(self.device)
+        loss = torch.tensor(0.0).to(self.device)
         if self.act_pred:
             loss_act = (loss_arm_act if loss_arm_act is not None else 0) + (
                 loss_gripper_act * self.arm_gripper_loss_ratio
@@ -329,8 +313,6 @@ class BaseTrainer(pl.LightningModule):
         output = {
             "loss": loss,
             "loss_act": loss_act,
-            "loss_velocity_act": loss_velocity_act,
-            "rmse_velocity_act": rmse_velocity_act,
             "loss_arm_act": loss_arm_act,
             "loss_gripper_act": loss_gripper_act,
             "acc_arm_act": acc_arm_act,
@@ -341,7 +323,6 @@ class BaseTrainer(pl.LightningModule):
             "loss_kl": loss_kl,
             "clip_l1": clip_l1,
             "loss_vl_cotrain": loss_vl_cotrain,
-            "acc_velocity_act": acc_velocity_act,
         }
 
         return output
@@ -425,10 +406,24 @@ class BaseTrainer(pl.LightningModule):
         gripper_action = None
 
         if action is not None:
-            arm_action = action[:, :, :6]  # b,len,act_dim-1
-            gripper_action = action[:, :, 6]  # b,len
-            gripper_action = (gripper_action + 1.0) / 2
-            gripper_action = gripper_action.long()
+            # Handle action splitting based on last dimension (usually 7 for arm+gripper, 2 for navigation)
+            if action.dim() == 3:  # (B, L, D)
+                if action.shape[-1] > 6:
+                    arm_action = action[:, :, :6]
+                    gripper_action = action[:, :, 6]
+                    gripper_action = (gripper_action + 1.0) / 2
+                    gripper_action = gripper_action.long()
+                else:
+                    arm_action = action
+            else:  # (B, D) or other cases
+                if action.shape[-1] > 6:
+                    arm_action = action[:, :6]
+                    gripper_action = action[:, 6]
+                    gripper_action = (gripper_action + 1.0) / 2
+                    gripper_action = gripper_action.long()
+                else:
+                    arm_action = action
+                    gripper_action = None
 
         fwd_rgb_chunck = batch.get("fwd_rgb_chunck", None)
         fwd_hand_rgb_chunck = batch.get("fwd_hand_rgb_chunck", None)
@@ -442,8 +437,12 @@ class BaseTrainer(pl.LightningModule):
         action_chunck = batch.get("action_chunck", None)
         if action_chunck is not None:
             action_chunck = action_chunck.cuda()
-            arm_action_chunck = action_chunck[..., :6]
-            gripper_action_chunck = action_chunck[..., -1]
+            if action_chunck.shape[-1] > 6:
+                arm_action_chunck = action_chunck[..., :6]
+                gripper_action_chunck = action_chunck[..., -1]
+            else:
+                arm_action_chunck = action_chunck
+                gripper_action_chunck = None
 
         if isinstance(rgb, torch.Tensor):
             rgb = rgb[:, :seq_len]
@@ -552,20 +551,19 @@ class BaseTrainer(pl.LightningModule):
                 rel_state=rel_state,
             )
 
+            if isinstance(prediction, tuple):
+                prediction = prediction[0]
+
             output = self._get_loss(prediction)
 
             prog_bar_set = {"loss"}
             if self.act_pred:
-                prog_bar_set.add("loss_velocity_act")
-                prog_bar_set.add("rmse_velocity_act")
-                if output.get("acc_velocity_act") is not None:
-                    prog_bar_set.add("acc_velocity_act")
-                # prog_bar_set.add("loss_arm_act") # Deprecated
-                # prog_bar_set.add("loss_gripper_act") # Deprecated
-                # prog_bar_set.add("acc_arm_act") # Deprecated
-                # prog_bar_set.add("acc_gripper_act") # Deprecated
-                # prog_bar_set.add("action_l1")
-                # prog_bar_set.add("clip_l1")
+                prog_bar_set.add("loss_arm_act")
+                prog_bar_set.add("loss_gripper_act")
+                prog_bar_set.add("acc_arm_act")
+                prog_bar_set.add("acc_gripper_act")
+                prog_bar_set.add("action_l1")
+                prog_bar_set.add("clip_l1")
             if self.fwd_pred:
                 prog_bar_set.add("loss_obs_fwd")
                 if self.fwd_pred_hand:
@@ -641,20 +639,28 @@ class BaseTrainer(pl.LightningModule):
             rel_state=rel_state,
         )
 
+        if isinstance(prediction, tuple):
+            prediction = prediction[0]
+
         output = self._get_loss(prediction)
+        
+        # [DEBUG] Check loss gradient status
+        if not output["loss"].requires_grad:
+            print(f"!!! Error: Loss does not require grad !!!")
+            print(f"Loss object: {output['loss']}")
+            print(f"Loss grad_fn: {output['loss'].grad_fn}")
+            for k, v in output.items():
+                if isinstance(v, torch.Tensor):
+                    print(f"Sub-loss {k}: requires_grad={v.requires_grad}, grad_fn={v.grad_fn}")
 
         prog_bar_set = {"loss"}
         if self.act_pred:
-            prog_bar_set.add("loss_velocity_act")
-            prog_bar_set.add("rmse_velocity_act")
-            if output.get("acc_velocity_act") is not None:
-                prog_bar_set.add("acc_velocity_act")
-            # prog_bar_set.add("loss_arm_act")
-            # prog_bar_set.add("loss_gripper_act")
-            # prog_bar_set.add("acc_arm_act")
-            # prog_bar_set.add("acc_gripper_act")
-            # prog_bar_set.add("action_l1")
-            # prog_bar_set.add("clip_l1")
+            prog_bar_set.add("loss_arm_act")
+            prog_bar_set.add("loss_gripper_act")
+            prog_bar_set.add("acc_arm_act")
+            prog_bar_set.add("acc_gripper_act")
+            prog_bar_set.add("action_l1")
+            prog_bar_set.add("clip_l1")
         if self.fwd_pred:
             prog_bar_set.add("loss_obs")
             if self.fwd_pred_hand:

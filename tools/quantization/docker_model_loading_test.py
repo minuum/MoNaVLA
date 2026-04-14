@@ -42,9 +42,9 @@ def test_model_loading_in_docker():
     
     # 테스트할 모델들
     models = [
-        "Robo+/Mobile_VLA/results/simple_clip_lstm_results_extended/best_simple_clip_lstm_model.pth",
-        "Robo+/Mobile_VLA/results/simple_lstm_results_extended/best_simple_lstm_model.pth",
-        "Robo+/Mobile_VLA/results/simple_lstm_results_extended/final_simple_lstm_model.pth"
+        "Mobile_VLA/results/simple_clip_lstm_results_extended/best_simple_clip_lstm_model.pth",
+        "Mobile_VLA/results/simple_lstm_results_extended/best_simple_lstm_model.pth",
+        "Mobile_VLA/results/simple_lstm_results_extended/final_simple_lstm_model.pth"
     ]
     
     results = {}
@@ -270,7 +270,7 @@ def main():
         create_comprehensive_report(model_results, onnx_test, pytorch_test)
         
         # 5. 결과 저장
-        output_path = "Robo+/Mobile_VLA/docker_model_loading_test_results.json"
+        output_path = "Mobile_VLA/docker_model_loading_test_results.json"
         with open(output_path, "w") as f:
             json.dump({
                 'model_results': model_results,

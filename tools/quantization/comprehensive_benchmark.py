@@ -203,9 +203,9 @@ class ComprehensiveBenchmark:
     def benchmark_existing_models(self):
         """기존 양자화된 모델들 벤치마크"""
         existing_models = {
-            'accurate_gpu': 'Robo+/Mobile_VLA/accurate_gpu_quantized/accurate_gpu_model.onnx',
-            'simple_gpu': 'Robo+/Mobile_VLA/simple_gpu_quantized/simple_gpu_model.onnx',
-            'cpu_mae0222': 'Robo+/Mobile_VLA/quantized_models_cpu/mae0222_model_cpu.onnx'
+            'accurate_gpu': 'Mobile_VLA/accurate_gpu_quantized/accurate_gpu_model.onnx',
+            'simple_gpu': 'Mobile_VLA/simple_gpu_quantized/simple_gpu_model.onnx',
+            'cpu_mae0222': 'Mobile_VLA/quantized_models_cpu/mae0222_model_cpu.onnx'
         }
         
         results = []
@@ -219,7 +219,7 @@ class ComprehensiveBenchmark:
     
     def benchmark_best_model_onnx(self):
         """최고 성능 모델 ONNX 벤치마크"""
-        onnx_path = "Robo+/Mobile_VLA/tensorrt_best_model/best_model_kosmos2_clip.onnx"
+        onnx_path = "Mobile_VLA/tensorrt_best_model/best_model_kosmos2_clip.onnx"
         
         if os.path.exists(onnx_path):
             return self.benchmark_onnx_model(onnx_path, "Kosmos2+CLIP_Hybrid", num_runs=50)
@@ -288,7 +288,7 @@ class ComprehensiveBenchmark:
             print(f"    💾 Most Efficient: {best_efficiency['model_name']} ({best_efficiency.get('model_size_mb', 'N/A'):.1f} MB)")
         
         # 결과 저장
-        report_path = "Robo+/Mobile_VLA/comprehensive_benchmark_results.json"
+        report_path = "Mobile_VLA/comprehensive_benchmark_results.json"
         with open(report_path, "w") as f:
             json.dump({
                 "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),

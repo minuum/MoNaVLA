@@ -312,7 +312,7 @@ class AccurateBenchmark:
             print(f"   💾 Most Efficient: {best_efficiency['framework']} ({best_efficiency.get('model_size_mb', 'N/A'):.1f} MB)")
         
         # 결과 저장
-        report_path = "Robo+/Mobile_VLA/accurate_benchmark_results.json"
+        report_path = "Mobile_VLA/accurate_benchmark_results.json"
         with open(report_path, "w") as f:
             json.dump({
                 "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -347,7 +347,7 @@ def main():
         print("2. ONNX Runtime Model Benchmark")
         print("="*60)
         
-        onnx_path = "Robo+/Mobile_VLA/tensorrt_best_model/best_model_kosmos2_clip.onnx"
+        onnx_path = "Mobile_VLA/tensorrt_best_model/best_model_kosmos2_clip.onnx"
         onnx_result = benchmark.benchmark_onnx_model(onnx_path, num_runs=100)
         if onnx_result:
             benchmark.results.append(onnx_result)

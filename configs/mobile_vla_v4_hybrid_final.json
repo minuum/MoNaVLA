@@ -1,0 +1,27 @@
+{
+    "_comment": "[PROJECT 25-1KP] Hybrid Final: Curriculum learning using curved+stop models, mixed with full data to prevent forgetting",
+    "parent": "configs/mobile_vla_v4_exp01.json",
+    "exp_name": "v4-hybrid-final-v1",
+    "model": "kosmos",
+    "model_path": "microsoft/kosmos-2-patch14-224",
+    "task_name": "mobile_vla_v4_hybrid_eval",
+    "vlm": {
+        "pretrained_model_name_or_path": "microsoft/kosmos-2-patch14-224"
+    },
+    "tokenizer": {
+        "pretrained_model_name_or_path": "microsoft/kosmos-2-patch14-224"
+    },
+    "model_load_path": "/home/billy/25-1kp/MoNaVLA/runs/v4_nav/kosmos/mobile_vla_v4_curved_eval/2026-03-27/v4-curved-only-stop50-v1/last.ckpt",
+    "learning_rate": 8e-6,
+    "train_dataset": {
+        "curvature_only": false,
+        "counterfactual_stop_prob": 0.5,
+        "action_weight_non_forward": 1.5,
+        "train_split": 0.95
+    },
+    "val_dataset": {
+        "curvature_only": false,
+        "counterfactual_stop_prob": 0.0,
+        "train_split": 0.95
+    }
+}

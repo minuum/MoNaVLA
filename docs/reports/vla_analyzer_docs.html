@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VLA-Analyzer Docs</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #020617;
+      --panel:    #0f172a;
+      --panel2:   #1e293b;
+      --border:   #334155;
+      --accent:   #38bdf8;
+      --accent2:  #7dd3fc;
+      --text:     #e2e8f0;
+      --muted:    #94a3b8;
+      --green:    #4ade80;
+      --yellow:   #facc15;
+      --orange:   #fb923c;
+      --red:      #f87171;
+      --code-bg:  #0a1628;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      font-size: 15px;
+      line-height: 1.7;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      padding: 0 28px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    header .brand {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+    }
+    header .nav-center {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    header .page-indicator {
+      font-size: 0.85rem;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    header .nav-btn {
+      background: var(--panel2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 5px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    header .nav-btn:hover:not(:disabled) {
+      background: var(--border);
+      border-color: var(--accent);
+    }
+    header .nav-btn:disabled {
+      opacity: 0.35;
+      cursor: default;
+    }
+    header .viewer-link {
+      font-size: 0.82rem;
+      color: var(--accent);
+      text-decoration: none;
+      white-space: nowrap;
+      padding: 5px 10px;
+      border: 1px solid var(--accent);
+      border-radius: 6px;
+      transition: background 0.15s;
+    }
+    header .viewer-link:hover {
+      background: rgba(56,189,248,0.12);
+    }
+
+    /* ── Page container ── */
+    main {
+      flex: 1;
+      padding: 40px 28px 60px;
+      max-width: 960px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    .page { display: none; }
+    .page.active { display: block; }
+
+    /* ── Typography ── */
+    h1 {
+      font-size: 2rem;
+      font-weight: 800;
+      color: var(--accent);
+      margin-bottom: 8px;
+      line-height: 1.25;
+    }
+    .page-subtitle {
+      color: var(--muted);
+      font-size: 0.95rem;
+      margin-bottom: 36px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 20px;
+    }
+    h2 {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: var(--accent2);
+      margin-top: 40px;
+      margin-bottom: 14px;
+    }
+    h3 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: #cbd5e1;
+      margin-top: 24px;
+      margin-bottom: 10px;
+    }
+    p { margin-bottom: 14px; }
+    ul, ol { margin-bottom: 14px; padding-left: 22px; }
+    li { margin-bottom: 6px; }
+
+    /* ── Panel / Card ── */
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 24px 28px;
+      margin-bottom: 24px;
+    }
+    .card-accent {
+      border-left: 3px solid var(--accent);
+    }
+    .card-green  { border-left: 3px solid var(--green);  }
+    .card-yellow { border-left: 3px solid var(--yellow); }
+    .card-orange { border-left: 3px solid var(--orange); }
+
+    /* ── Tables ── */
+    .table-wrap { overflow-x: auto; margin-bottom: 24px; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+    }
+    th {
+      background: var(--panel2);
+      color: var(--accent);
+      font-weight: 600;
+      padding: 10px 14px;
+      text-align: left;
+      border-bottom: 2px solid var(--border);
+    }
+    td {
+      padding: 9px 14px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+
+    /* ── Code blocks ── */
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 18px 20px;
+      overflow-x: auto;
+      margin-bottom: 20px;
+      font-size: 0.82rem;
+      line-height: 1.6;
+    }
+    code {
+      font-family: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+      color: #93c5fd;
+    }
+    pre code { color: #93c5fd; }
+    .kw  { color: #c084fc; }
+    .str { color: #86efac; }
+    .cm  { color: #475569; }
+    .num { color: #fbbf24; }
+    .fn  { color: #38bdf8; }
+
+    /* ── Badges ── */
+    .badge {
+      display: inline-block;
+      padding: 2px 9px;
+      border-radius: 12px;
+      font-size: 0.77rem;
+      font-weight: 600;
+      margin-right: 4px;
+    }
+    .badge-green  { background: rgba(74,222,128,0.15);  color: var(--green);  border: 1px solid rgba(74,222,128,0.35); }
+    .badge-yellow { background: rgba(250,204,21,0.12);  color: var(--yellow); border: 1px solid rgba(250,204,21,0.35); }
+    .badge-orange { background: rgba(251,146,60,0.12);  color: var(--orange); border: 1px solid rgba(251,146,60,0.35); }
+    .badge-red    { background: rgba(248,113,113,0.12); color: var(--red);    border: 1px solid rgba(248,113,113,0.35); }
+    .badge-blue   { background: rgba(56,189,248,0.12);  color: var(--accent); border: 1px solid rgba(56,189,248,0.35); }
+
+    /* ── Highlight row ── */
+    .row-best td { background: rgba(56,189,248,0.06); }
+
+    /* ── Arch diagram ── */
+    .arch {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px 24px;
+      font-family: monospace;
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-bottom: 20px;
+    }
+    .arch .hl { color: var(--orange); font-weight: 700; }
+    .arch .ok { color: var(--green); }
+    .arch .arr { color: var(--accent); }
+
+    /* ── Color legend boxes ── */
+    .legend-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 14px;
+      margin-bottom: 24px;
+    }
+    .legend-item {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 18px;
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+    }
+    .legend-dot {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      margin-top: 3px;
+    }
+    .dot-green  { background: var(--green); }
+    .dot-yellow { background: var(--yellow); }
+    .dot-orange { background: var(--orange); }
+    .legend-item h4 { font-size: 0.9rem; font-weight: 600; margin-bottom: 4px; }
+    .legend-item p  { font-size: 0.82rem; color: var(--muted); margin-bottom: 0; }
+
+    /* ── BBox timeline ── */
+    .timeline { margin: 16px 0 24px; }
+    .tl-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.85rem;
+    }
+    .tl-row:last-child { border-bottom: none; }
+    .tl-frame {
+      width: 52px;
+      flex-shrink: 0;
+      font-weight: 600;
+      color: var(--accent);
+    }
+    .tl-entity { flex: 1; }
+    .tl-bbox   { width: 200px; flex-shrink: 0; font-family: monospace; font-size: 0.78rem; color: var(--muted); }
+    .tl-area   { width: 70px; flex-shrink: 0; text-align: right; }
+
+    /* ── Success criteria ── */
+    .criteria-list { list-style: none; padding: 0; }
+    .criteria-list li {
+      padding: 8px 0 8px 28px;
+      border-bottom: 1px solid var(--border);
+      position: relative;
+      font-size: 0.9rem;
+    }
+    .criteria-list li:last-child { border-bottom: none; }
+    .criteria-list li::before {
+      content: '✓';
+      position: absolute;
+      left: 0;
+      color: var(--green);
+      font-weight: 700;
+    }
+
+    /* ── Info callout ── */
+    .callout {
+      background: rgba(56,189,248,0.06);
+      border: 1px solid rgba(56,189,248,0.25);
+      border-radius: 8px;
+      padding: 14px 18px;
+      font-size: 0.88rem;
+      color: var(--accent2);
+      margin-bottom: 20px;
+    }
+    .callout strong { color: var(--accent); }
+
+    /* ── Page dots ── */
+    .page-dots {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      padding: 20px 0 0;
+    }
+    .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--border);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .dot.active { background: var(--accent); }
+
+    /* ── Responsive ── */
+    @media (max-width: 600px) {
+      header { padding: 0 14px; }
+      main { padding: 24px 14px 48px; }
+      h1 { font-size: 1.5rem; }
+      .tl-bbox { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════ HEADER ═══════════════ -->
+<header>
+  <span class="brand">VLA-Analyzer Docs</span>
+  <div class="nav-center">
+    <button class="nav-btn" id="btnPrev" onclick="changePage(-1)" disabled>&#8592; 이전</button>
+    <span class="page-indicator" id="pageIndicator">1 / 5</span>
+    <button class="nav-btn" id="btnNext" onclick="changePage(1)">다음 &#8594;</button>
+  </div>
+  <a class="viewer-link" href="v5_viewer.html">뷰어로 이동 &rarr;</a>
+</header>
+
+<!-- ═══════════════ MAIN ═══════════════ -->
+<main>
+
+  <!-- ─────────────────── PAGE 1: 개요 ─────────────────── -->
+  <section class="page active" id="page-1">
+    <h1>VLA-Analyzer &mdash; 개요</h1>
+    <p class="page-subtitle">로컬 HTTP 서버 (localhost:8888) 및 V5 데이터셋 구조 설명</p>
+
+    <h2>VLA-Analyzer란?</h2>
+    <p>
+      VLA-Analyzer는 MoNaVLA V5 데이터셋의 grounding 결과를 시각적으로 탐색하기 위한 <strong>로컬 정적 웹 도구</strong>다.
+      Python의 <code>http.server</code>를 사용해 <code>localhost:8888</code>에서 서빙되며,
+      별도 서버 설치 없이 즉시 실행된다.
+    </p>
+
+    <div class="card card-accent">
+      <h3>서버 실행 방법</h3>
+      <pre><code><span class="cm"># v5_data_bak 디렉토리에서 실행</span>
+cd ROS_action/v5_data_bak
+python -m http.server 8888
+
+<span class="cm"># 브라우저에서 접속</span>
+http://localhost:8888/v5_viewer.html          <span class="cm"># 에피소드 뷰어</span>
+http://localhost:8888/vla_analyzer_docs.html  <span class="cm"># 이 문서</span></code></pre>
+    </div>
+
+    <h2>서빙되는 파일 목록</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>파일</th>
+            <th>역할</th>
+            <th>비고</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>v5_viewer.html</code></td>
+            <td>V5 에피소드별 grounding 결과 시각화</td>
+            <td>메인 뷰어</td>
+          </tr>
+          <tr>
+            <td><code>vla_analyzer_docs.html</code></td>
+            <td>이 문서 — 조사 결과 및 방법론 설명</td>
+            <td>현재 페이지</td>
+          </tr>
+          <tr>
+            <td><code>v5_grounding.json</code></td>
+            <td>820 프레임 전수 grounding 결과 (bbox + entity 이름)</td>
+            <td>뷰어가 직접 로딩</td>
+          </tr>
+          <tr>
+            <td><code>mobile_vla_dataset_v5/</code></td>
+            <td>V5 에피소드 이미지 디렉토리</td>
+            <td><code>ep0/</code> ~ <code>ep49/</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2>V5 데이터셋 요약</h2>
+    <div class="card">
+      <div class="table-wrap" style="margin-bottom:0">
+        <table>
+          <thead>
+            <tr><th>항목</th><th>내용</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>총 에피소드 수</td><td>50개 (ep0 ~ ep49)</td></tr>
+            <tr><td>총 프레임 수</td><td>820 프레임</td></tr>
+            <tr><td>평균 에피소드 길이</td><td>약 16.4 프레임</td></tr>
+            <tr><td>수집 환경</td><td>실내 복도, 회색 바구니를 향해 접근하는 고정 경로 9개</td></tr>
+            <tr><td>데이터 형식</td><td>RGB 이미지 + action label (V5 Fixed Path 기반)</td></tr>
+            <tr><td>Grounding 모델</td><td>Pure HF Kosmos-2 (<code>microsoft/kosmos-2-patch14-224</code>)</td></tr>
+            <tr><td>채택 프롬프트</td><td><code>&lt;grounding&gt;The gray basket is at</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <h2>V5 프로젝트 맥락</h2>
+    <p>
+      V5 데이터셋은 MoNaVLA의 <strong>BBox-Centric 검증 방법론</strong>을 위해 수집된 데이터다.
+      로봇이 바구니를 향해 접근할수록 bbox가 커지고 화면 중앙으로 수렴해야 한다는 가설을 검증한다.
+      이 문서의 4~5페이지에서 bbox 해석 기준과 검증 방법론을 상세히 설명한다.
+    </p>
+  </section>
+
+  <!-- ─────────────────── PAGE 2: 모델 비교 ─────────────────── -->
+  <section class="page" id="page-2">
+    <h1>Grounding 조사: 모델 비교</h1>
+    <p class="page-subtitle">세 가지 모델 옵션과 image_to_text_projection 오염 문제</p>
+
+    <h2>세 가지 모델 옵션</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>모델</th>
+            <th>로딩 방식</th>
+            <th>Backbone 구조</th>
+            <th>Text Generation</th>
+            <th>Grounding</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Pure HF Kosmos-2</strong></td>
+            <td><code>AutoModelForVision2Seq</code><br/>from HuggingFace</td>
+            <td>원본 HF 가중치</td>
+            <td><span class="badge badge-green">정상</span></td>
+            <td><span class="badge badge-green">사용 가능</span></td>
+          </tr>
+          <tr>
+            <td><strong>Google-robot pretrained</strong></td>
+            <td><code>MobileVLAInference</code><br/><code>kosmos_ph_google-robot-post-train.pt</code></td>
+            <td><code>PeftModelForCausalLM</code><br/>(LoRA wrapping)</td>
+            <td><span class="badge badge-red">garbage 출력</span></td>
+            <td><span class="badge badge-red">불가</span></td>
+          </tr>
+          <tr>
+            <td><strong>V4 LoRA</strong></td>
+            <td><code>MobileVLAInference</code><br/>V4 checkpoint</td>
+            <td><code>PeftModelForCausalLM</code><br/>(LoRA wrapping)</td>
+            <td><span class="badge badge-red">garbage 출력</span></td>
+            <td><span class="badge badge-red">불가</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>실제 출력 비교</h3>
+    <div class="card card-green">
+      <strong style="color:var(--green)">Pure HF Kosmos-2 (정상 출력)</strong>
+      <pre style="margin-top:10px"><code>"The gray basket is located in the middle of the room."
+Entity: <span class="str">"the gray box"</span>  |  BBox: (0.33, 0.45) <span class="arr">→</span> (0.55, 0.83)</code></pre>
+    </div>
+    <div class="card card-orange">
+      <strong style="color:var(--orange)">Google-robot / V4 LoRA (비정상 출력)</strong>
+      <pre style="margin-top:10px"><code>"Ring Ring Ring Lighted Ring Light Ring Ring Ring Ring..."
+<span class="cm"># entity grounding 완전 실패</span></code></pre>
+    </div>
+
+    <h2>image_to_text_projection 오염 문제</h2>
+    <p>
+      Kosmos-2의 멀티모달 아키텍처는 세 구성 요소로 이루어진다.
+      핵심은 비전 feature를 언어 모델 토큰 공간으로 매핑하는 <strong>브릿지 레이어</strong>다.
+    </p>
+
+    <div class="arch">
+      <div>Image Encoder (Vision)  <span class="ok">← frozen 유지</span></div>
+      <div style="padding-left:4px"><span class="arr">↓</span></div>
+      <div><span class="hl">image_to_text_projection</span>  <span class="hl">← action 학습으로 덮어씌워짐</span></div>
+      <div style="padding-left:4px"><span class="arr">↓</span></div>
+      <div>Text Decoder (Language Model)</div>
+      <div style="padding-left:4px"><span class="arr">↓</span></div>
+      <div>Grounding / Text Output</div>
+    </div>
+
+    <h3>오염 메커니즘</h3>
+    <p>
+      Google-robot pretrained과 V4 LoRA는 <strong>action prediction</strong>을 위해 fine-tune된 모델이다.
+      학습 목표는 이미지 + 지시문으로부터 연속 action vector
+      (<code>[linear_x, linear_y, angular_z, ...]</code>)를 예측하는 것이다.
+    </p>
+    <p>
+      이 과정에서 <code>image_to_text_projection</code>이 <strong>action feature 공간에 맞게 재학습</strong>되면서
+      원래의 텍스트 생성 경로가 파괴된다.
+    </p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>학습 전</th><th>학습 후</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>image features <strong>&rarr;</strong> text tokens (grounding / caption 생성)</td>
+            <td>image features <strong>&rarr;</strong> action features (텍스트 생성 <strong>불가</strong>)</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>LoRA 우회 시도가 실패하는 이유</h3>
+    <p>
+      <code>backbone.base_model.model.generate()</code>를 통해 LoRA 레이어를 건너뛰어도 동일한 garbage 출력이 발생한다.
+    </p>
+    <ul>
+      <li>LoRA adapter 자체도 action prediction 방향으로 수렴됨</li>
+      <li><code>image_to_text_projection</code>은 LoRA가 아닌 <strong>full fine-tune</strong>으로 덮어씌워짐</li>
+      <li>기반 모델 가중치 자체가 이미 오염된 상태</li>
+    </ul>
+
+    <div class="callout">
+      <strong>결론:</strong> fine-tuned 체크포인트에서 원본 grounding 능력을 복구하는 것은 현실적으로 불가능하다.
+      Pure HF 모델을 별도로 로딩하는 것이 <strong>유일한 해결책</strong>이다.
+    </div>
+  </section>
+
+  <!-- ─────────────────── PAGE 3: 프롬프트 비교 ─────────────────── -->
+  <section class="page" id="page-3">
+    <h1>Grounding 조사: 프롬프트 비교</h1>
+    <p class="page-subtitle">V5 로봇 이미지 (복도의 회색 바구니) 기준, 동일 이미지 비교 테스트</p>
+
+    <h2>전체 프롬프트 비교표</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>프롬프트</th>
+            <th>검출 entity 이름</th>
+            <th>BBox</th>
+            <th>유효 비율</th>
+            <th>평가</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>&lt;grounding&gt;An image of a robot. Where is the gray basket? Answer:</code></td>
+            <td>"The room"</td>
+            <td>(0,0) → (1,1)<br/><small style="color:var(--red)">전체화면</small></td>
+            <td><span class="badge badge-red">1.8%</span></td>
+            <td>실패 — 전체화면 hallucination</td>
+          </tr>
+          <tr>
+            <td><code>&lt;grounding&gt;&lt;phrase&gt;gray basket&lt;/phrase&gt;</code></td>
+            <td><code>&lt;patch_index_493&gt;...</code><br/><small style="color:var(--orange)">entity 이름 깨짐</small></td>
+            <td>(0.42,0.48) → (0.58,0.70)</td>
+            <td><span class="badge badge-yellow">가변</span></td>
+            <td>bbox는 정확하나 entity 이름 손실</td>
+          </tr>
+          <tr>
+            <td><code>&lt;grounding&gt;An image of &lt;phrase&gt;gray basket&lt;/phrase&gt;</code></td>
+            <td><code>&lt;patch_index_493&gt;...</code><br/><small style="color:var(--orange)">entity 이름 깨짐</small></td>
+            <td>(0.42,0.48) → (0.58,0.70)</td>
+            <td><span class="badge badge-yellow">가변</span></td>
+            <td>위와 동일</td>
+          </tr>
+          <tr>
+            <td><code>&lt;grounding&gt;A gray basket is located at</code></td>
+            <td>"a white wall"</td>
+            <td>배경 위치</td>
+            <td><span class="badge badge-red">낮음</span></td>
+            <td>실패 — 배경 오검출</td>
+          </tr>
+          <tr class="row-best">
+            <td><code>&lt;grounding&gt;The gray basket is at</code></td>
+            <td><strong>"the gray box"</strong> / <strong>"The basket"</strong></td>
+            <td>(0.33,0.45) → (0.55,0.83)</td>
+            <td><span class="badge badge-green">100%</span></td>
+            <td><strong>최선 선택</strong></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2>최종 채택 프롬프트</h2>
+    <pre><code>prompt = <span class="str">"&lt;grounding&gt;The gray basket is at"</span></code></pre>
+
+    <h3>채택 이유 (4가지)</h3>
+
+    <div class="card card-accent" style="margin-bottom:14px">
+      <h3 style="margin-top:0">1. Entity 이름 정확성</h3>
+      <p style="margin-bottom:0">"the gray box" 또는 "The basket" — 바구니를 올바르게 지칭한다. 분류 필터에서 키워드 매칭이 가능하다.</p>
+    </div>
+    <div class="card card-accent" style="margin-bottom:14px">
+      <h3 style="margin-top:0">2. BBox 정확성</h3>
+      <p style="margin-bottom:0">전체화면 bbox가 아닌 실제 객체 위치를 가리키는 좌표를 반환한다.</p>
+    </div>
+    <div class="card card-accent" style="margin-bottom:14px">
+      <h3 style="margin-top:0">3. 유효 검출률 100%</h3>
+      <p style="margin-bottom:0">테스트된 모든 프레임에서 non-fullscreen bbox를 반환한다. 다른 프롬프트는 전체화면 또는 배경 오검출이 빈번했다.</p>
+    </div>
+    <div class="card card-accent" style="margin-bottom:14px">
+      <h3 style="margin-top:0">4. Completion-style prompting</h3>
+      <p style="margin-bottom:0">문장을 완성하도록 유도하는 방식을 사용한다. 모델이 specific location을 생성하려는 경향을 활용해 더 정확한 grounding이 유도된다.</p>
+    </div>
+
+    <h3>왜 &lt;phrase&gt; 태그 방식은 실패했는가</h3>
+    <p>
+      <code>&lt;phrase&gt;gray basket&lt;/phrase&gt;</code> 방식은 Kosmos-2 내부에서 entity 이름을
+      <code>&lt;patch_index_N&gt;</code> 형태의 포지셔널 토큰으로 치환한다.
+      이는 grounding token 생성 방식의 특성으로, <strong>entity 이름 자체가 손실</strong>된다.
+      색상 분류/필터링 단계에서 entity 이름을 키워드로 사용하는 파이프라인과 호환되지 않는다.
+    </p>
+
+    <h2>최종 파이프라인 요약</h2>
+    <pre><code><span class="cm"># 모델 로딩</span>
+model = <span class="fn">AutoModelForVision2Seq</span>.from_pretrained(
+    <span class="str">"microsoft/kosmos-2-patch14-224"</span>
+)
+
+<span class="cm"># 프롬프트 설정</span>
+prompt = <span class="str">"&lt;grounding&gt;The gray basket is at"</span>
+
+<span class="cm"># 후처리 필터</span>
+<span class="kw">if</span> bbox_area &gt; <span class="num">0.90</span>:
+    skip()  <span class="cm"># fullscreen hallucination 제거</span>
+
+<span class="cm"># entity 이름으로 색상 분류 (4페이지 참조)</span>
+color = classify_entity(entity_name)</code></pre>
+  </section>
+
+  <!-- ─────────────────── PAGE 4: BBox 해석 ─────────────────── -->
+  <section class="page" id="page-4">
+    <h1>BBox 해석 가이드</h1>
+    <p class="page-subtitle">색상 분류 기준, fullscreen 필터, BBox convergence 패턴</p>
+
+    <h2>색상 분류 기준</h2>
+    <p>Grounding 결과의 entity 이름을 키워드 매칭으로 분류한다. 뷰어에서 bbox 테두리 색상으로 표시된다.</p>
+
+    <div class="legend-grid">
+      <div class="legend-item">
+        <div class="legend-dot dot-green"></div>
+        <div>
+          <h4 style="color:var(--green)">초록 (Green) — 바구니 확실</h4>
+          <p>entity 이름에 "basket", "box", "container" 포함.<br/>
+          바구니를 정확히 검출한 것으로 판단.</p>
+        </div>
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot dot-yellow"></div>
+        <div>
+          <h4 style="color:var(--yellow)">노랑 (Yellow) — 가능성 있음</h4>
+          <p>entity 이름에 "gray", "grey" 포함.<br/>
+          회색 물체, 바구니일 가능성 있으나 확정 불가.</p>
+        </div>
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot dot-orange"></div>
+        <div>
+          <h4 style="color:var(--orange)">주황 (Orange) — 배경 오검출</h4>
+          <p>위 조건 미해당. "wall", "floor", "air conditioner" 등.<br/>
+          배경을 잘못 검출한 것으로 판단.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout">
+      <strong>Fullscreen 필터:</strong> bbox 면적이 전체 이미지의 90% 이상
+      (<code>area &gt; 0.90</code>)인 경우 hallucination으로 판단하여 <strong>표시하지 않는다</strong>.
+      이는 "The room" 같은 전체화면 entity를 제거하기 위한 필터다.
+    </div>
+
+    <h2>BBox 면적 계산</h2>
+    <pre><code><span class="cm"># BBox 형식: (x1, y1, x2, y2), 정규화된 0~1 좌표</span>
+area = (x2 - x1) * (y2 - y1)
+
+<span class="cm"># 예시</span>
+bbox = (<span class="num">0.33</span>, <span class="num">0.45</span>, <span class="num">0.55</span>, <span class="num">0.83</span>)
+area = (<span class="num">0.55</span> - <span class="num">0.33</span>) * (<span class="num">0.83</span> - <span class="num">0.45</span>)  <span class="cm"># = 0.22 * 0.38 = 0.084</span>
+
+<span class="cm"># fullscreen 판정</span>
+<span class="kw">if</span> area &gt; <span class="num">0.90</span>: skip()</code></pre>
+
+    <h2>BBox Convergence 패턴 — ep3 예시</h2>
+    <p>
+      ep3 (Fixed Center Path)에서 로봇이 바구니를 향해 접근할수록 bbox가 어떻게 변화하는지를 보여주는 실제 데이터다.
+      이 패턴이 V5 BBox-Centric 검증의 핵심 가설이다.
+    </p>
+
+    <div class="timeline">
+      <div class="tl-row">
+        <span class="tl-frame">f00-f04</span>
+        <span class="tl-entity"><span class="badge badge-orange">주황</span> "white wall" 계열 entity</span>
+        <span class="tl-bbox">배경 좌표 — 바구니 미검출</span>
+        <span class="tl-area" style="color:var(--muted)">—</span>
+      </div>
+      <div class="tl-row">
+        <span class="tl-frame">f05</span>
+        <span class="tl-entity"><span class="badge badge-green">초록</span> "The box"</span>
+        <span class="tl-bbox">(0.33, 0.45) → (0.55, 0.80)</span>
+        <span class="tl-area" style="color:var(--yellow)">0.077</span>
+      </div>
+      <div class="tl-row">
+        <span class="tl-frame">f06</span>
+        <span class="tl-entity"><span class="badge badge-green">초록</span> "The basket"</span>
+        <span class="tl-bbox">(0.33, 0.45) → (0.55, 0.83)</span>
+        <span class="tl-area" style="color:var(--yellow)">0.083</span>
+      </div>
+      <div class="tl-row">
+        <span class="tl-frame">f09</span>
+        <span class="tl-entity"><span class="badge badge-green">초록</span> "The basket"</span>
+        <span class="tl-bbox">(0.20, 0.42) → (0.52, 0.95)</span>
+        <span class="tl-area" style="color:var(--orange)">0.170</span>
+      </div>
+      <div class="tl-row">
+        <span class="tl-frame">f10</span>
+        <span class="tl-entity"><span class="badge badge-green">초록</span> "The basket"</span>
+        <span class="tl-bbox">(0.14, 0.42) → (0.52, 0.98)</span>
+        <span class="tl-area" style="color:var(--orange)">0.211</span>
+      </div>
+      <div class="tl-row">
+        <span class="tl-frame">f11</span>
+        <span class="tl-entity"><span class="badge badge-green">초록</span> "The basket"</span>
+        <span class="tl-bbox">(0.11, 0.42) → (0.55, 0.98)</span>
+        <span class="tl-area" style="color:var(--red)">0.246</span>
+      </div>
+    </div>
+
+    <h3>패턴 해석</h3>
+    <ul>
+      <li><strong>초기 프레임 (f00-f04):</strong> 바구니가 멀어 배경(흰 벽)이 오검출됨</li>
+      <li><strong>중간 프레임 (f05-f06):</strong> 바구니가 시야에 들어오기 시작, "The box" / "The basket" 검출</li>
+      <li><strong>후기 프레임 (f09-f11):</strong> 로봇이 접근할수록 bbox가 <strong>더 크고 하단으로 확장</strong></li>
+      <li><strong>수렴 방향:</strong> x 좌표 좌우로 확장 + y2가 1.0(하단 끝)에 근접 → 바구니가 화면 하단을 채움</li>
+    </ul>
+
+    <div class="callout">
+      <strong>핵심 관찰:</strong> bbox 면적이 에피소드 진행에 따라 단조 증가하고,
+      bbox 중심이 이미지 중앙 하단으로 수렴하는 것이 "올바른 접근 행동"의 visual signature다.
+      이것이 V5 BBox-Centric 검증의 기반이 되는 패턴이다.
+    </div>
+  </section>
+
+  <!-- ─────────────────── PAGE 5: 검증 방법론 ─────────────────── -->
+  <section class="page" id="page-5">
+    <h1>V5 BBox-Centric 검증 방법론</h1>
+    <p class="page-subtitle">무엇을 검증하는가, 성공 기준, 뷰어 사용법</p>
+
+    <h2>검증의 목적</h2>
+    <p>
+      V5 검증은 MoNaVLA 모델이 <strong>바구니를 향해 올바르게 접근하는 행동을 학습했는지</strong>를
+      시각적으로 확인하기 위한 방법론이다.
+    </p>
+    <p>
+      기존 검증 방식(action vector 수치 비교)은 행동의 의미를 직관적으로 파악하기 어렵다.
+      BBox-Centric 방법론은 <strong>"로봇 카메라에서 바구니 bbox가 어떻게 변화하는가"</strong>를
+      ground truth로 사용한다.
+    </p>
+
+    <h2>검증 대상</h2>
+    <div class="card">
+      <div class="table-wrap" style="margin-bottom:0">
+        <table>
+          <thead>
+            <tr><th>검증 항목</th><th>측정 방법</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>BBox 크기 증가</strong></td>
+              <td>에피소드 진행에 따라 bbox 면적이 단조 증가하는지 확인</td>
+            </tr>
+            <tr>
+              <td><strong>중앙 수렴</strong></td>
+              <td>bbox 중심 x좌표가 0.5 (화면 중앙)에 수렴하는지 확인</td>
+            </tr>
+            <tr>
+              <td><strong>하단 채움</strong></td>
+              <td>에피소드 후반부에서 bbox가 화면 하단 절반을 채우는지 확인</td>
+            </tr>
+            <tr>
+              <td><strong>색상 전환</strong></td>
+              <td>주황(오검출) → 초록(바구니 검출)으로 에피소드 내에 전환 발생 확인</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <h2>성공 기준 (Success Criteria)</h2>
+    <ul class="criteria-list">
+      <li>에피소드 후반부 50% 이상의 프레임에서 초록 bbox 검출</li>
+      <li>마지막 프레임의 bbox 면적 &gt; 0.15 (바구니가 화면의 15% 이상 차지)</li>
+      <li>bbox 중심 x좌표: 에피소드 종료 시 |center_x - 0.5| &lt; 0.15 (중앙 ±15% 이내)</li>
+      <li>bbox y2 좌표: 에피소드 종료 시 y2 &gt; 0.80 (화면 하단 80% 이하까지 닿음)</li>
+    </ul>
+
+    <h2>뷰어 사용 방법</h2>
+    <p>
+      <a href="v5_viewer.html" style="color:var(--accent)">v5_viewer.html</a>에서 에피소드별 grounding 결과를 확인할 수 있다.
+    </p>
+
+    <div class="card">
+      <h3 style="margin-top:0">뷰어 주요 기능</h3>
+      <ul>
+        <li><strong>에피소드 선택</strong>: 좌측 패널에서 ep0 ~ ep49 중 선택</li>
+        <li><strong>프레임 탐색</strong>: 프레임별로 넘기며 bbox 변화 확인</li>
+        <li><strong>색상 범례</strong>: 초록/노랑/주황으로 검출 품질 즉시 파악</li>
+        <li><strong>BBox overlay</strong>: 실제 이미지 위에 bbox가 오버레이로 표시됨</li>
+        <li><strong>entity 이름 표시</strong>: bbox 위에 Kosmos-2가 생성한 entity 이름 표시</li>
+      </ul>
+    </div>
+
+    <h2>V5 이후 개선 계획</h2>
+    <div class="card card-accent">
+      <h3 style="margin-top:0">단기 (V5 검증 완료 후)</h3>
+      <ul>
+        <li>BBox convergence 패턴을 <strong>자동 감지하는 알고리즘</strong> 추가</li>
+        <li>에피소드별 convergence score 계산 및 랭킹</li>
+        <li>오검출 프레임 패턴 분석 → 데이터 수집 가이드 개선</li>
+      </ul>
+    </div>
+
+    <div class="card card-accent">
+      <h3 style="margin-top:0">중기 (모델 학습 개선)</h3>
+      <ul>
+        <li><code>image_to_text_projection</code>을 frozen으로 유지하는 학습 설계 검토</li>
+        <li>Grounding 신호를 action 학습의 auxiliary loss로 활용</li>
+        <li>BBox-guided attention: 바구니 위치 정보를 action prediction에 직접 주입</li>
+      </ul>
+    </div>
+
+    <h2>관련 파일 경로</h2>
+    <pre><code>ROS_action/v5_data_bak/
+  v5_viewer.html            <span class="cm"># 메인 시각화 뷰어</span>
+  vla_analyzer_docs.html    <span class="cm"># 이 문서</span>
+  v5_grounding.json         <span class="cm"># 820 프레임 grounding 결과</span>
+
+ROS_action/mobile_vla_dataset_v5/
+  ep0/ ~ ep49/              <span class="cm"># 에피소드별 이미지</span>
+
+docs/
+  grounding_briefing.md     <span class="cm"># 기술 브리핑 (한국어)</span>
+
+scripts/
+  run_v5_grounding.py       <span class="cm"># grounding 실행 스크립트</span>
+  generate_v5_viewer.py     <span class="cm"># 뷰어 HTML 생성 스크립트</span></code></pre>
+  </section>
+
+  <!-- ── Page dots ── -->
+  <div class="page-dots" id="pageDots"></div>
+
+</main>
+
+<!-- ═══════════════ SCRIPT ═══════════════ -->
+<script>
+  const TOTAL = 5;
+  let current = 1;
+
+  function renderDots() {
+    const container = document.getElementById('pageDots');
+    container.innerHTML = '';
+    for (let i = 1; i <= TOTAL; i++) {
+      const d = document.createElement('div');
+      d.className = 'dot' + (i === current ? ' active' : '');
+      d.title = '페이지 ' + i;
+      d.onclick = () => goTo(i);
+      container.appendChild(d);
+    }
+  }
+
+  function goTo(n) {
+    document.getElementById('page-' + current).classList.remove('active');
+    current = Math.max(1, Math.min(TOTAL, n));
+    document.getElementById('page-' + current).classList.add('active');
+    document.getElementById('pageIndicator').textContent = current + ' / ' + TOTAL;
+    document.getElementById('btnPrev').disabled = current === 1;
+    document.getElementById('btnNext').disabled = current === TOTAL;
+    renderDots();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function changePage(delta) { goTo(current + delta); }
+
+  // Keyboard navigation
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') changePage(1);
+    if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')   changePage(-1);
+  });
+
+  // Initial render
+  renderDots();
+</script>
+
+</body>
+</html>

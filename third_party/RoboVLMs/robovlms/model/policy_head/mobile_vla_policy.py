@@ -8,7 +8,7 @@ from einops import rearrange
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from robovlms.model.policy_head.base_policy import BasePolicyHead, lstm_decoder, MLPTanhHead, initialize_param
+from robovlms.model.policy_head.base_policy import BasePolicyHead, lstm_decoder, MLPTanhHead, MLPNohHead, initialize_param
 
 
 class MobileVLALSTMDecoder(BasePolicyHead):
@@ -137,6 +137,8 @@ class MobileVLALSTMDecoder(BasePolicyHead):
         # (B, seq_len, fwd_pred_next_n * action_dim) -> (B, seq_len, fwd_pred_next_n, action_dim)
         velocities = rearrange(velocities, "b l (n d) -> b l n d", n=self.fwd_pred_next_n, d=self.action_dim)
 
+        # print(f"DEBUG: [MobileVLALSTMDecoder.forward] output shape: {velocities.shape}, requires_grad: {velocities.requires_grad}", flush=True)
+
         # gripper 없음 (None 반환)
         return velocities, None
 
@@ -175,10 +177,15 @@ class MobileVLALSTMDecoder(BasePolicyHead):
             attention_mask = attention_mask.bool()
             loss_velocity = loss_velocity[attention_mask].mean()
 
+        # print(f"DEBUG: [MobileVLALSTMDecoder.loss] velocities_grad: {velocities.requires_grad}, loss_grad: {loss_velocity.requires_grad}", flush=True)
+
         return {
-            "loss_velocity": loss_velocity,  # loss_arm -> loss_velocity
-            "loss_gripper": None,  # Mobile VLA는 gripper 없음
-            "acc_gripper": None,  # Mobile VLA는 gripper 없음
+            "loss_arm": loss_velocity,
+            "loss_velocity": loss_velocity,  # For redundancy
+            "loss_arm_act": loss_velocity,   # BaseTrainer often looks for this
+            "loss_gripper": None,
+            "acc_arm": None,
+            "acc_gripper": None,
         }
 
 
@@ -193,18 +200,19 @@ class MobileVLAClassificationDecoder(BasePolicyHead):
     def __init__(
         self,
         in_features,
-        action_dim, # num_classes (6)
-        down_sample,
-        latent,
-        fwd_pred_next_n,
-        window_size,
+        down_sample="pooling",
+        latent=1,
+        fwd_pred_next_n=1,
+        window_size=8,
         hidden_size=1024,
         num_layers=4,
         policy_rnn_dropout_p=0.0,
         **kwargs,
     ):
-        num_classes = kwargs.get("num_classes", 6)
-        super(MobileVLAClassificationDecoder, self).__init__(in_features, num_classes, **kwargs)
+        num_classes = kwargs.pop("num_classes", 6)
+        action_dim = kwargs.pop("action_dim", num_classes)
+        action_space = kwargs.pop("action_space", "continuous")
+        super(MobileVLAClassificationDecoder, self).__init__(hidden_size, action_dim=action_dim, action_space=action_space, down_sample=down_sample, latent=latent, **kwargs)
         self.num_classes = num_classes
         self.down_sample = down_sample
         self.latent = latent
@@ -280,6 +288,12 @@ class MobileVLAClassificationDecoder(BasePolicyHead):
 
         return logits, None
 
+    def get_labels(self, action, labels, attention_mask=None, **kwargs):
+        # BaseBackbone calls: get_labels(action, action_labels, action_mask, tok_seq=action_tokens, **kwargs)
+        # action: pred_action (from forward)
+        # labels: ground truth labels
+        return action, labels, attention_mask
+
     def loss(self, pred_action, labels, attention_mask=None):
         if labels is None or labels[0] is None:
             return {"loss_velocity": None, "loss_gripper": None, "acc_velocity": None}
@@ -295,6 +309,13 @@ class MobileVLAClassificationDecoder(BasePolicyHead):
             flat_logits = flat_logits[flat_mask]
             flat_labels = flat_labels[flat_mask]
 
+        if list(flat_logits.shape)[0] != list(flat_labels.shape)[0]:
+            print(f"!!! Error in loss shapes: logits={flat_logits.shape}, labels={flat_labels.shape}")
+            # match size by trimming the larger one
+            min_size = min(flat_logits.shape[0], flat_labels.shape[0])
+            flat_logits = flat_logits[:min_size]
+            flat_labels = flat_labels[:min_size]
+
         if flat_labels.size(0) == 0:
             return {"loss_velocity": torch.tensor(0.0).to(logits.device), "acc_velocity": 0.0}
 
@@ -305,7 +326,8 @@ class MobileVLAClassificationDecoder(BasePolicyHead):
         acc = (preds == flat_labels).float().mean()
 
         return {
-            "loss_velocity": loss,
+            "loss_arm": loss,
             "loss_gripper": None,
-            "acc_velocity": acc.item(),
+            "acc_arm": acc.item(),
+            "acc_gripper": None,
         }

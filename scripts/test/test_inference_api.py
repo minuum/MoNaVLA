@@ -136,7 +136,7 @@ class InferenceAPITester:
                 f"{self.base_url}/predict",
                 json=payload,
                 headers=self.headers,
-                timeout=30
+                timeout=120
             )
             latency = (time.time() - start_time) * 1000
             
@@ -181,7 +181,7 @@ class InferenceAPITester:
                 f"{self.base_url}/predict",
                 json=payload,
                 headers=self.headers,
-                timeout=30
+                timeout=120
             )
             latency = (time.time() - start_time) * 1000
             

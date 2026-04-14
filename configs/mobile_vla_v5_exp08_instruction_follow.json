@@ -1,0 +1,10 @@
+{
+    "_comment": "V5 Exp08: Instruction-Following Sensitivity. Exp07 기반. Counterfactual training(오답 주입)으로 이미지-액션 shortcut 차단 및 텍스트 지시문 민감도 강화.",
+    "parent": "configs/mobile_vla_v5_exp07_path_type.json",
+    "exp_name": "v5-exp08-instruction-follow",
+    "task_name": "mobile_vla_v5_exp08",
+    "train_dataset": {
+        "counterfactual_stop_prob": 0.1,
+        "counterfactual_steer_prob": 0.3
+    }
+}

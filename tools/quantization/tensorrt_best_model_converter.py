@@ -99,7 +99,7 @@ class BestModelTensorRTConverter:
     
     def __init__(self):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.output_dir = "Robo+/Mobile_VLA/tensorrt_best_model"
+        self.output_dir = "Mobile_VLA/tensorrt_best_model"
         os.makedirs(self.output_dir, exist_ok=True)
         
         # 모델 로드

@@ -1,0 +1,64 @@
+{
+  "test_config": {
+    "num_episodes": 5,
+    "total_frames": 73,
+    "tolerance": 0.01
+  },
+  "global_stats": {
+    "perfect_match": 0.0,
+    "direction_agreement": 5.555555555555555
+  },
+  "error_distribution": {
+    "stop_confusion_false_move": 5,
+    "minor_deviation": 40,
+    "magnitude_under": 6,
+    "direction_flip": 22
+  },
+  "episode_results": [
+    {
+      "episode_name": "episode_20260129_010041_basket_1box_hori_left_core_medium",
+      "total_frames": 18,
+      "language": "Navigate to the basket",
+      "phases": {
+        "initial": {
+          "range": [
+            0,
+            5
+          ],
+          "perfect_match": 0.0,
+          "direction_agreement": 0.0,
+          "avg_error": 0.9176618111165817
+        },
+        "middle": {
+          "range": [
+            5,
+            13
+          ],
+          "perfect_match": 0.0,
+          "direction_agreement": 12.5,
+          "avg_error": 0.9539043306452106
+        },
+        "final": {
+          "range": [
+            13,
+            18
+          ],
+          "perfect_match": 0.0,
+          "direction_agreement": 0.0,
+          "avg_error": 0.6326842227743259
+        }
+      },
+      "frame_details": [
+        {
+          "frame_idx": 0,
+          "gt_action": [
+            0.0,
+            0.0
+          ],
+          "pred_action": [
+            0.99560546875,
+            0.0020122528076171875
+          ],
+          "error": 0.9956075022649583,
+          "perfect_match": false,
+          "direction_match": 

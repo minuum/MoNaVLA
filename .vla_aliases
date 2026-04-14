@@ -1,12 +1,12 @@
-# VLA Multi-Server Environment Setup
+# MoNaVLA (Mobile Navigation VLA) Environment Setup
 # 
-# 이 파일은 VLA 시스템의 양쪽 서버에서 사용됩니다:
+# 이 파일은 MoNaVLA 시스템의 양쪽 서버에서 사용됩니다:
 # - Jetson (fevers): 로봇 서버 - 이미지 캡쳐, 주행 제어
 # - Billy (A5000): 모델 서버 - VLA 추론
 #
 # Source this file in your ~/.zshrc or ~/.bashrc:
-# echo 'source /home/billy/25-1kp/vla/.vla_aliases' >> ~/.zshrc
-
+# echo 'source /home/soda/MoNaVLA/.vla_aliases' >> ~/.zshrc
+#
 # ========================================
 # 서버 역할 감지
 # ========================================
@@ -14,20 +14,21 @@
 # 현재 서버가 어느 역할인지 자동 감지
 if [ "$(hostname)" = "fevers" ]; then
     export VLA_SERVER_ROLE="jetson"
-    export VLA_SERVER_NAME="Jetson Robot Server"
+    export VLA_SERVER_NAME="MoNaVLA Jetson Robot"
 elif [ "$(hostname)" = "billy" ]; then
     export VLA_SERVER_ROLE="model"
-    export VLA_SERVER_NAME="Billy Model Server"
+    export VLA_SERVER_NAME="MoNaVLA Billy Server"
 else
     export VLA_SERVER_ROLE="unknown"
-    export VLA_SERVER_NAME="Unknown Server"
+    export VLA_SERVER_NAME="MoNaVLA Unknown Server"
 fi
 
 # ========================================
 # 공통 환경 변수
 # ========================================
 
-export VLA_PROJECT_DIR="/home/billy/25-1kp/vla"
+export VLA_PROJECT_DIR="/home/soda/MoNaVLA"
+export MONAVLA_ROOT="/home/soda/MoNaVLA"
 
 # Tailscale VPN 주소
 export JETSON_TAILSCALE_IP="${JETSON_TAILSCALE_IP:-100.85.118.58}"
@@ -71,7 +72,7 @@ vla-jetson-env() {
     echo "🤖 Jetson Robot Server 환경 설정 중..."
     
     # ROS2 환경 설정
-    cd /home/soda/vla/ROS_action/install
+    cd /home/soda/MoNaVLA/ROS_action/install
     source /opt/ros/humble/setup.bash
     source local_setup.bash
     cd - > /dev/null
@@ -110,7 +111,7 @@ vla-model-env() {
 unalias vla-env 2>/dev/null || true
 vla-env() {
     echo "=========================================="
-    echo "VLA Environment Variables"
+    echo "MoNaVLA Environment Variables"
     echo "=========================================="
     echo "서버 정보:"
     echo "  Hostname       = $(hostname)"
@@ -198,7 +199,7 @@ fi
 unalias vla-network-check 2>/dev/null || true
 vla-network-check() {
     echo "=========================================="
-    echo "VLA Network Connection Check"
+    echo "MoNaVLA Network Connection Check"
     echo "=========================================="
     echo ""
     
@@ -240,52 +241,89 @@ vla-network-check() {
 unalias vla-help 2>/dev/null || true
 vla-help() {
     echo "=========================================="
-    echo "VLA Commands - $VLA_SERVER_NAME"
+    echo "MoNaVLA Commands - $VLA_SERVER_NAME"
     echo "=========================================="
     echo ""
     echo "환경 설정:"
     
     if [ "$VLA_SERVER_ROLE" = "jetson" ]; then
-        echo "  vla-jetson-env     - Jetson 환경 설정 (ROS2)"
+        echo "  mona-jetson-env    - Jetson 환경 설정 (ROS2) [alias: vla-jetson-env]"
         echo ""
         echo "ROS2 관련:"
-        echo "  vla-collect        - 데이터 수집 시작"
+        echo "  mona-collect       - 데이터 수집 시작 [alias: vla-collect]"
+        echo "  mona-camera        - 카메라 토픽 발행 [alias: vla-camera]"
         echo "  robot-move         - 로봇 이동 제어"
-        echo "  vla-system         - VLA 시스템 시작"
+        echo "  mona-system        - MoNaVLA 시스템 시작 [alias: vla-system]"
     elif [ "$VLA_SERVER_ROLE" = "model" ]; then
-        echo "  vla-model-env      - Model 서버 환경 설정"
+        echo "  mona-model-env     - Model 서버 환경 설정 [alias: vla-model-env]"
         echo ""
         echo "API 서버 관리:"
-        echo "  vla-start          - API 서버 시작"
-        echo "  vla-stop           - API 서버 중지"
-        echo "  vla-restart        - API 서버 재시작"
-        echo "  vla-status         - API 서버 상태"
-        echo "  vla-logs           - API 서버 로그"
+        echo "  mona-start         - API 서버 시작 [alias: vla-start]"
+        echo "  mona-stop          - API 서버 중지 [alias: vla-stop]"
+        echo "  mona-restart       - API 서버 재시작 [alias: vla-restart]"
+        echo "  mona-status        - API 서버 상태 [alias: vla-status]"
+        echo "  mona-logs          - API 서버 로그 [alias: vla-logs]"
     fi
     
     echo ""
     echo "API 테스트 (공통):"
-    echo "  vla-test           - 전체 API 테스트"
-    echo "  vla-health         - Health check"
-    echo "  vla-curl-health    - 빠른 health check"
-    echo "  vla-curl-test      - 빠른 test"
+    echo "  mona-test          - 전체 API 테스트 [alias: vla-test]"
+    echo "  mona-health        - Health check [alias: vla-health]"
     echo ""
     echo "유틸리티:"
-    echo "  vla-env            - 환경 변수 확인"
-    echo "  vla-network-check  - 네트워크 연결 확인"
+    echo "  mona-env           - 환경 변수 확인 [alias: vla-env]"
+    echo "  mona-network-check - 네트워크 연결 확인 [alias: vla-network-check]"
     echo "  vla-ps             - 프로세스 확인"
-    echo "  vla-cd             - 프로젝트로 이동"
-    echo "  vla-gpu            - GPU 상태"
-    echo "  vla-help           - 이 도움말"
+    echo "  mona-cd            - 프로젝트로 이동 [alias: vla-cd]"
+    echo "  mona-gpu           - GPU 상태 [alias: vla-gpu]"
+    echo "  mona-help          - 이 도움말 [alias: vla-help]"
     echo "=========================================="
 }
+
+# ========================================
+# MoNaVLA Aliases (Compatibility)
+# ========================================
+
+# Base aliases
+alias mona-help='vla-help'
+alias mona-env='vla-env'
+alias mona-cd='vla-cd'
+alias mona-network-check='vla-network-check'
+alias mona-gpu='vla-gpu'
+
+# Jetson specific
+if [ "$VLA_SERVER_ROLE" = "jetson" ]; then
+    alias mona-jetson-env='vla-jetson-env'
+    alias mona-collect='vla-collect'
+    alias mona-camera='vla-camera'
+    alias mona-system='vla-system'
+fi
+
+# Model specific
+if [ "$VLA_SERVER_ROLE" = "model" ]; then
+    alias mona-model-env='vla-model-env'
+    alias mona-start='vla-start'
+    alias mona-stop='vla-stop'
+    alias mona-restart='vla-restart'
+    alias mona-status='vla-status'
+    alias mona-logs='vla-logs'
+    alias mona-test='vla-test'
+    alias mona-health='vla-health'
+fi
 
 # ========================================
 # 초기 메시지
 # ========================================
 
-echo "✓ VLA aliases loaded - $VLA_SERVER_NAME"
-echo "  Run 'vla-help' for available commands"
+# echo "✓ VLA aliases loaded - $VLA_SERVER_NAME"
+# echo "  Run 'vla-help' for available commands"
 # Basket Training Aliases
 alias vla-train-log='tail -f /home/billy/25-1kp/vla/logs/train_basket_chunk5_20260129_204053.log'
 alias vla-train-stop='pkill -f main.py'
+
+# MoNaVLA Shortcuts
+alias vla-analyze='python3 /home/soda/MoNaVLA/scripts/gradio_offline_h5_analyzer.py'
+alias vla-dashboard='python3 /home/soda/MoNaVLA/scripts/gradio_inference_dashboard.py'
+alias vla-collect='python3 /home/soda/MoNaVLA/scripts/gradio_data_collector.py'
+alias vla-server='python3 /home/soda/MoNaVLA/robovlm_nav/serve/inference_server.py'
+alias vla-reset='kill -9 $(pgrep -f "gradio_") || true; kill -9 $(pgrep -f "inference_server") || true'

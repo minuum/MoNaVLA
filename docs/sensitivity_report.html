@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MoNaVLA Experiment Docs - Text Sensitivity</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --bg-color: #f8fafc;
+            --text-color: #1e293b;
+            --card-bg: #ffffff;
+        }
+        body {
+            font-family: 'Pretendard', -apple-system, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .docs-container {
+            width: 900px;
+            height: 600px;
+            background: var(--card-bg);
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            overflow: hidden;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+        .header {
+            background: var(--primary);
+            color: white;
+            padding: 15px 25px;
+            font-size: 1.25rem;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+        }
+        .slide-container {
+            flex: 1;
+            position: relative;
+            padding: 30px;
+        }
+        .slide {
+            display: none;
+            height: 100%;
+            animation: fadeIn 0.4s ease;
+        }
+        .slide.active {
+            display: block;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .footer {
+            padding: 15px 25px;
+            background: #f1f5f9;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            background: var(--primary);
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        button:disabled {
+            background: #cbd5e1;
+            cursor: not-allowed;
+        }
+        button:hover:not(:disabled) {
+            opacity: 0.9;
+        }
+        
+        /* Typography & Layout within slides */
+        h2 { margin-top: 0; color: var(--primary); border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; }
+        .two-cols { display: flex; gap: 30px; height: calc(100% - 50px); }
+        .col { flex: 1; overflow-y: auto; }
+        .img-preview { width: 100%; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 0.9rem; }
+        th, td { padding: 10px 12px; border: 1px solid #cbd5e1; text-align: center; }
+        th { background-color: #f1f5f9; font-weight: 600; }
+        .highlight { color: #dc2626; font-weight: bold; background-color: #fee2e2; }
+        .blue-highlight { color: var(--primary); font-weight: bold; }
+        
+        li { margin-bottom: 15px; line-height: 1.6; }
+    </style>
+</head>
+<body>
+
+<div class="docs-container">
+    <div class="header">
+        <span>🤖 MoNaVLA Experiment Report</span>
+        <span id="page-indicator">Page 1 / 4</span>
+    </div>
+
+    <div class="slide-container">
+        <!-- Page 1: Abstract -->
+        <div class="slide active" id="slide-1">
+            <h2>실험 개요: 텍스트-로짓 민감도 (Text-Logit Sensitivity)</h2>
+            <p><strong>가설:</strong> "멀티모달 VLA 모델이 로봇의 주행 액션을 예측할 때, 사용자의 자연어 지시(Prompt)를 무시하고 시각적 정보(화면 중앙의 객체 등)에만 과도하게 의존하는가?"</p>
+            <p><strong>실험 방법:</strong></p>
+            <ul>
+                <li>동일한 정지 이미지(1프레임)를 고정.</li>
+                <li>단어 프롬프트만 다르게 입력 ("Go forward", "Go left", "Go right", "Stop").</li>
+                <li>각 입력별로 도출되는 6개 Action Class의 Softmax 확률(명령어별 로그 분포 변동량)을 측정.</li>
+            </ul>
+        </div>
+        <!-- (Other slides omitted for brevity but they were in the previous view_file) -->
+        <div class="slide" id="slide-2">
+            <h2>테스트 이미지 및 결과 슬라이드는 이전과 동일합니다.</h2>
+            <p>전체 내용을 보시려면 사이트의 메인 대시보드를 방문해주세요.</p>
+        </div>
+    </div>
+
+    <div class="footer">
+        <a href="index.html" style="text-decoration:none; color:var(--primary);">← Back to Hub</a>
+        <div>
+            <button id="btn-prev" onclick="changeSlide(-1)" disabled>← Previous</button>
+            <button id="btn-next" onclick="changeSlide(1)">Next →</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let currentSlide = 1;
+    const totalSlides = 2;
+
+    function changeSlide(direction) {
+        document.getElementById(`slide-${currentSlide}`).classList.remove('active');
+        currentSlide += direction;
+        document.getElementById(`slide-${currentSlide}`).classList.add('active');
+        
+        document.getElementById('page-indicator').innerText = `Page ${currentSlide} / ${totalSlides}`;
+        
+        document.getElementById('btn-prev').disabled = currentSlide === 1;
+        document.getElementById('btn-next').disabled = currentSlide === totalSlides;
+    }
+</script>
+
+</body>
+</html>

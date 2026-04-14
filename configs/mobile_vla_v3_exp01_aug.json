@@ -1,7 +1,7 @@
 {
     "_comment": "EXP-V3-01: V2 + Color Jitter + Random Crop (시각적 일반화 개선)",
     "inference_mode": "classification",
-    "robovlm_name": "RoboVLM-Nav",
+    "robovlm_name": "RoboKosMos",
     "exp_name": "v3-exp01-aug",
     "parent": null,
     "task_name": "mobile_vla_v3_classification",
@@ -50,8 +50,8 @@
     "model_load_path": "/home/billy/25-1kp/vla/pretrained_ckpts/checkpoints/kosmos_ph_google-robot-post-train.pt",
     "model_load_source": "lightning",
     "resume": null,
-    "model_path": "/home/billy/25-1kp/vla/.vlms/kosmos-2-patch14-224",
-    "model_config": "/home/billy/25-1kp/vla/.vlms/kosmos-2-patch14-224/config.json",
+    "model_path": "/home/soda/vla/.vlms/kosmos-2-patch14-224",
+    "model_config": "/home/soda/vla/.vlms/kosmos-2-patch14-224/config.json",
     "gpus": 1,
     "num_nodes": 1,
     "train_setup": {
@@ -88,7 +88,7 @@
     "act_encoder": null,
     "trainer_type": "MobileVLATrainer",
     "act_head": {
-        "type": "NavPolicy",
+        "type": "MobileVLAClassificationDecoder",
         "hidden_size": 1024,
         "action_dim": 9,
         "num_classes": 9,
@@ -104,7 +104,7 @@
     "fwd_head": null,
     "tokenizer": {
         "type": "AutoProcessor",
-        "pretrained_model_name_or_path": "/home/billy/25-1kp/vla/.vlms/kosmos-2-patch14-224",
+        "pretrained_model_name_or_path": "/home/soda/vla/.vlms/kosmos-2-patch14-224",
         "tokenizer_type": "kosmos",
         "max_text_len": 256,
         "additional_special_tokens": null
@@ -112,7 +112,7 @@
     "vlm": {
         "type": "AutoModelForVision2Seq",
         "name": "kosmos",
-        "pretrained_model_name_or_path": "/home/billy/25-1kp/vla/.vlms/kosmos-2-patch14-224"
+        "pretrained_model_name_or_path": "/home/soda/vla/.vlms/kosmos-2-patch14-224"
     },
     "trainer": {
         "accelerator": "gpu",

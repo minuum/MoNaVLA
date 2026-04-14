@@ -1,5 +1,5 @@
 {
-    "robovlm_name": "RoboVLM-Nav",
+    "robovlm_name": "RoboKosMos",
     "exp_name": "basket_left_classification_weighted_20260202",
     "parent": null,
     "task_name": "mobile_vla_left_only_finetune",

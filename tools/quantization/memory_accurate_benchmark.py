@@ -428,7 +428,7 @@ class MemoryAccurateBenchmark:
                 print()
         
         # 결과 저장
-        report_path = "Robo+/Mobile_VLA/memory_accurate_results.json"
+        report_path = "Mobile_VLA/memory_accurate_results.json"
         with open(report_path, "w") as f:
             json.dump({
                 "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -456,7 +456,7 @@ def main():
         
         # 2. ONNX Runtime 벤치마크
         print(f"\n2. ONNX Runtime Benchmark with Memory Measurement")
-        onnx_path = "Robo+/Mobile_VLA/optimized_onnx/model.onnx"
+        onnx_path = "Mobile_VLA/optimized_onnx/model.onnx"
         
         if not os.path.exists(onnx_path):
             print(f"❌ ONNX model not found: {onnx_path}")

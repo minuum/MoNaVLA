@@ -1,5 +1,5 @@
 {
-    "robovlm_name": "RoboVLM-Nav",
+    "robovlm_name": "RoboKosMos",
     "exp_name": "v3-exp07-lora",
     "parent": "configs/mobile_vla_v3_exp01_aug.json",
     "task_name": "mobile_vla_v3_exp07_lora",
@@ -16,7 +16,7 @@
         "predict_forward_hand": false,
         "predict_caption": false,
         "train_vision": false,
-        "bits": -1,
+        "bits": 8,
         "freeze_mm_mlp_adapter": false,
         "freeze_backbone": true,
         "freeze_resampler": true,
@@ -37,7 +37,7 @@
         ]
     },
     "act_head": {
-        "type": "NavPolicy",
+        "type": "MobileVLAClassificationDecoder",
         "hidden_size": 1024,
         "num_classes": 9,
         "action_space": "continuous",

@@ -1,0 +1,30 @@
+{
+    "_comment": "V4-Hybrid Balanced Instruction Tuning. Reduced turn weights to solve LEFT-bias (Over-correction). STOP:3x, F:1x, L:10x, R:15x, FL:5x, FR:5x",
+    "robovlm_name": "RoboKosMos",
+    "discrete_action": true,
+    "window_size": 8,
+    "fwd_pred_next_n": 5,
+    "exp_name": "v4-balanced-v1",
+    "parent": "configs/mobile_vla_v4_robust_instr.json",
+    "task_name": "mobile_vla_v4_balanced_v1",
+    "model": "kosmos",
+    "batch_size": 2,
+    "num_workers": 4,
+    "learning_rate": 5e-06,
+    "max_epochs": 15,
+    "model_load_path": "pretrained_ckpts/checkpoints/kosmos_ph_google-robot-post-train_new.pt",
+    "model_load_source": "lightning",
+    "act_head": {
+        "type": "MobileVLAClassificationDecoder",
+        "num_classes": 6,
+        "class_weights": [3.0, 1.0, 10.0, 15.0, 5.0, 5.0]
+    },
+    "model_path": "microsoft/kosmos-2-patch14-224",
+    "model_config": "microsoft/kosmos-2-patch14-224",
+    "tokenizer": {
+        "pretrained_model_name_or_path": "microsoft/kosmos-2-patch14-224"
+    },
+    "vlm": {
+        "pretrained_model_name_or_path": "microsoft/kosmos-2-patch14-224"
+    }
+}

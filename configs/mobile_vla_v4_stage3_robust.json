@@ -1,0 +1,33 @@
+{
+    "_comment": "[PROJECT 25-1KP] Stage 3: Professional Robustness Model. Building on top of 87% Hybrid model.",
+    "parent": "configs/mobile_vla_v4_hybrid_final.json",
+    "exp_name": "v4-stage3-robust-final",
+    "model": "kosmos",
+    "model_path": "microsoft/kosmos-2-patch14-224",
+    "task_name": "mobile_vla_v4_stage3_robust",
+    "vlm": {
+        "pretrained_model_name_or_path": "microsoft/kosmos-2-patch14-224"
+    },
+    "tokenizer": {
+        "pretrained_model_name_or_path": "microsoft/kosmos-2-patch14-224"
+    },
+    "model_load_path": "/home/billy/25-1kp/MoNaVLA/runs/v4_nav/kosmos/mobile_vla_v4_hybrid_eval/2026-03-29/v4-hybrid-final-v1/epoch_epoch=epoch=11-val_loss=val_loss=1.263.ckpt",
+    "learning_rate": 3e-6,
+    "max_epochs": 10,
+    "train_dataset": {
+        "curvature_only": false,
+        "counterfactual_stop_prob": 0.5,
+        "action_weight_non_forward": 1.7,
+        "instruction_preset": "action_aware_train",
+        "use_color_jitter": true,
+        "use_random_crop": true,
+        "augment": true,
+        "train_split": 0.98
+    },
+    "val_dataset": {
+        "curvature_only": false,
+        "counterfactual_stop_prob": 0.0,
+        "instruction_preset": "action_aware_train",
+        "train_split": 0.98
+    }
+}

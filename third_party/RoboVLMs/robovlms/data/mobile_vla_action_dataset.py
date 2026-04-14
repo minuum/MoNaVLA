@@ -44,8 +44,18 @@ class MobileVLAActionDataset(ActionPredictionDataset):
         gripper_pad: int = -1,
         **kwargs,
     ):
-        # 시나리오 명령어는 Line 151-160에서 정의됨 (중복 제거)
-        
+        # 시나리오 명령어 정의 (super().__init__ 전에 필요)
+        self.scenario_instructions = {
+            "1box_vert_left": "박스 1개 장애물, 가장 왼쪽 외곽으로 돌아 컵까지 가세요",
+            "1box_vert_right": "박스 1개 장애물, 가장 오른쪽 외곽으로 돌아 컵까지 가세요",
+            "1box_hori_left": "박스 1개 장애물, 가장 왼쪽 외곽으로 돌아 컵까지 가세요",
+            "1box_hori_right": "박스 1개 장애물, 가장 오른쪽 외곽으로 돌아 컵까지 가세요",
+            "2box_vert_left": "박스 2개 장애물, 가장 왼쪽 외곽으로 돌아 컵까지 가세요",
+            "2box_vert_right": "박스 2개 장애물, 가장 오른쪽 외곽으로 돌아 컵까지 가세요",
+            "2box_hori_left": "박스 2개 장애물, 가장 왼쪽 외곽으로 돌아 컵까지 가세요",
+            "2box_hori_right": "박스 2개 장애물, 가장 오른쪽 외곽으로 돌아 컵까지 가세요"
+        }
+
         # ActionPredictionDataset 초기화 (토크나이저/이미지 전처리/변환기 구성)
         # GRDataModule가 is_training을 kwargs로 전달하므로 이를 반영해 mode 자동 결정
         resolved_mode = "train" if kwargs.get("is_training", mode == "train") else "inference"

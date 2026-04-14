@@ -1,0 +1,20 @@
+# ---------------------------------------------------------
+# 🛠️ Mobile VLA Environment Settings
+# ---------------------------------------------------------
+# 이 파일의 값을 수정하면 모든 vla- 명령에 즉시 반영됩니다.
+
+# 1. 모델 설정 (Checkpoint & Config)
+# 최신 학습 결과에 맞춰 경로를 수정하세요.
+# v3_exp08_center_goal
+# Best model (87% accuracy, diagonal-aware)
+export VLA_CHECKPOINT_PATH="/home/soda/MoNaVLA/runs/v4_nav/kosmos/v4_balanced_v2/checkpoints/best_model_87pc.ckpt"
+export VLA_CONFIG_PATH="/home/soda/MoNaVLA/configs/mobile_vla_v4_balanced_v2.json"
+
+# 2. 보안 설정 (API Key)
+export VLA_API_KEY="v3_test_key"
+
+# 3. 인프라 설정
+export ROS_DOMAIN_ID=42
+export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+export VLA_ROOT="/home/soda/MoNaVLA"
+export VLA_ROS_WS="/home/soda/MoNaVLA/ROS_action"

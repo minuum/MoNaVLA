@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MoNaVLA Research Report Viewer</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css?family=Google+Sans|Noto+Sans|Castoro" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        body { font-family: 'Noto Sans', sans-serif; background-color: #f8fafc; }
+        .report-container { 
+            background: white; 
+            padding: 3rem; 
+            margin-top: 2rem; 
+            margin-bottom: 4rem; 
+            border-radius: 12px; 
+            box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+            border: 1px solid #e2e8f0;
+        }
+        .content h1 { font-family: 'Google Sans', sans-serif; border-bottom: 2px solid #2563eb; padding-bottom: 10px; color: #1e293b; }
+        .content h2 { margin-top: 2em; color: #334155; }
+        .content code { background-color: #f1f5f9; color: #e11d48; padding: 0.2em 0.4em; border-radius: 4px; }
+        .content pre { background-color: #1e293b; color: #f8fafc; border-radius: 8px; padding: 1.5rem; white-space: pre-wrap; word-wrap: break-word; }
+        .back-link { margin-bottom: 2rem; display: inline-block; }
+    </style>
+</head>
+<body>
+    <section class="section">
+        <div class="container is-max-desktop">
+            <a href="../index.html" class="back-link button is-light">
+                <i class="fas fa-arrow-left mr-2"></i>Back to Dashboard
+            </a>
+            
+            <div id="loading" class="has-text-centered py-6">
+                <i class="fas fa-spinner fa-pulse fa-3x has-text-grey-light"></i>
+                <p class="mt-4">Loading report content...</p>
+            </div>
+
+            <div id="content-area" class="report-container content is-hidden">
+                <!-- Markdown Rendered Here -->
+            </div>
+        </div>
+    </section>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const params = new URLSearchParams(window.location.search);
+            const fileName = params.get('file');
+            
+            if (!fileName) {
+                document.getElementById('content-area').innerHTML = '<div class="notification is-danger">No file specified.</div>';
+                document.getElementById('content-area').classList.remove('is-hidden');
+                document.getElementById('loading').classList.add('is-hidden');
+                return;
+            }
+
+            fetch(fileName)
+                .then(response => {
+                    if (!response.ok) throw new Error('File not found');
+                    return response.text();
+                })
+                .then(text => {
+                    document.getElementById('content-area').innerHTML = marked.parse(text);
+                    document.getElementById('content-area').classList.remove('is-hidden');
+                    document.getElementById('loading').classList.add('is-hidden');
+                    document.title = fileName.split('/').pop() + " | MoNaVLA Report";
+                })
+                .catch(err => {
+                    document.getElementById('content-area').innerHTML = '<div class="notification is-danger">Error loading file: ' + err.message + '</div>';
+                    document.getElementById('content-area').classList.remove('is-hidden');
+                    document.getElementById('loading').classList.add('is-hidden');
+                });
+        });
+    </script>
+</body>
+</html>
