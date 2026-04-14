@@ -10,6 +10,50 @@ import torchvision.transforms as T
 import random
 
 class MobileVLAH5Dataset(Dataset):
+
+    PATH_TYPE_INSTRUCTIONS = {
+        "left": [
+            "Navigate to the left toward the gray basket",
+            "Move left to approach the target",
+            "Steer left to reach the basket",
+            "Head left toward the object",
+            "왼쪽으로 이동해서 바구니에 접근해",
+            "좌측으로 방향을 잡아 목표로 이동해",
+            "왼쪽 방향으로 틀어서 바구니 쪽으로 가",
+            "보이는 바구니의 왼쪽 방향으로 조향해",
+            "Go left",
+            "Turn left",
+        ],
+        "right": [
+            "Navigate to the right toward the gray basket",
+            "Move right to approach the target",
+            "Steer right to reach the basket",
+            "Head right toward the object",
+            "오른쪽으로 이동해서 바구니에 접근해",
+            "우측으로 방향을 잡아 목표로 이동해",
+            "오른쪽으로 꺾어서 바구니 쪽으로 전진해",
+            "우측 방향으로 조향을 수정해서 가",
+            "Go right",
+            "Turn right",
+        ],
+        "straight": [
+            "Navigate straight forward to the gray basket",
+            "Go directly ahead to the target",
+            "Proceed straight to the basket",
+            "Move forward toward the object",
+            "바구니를 향해 직진해",
+            "앞으로 곧장 이동해",
+            "방향 틀지 말고 정면으로 전진해",
+            "Straight ahead",
+            "Keep going straight",
+        ],
+        "default": [
+            "Navigate until the gray basket is centered and fills the lower half of the frame.",
+            "Find and approach the gray basket.",
+            "Move toward the target object in front of you.",
+        ],
+    }
+
     def __init__(
         self,
         data_dir,
@@ -30,6 +74,8 @@ class MobileVLAH5Dataset(Dataset):
         curvature_only=False,
         counterfactual_stop_prob=0.0,
         counterfactual_steer_prob=0.0,
+        stratified_split=False,
+        exclude_path_types=None,
         **kwargs
     ):
         self.data_dir = Path(data_dir)
@@ -48,7 +94,14 @@ class MobileVLAH5Dataset(Dataset):
         # [Counterfactual] 학습 중 이 확률로 명령어 + 대응 액션으로 오버라이드
         self._counterfactual_stop_prob = counterfactual_stop_prob
         self._counterfactual_steer_prob = counterfactual_steer_prob
+        self.stratified_split = stratified_split
+        self.exclude_path_types = set(exclude_path_types) if exclude_path_types else set()
+        self.train_split = train_split
         self.tokenizer = kwargs.get('tokenizer', None)
+        # [V5] grounding_prefix
+        self.grounding_prefix = kwargs.get('grounding_prefix', False)
+        # [BugFix/Track1] instruction_override 명시적 저장 및 반영
+        self.instruction_override = kwargs.get('instruction_override', None)
         
         # [NEW] Handle is_training from GRDataModule/third_party
         if 'is_training' in kwargs:
@@ -63,26 +116,59 @@ class MobileVLAH5Dataset(Dataset):
         for f in all_files:
             try:
                 with h5py.File(f, 'r') as hf:
-                    if len(hf['images']) >= self.min_episode_frames:
+                    # [V5/V4 auto-detect] V5: observations/images, V4: images
+                    n = len(hf['observations']['images']) if 'observations' in hf else len(hf['images'])
+                    if n >= self.min_episode_frames:
                         self.episode_files.append(f)
             except Exception as e:
                 print(f"Error reading {f}: {e}")
 
+        # exclude_path_types 필터 (예: ["straight"] → straight_path 에피소드 제거)
+        if self.exclude_path_types:
+            self.episode_files = [
+                f for f in self.episode_files
+                if not any(pt in f.stem for pt in self.exclude_path_types)
+            ]
+
         # Split
-        num_episodes = len(self.episode_files)
-        split_idx = int(num_episodes * 0.8)
-        
-        if self.is_validation:
-            self.episode_files = self.episode_files[split_idx:]
+        if self.stratified_split:
+            # path 타입별로 그룹화 → 각 그룹에서 독립적으로 train/val split
+            from collections import defaultdict
+            groups = defaultdict(list)
+            for f in self.episode_files:
+                stem = f.stem
+                if 'straight' in stem:
+                    key = 'straight'
+                elif 'left' in stem:
+                    key = 'left'
+                elif 'right' in stem:
+                    key = 'right'
+                else:
+                    key = 'other'
+                groups[key].append(f)
+
+            train_files, val_files = [], []
+            for key in sorted(groups.keys()):
+                gfiles = groups[key]
+                split_i = int(len(gfiles) * self.train_split)
+                train_files.extend(gfiles[:split_i])
+                val_files.extend(gfiles[split_i:])
+
+            self.episode_files = val_files if self.is_validation else train_files
         else:
-            self.episode_files = self.episode_files[:split_idx]
+            split_idx = int(len(self.episode_files) * self.train_split)
+            if self.is_validation:
+                self.episode_files = self.episode_files[split_idx:]
+            else:
+                self.episode_files = self.episode_files[:split_idx]
 
         # Precompute frame indices for __len__ and __getitem__
         self.frame_indices = []
         filtered_files = []
         for ep_idx, f in enumerate(self.episode_files):
             with h5py.File(f, 'r') as hf:
-                num_frames = len(hf['images'])
+                # [V5/V4 auto-detect]
+                num_frames = len(hf['observations']['images']) if 'observations' in hf else len(hf['images'])
                 
                 # [Option B] Curvature Only Filtering
                 if self.curvature_only:
@@ -122,31 +208,25 @@ class MobileVLAH5Dataset(Dataset):
 
     def _get_action_aware_instruction(self, actions):
         """Build a training-only instruction variant from the next predicted action.
-        Added Random Noise to prevent the model from over-relying on instruction text.
+        100% Strict Action-Aware Prompting. No generic variations to prevent shortcut learning.
         """
-        # 20% 확률로 일반적인 명령어를 주어, 모델이 이미지를 강제로 보게 함 (Noisy Instruction)
-        if random.random() < 0.2:
-            generic_variations = [
-                "Navigate to the gray basket",
-                "Go to the target object",
-                "Proceed to the destination",
-                "바구니가 보일 때까지 계속 이동해",
-                "목표물을 향해 가줘",
-                "앞에 보이는 바구니로 도달해"
-            ]
-            return f"<grounding>An image of a robot {random.choice(generic_variations)}"
-
         target_idx = min(self.window_size, len(actions) - 1)
-        # actions shape handling
+        # actions shape handling — V5: [lx, ly, az], V4: [lx, az] (2D)
         if len(actions.shape) == 3:
-            # actions: [window, next_n, 2]
-            tx, ty = actions[target_idx][0][0], actions[target_idx][0][1]
+            a = actions[target_idx][0]
         else:
-            # actions: [window, 2]
-            tx, ty = actions[target_idx][0], actions[target_idx][1]
+            a = actions[target_idx]
+        tx  = float(a[0])                          # linear_x
+        ty  = float(a[1])                          # linear_y (strafe)
+        taz = float(a[2]) if len(a) > 2 else 0.0  # angular_z (제자리 회전)
 
         curr_act_type = "forward"
-        if abs(tx) < 0.3 and abs(ty) < 0.3:
+        # 제자리 회전 (lx≈0, ly≈0, az≠0) — discrete label 변환과 동일
+        if abs(tx) < 0.3 and abs(ty) < 0.3 and taz > 0.15:
+            curr_act_type = "right"
+        elif abs(tx) < 0.3 and abs(ty) < 0.3 and taz < -0.15:
+            curr_act_type = "left"
+        elif abs(tx) < 0.3 and abs(ty) < 0.3:
             curr_act_type = "stop"
         elif tx > 0.3 and abs(ty) < 0.3:
             curr_act_type = "forward"
@@ -227,18 +307,34 @@ class MobileVLAH5Dataset(Dataset):
 
         return f"<grounding>An image of a robot {random.choice(variations)}"
 
+    def _get_path_type_instruction(self, ep_file_path):
+        """에피소드 파일명의 path_type(left/right/straight)을 감지해 direction-specific instruction 반환."""
+        stem = Path(ep_file_path).stem
+        if "left_path" in stem:
+            key = "left"
+        elif "right_path" in stem:
+            key = "right"
+        elif "straight_path" in stem:
+            key = "straight"
+        else:
+            key = "default"
+        variations = self.PATH_TYPE_INSTRUCTIONS[key]
+        return f"<grounding>An image of a robot {random.choice(variations)}"
+
     def __getitem__(self, idx):
         ep_idx, start_frame = self.frame_indices[idx]
         
         with h5py.File(self.episode_files[ep_idx], 'r') as f:
-            total_len = len(f['images'])
+            # [V5/V4 auto-detect] V5: observations/images, V4: images
+            images_src = f['observations']['images'] if 'observations' in f else f['images']
+            total_len = len(images_src)
             total_frames_needed = self.window_size
             total_actions_needed = self.window_size + self.fwd_pred_next_n - 1
-            
+
             # 이미지 로드 (window_size 만큼)
             images = []
             for t in range(start_frame, min(start_frame + total_frames_needed, total_len)):
-                img_array = f['images'][t]
+                img_array = images_src[t]
                 img = Image.fromarray(img_array.astype(np.uint8))
                 
                 # [V3] Color Jitter
@@ -270,17 +366,22 @@ class MobileVLAH5Dataset(Dataset):
             actions = []
             if 'actions' not in f:
                 for _ in range(total_actions_needed):
-                    actions.append(np.zeros(2))
+                    actions.append(np.zeros(3))
             else:
                 episode_actions = f['actions'][:]
                 episode_len = episode_actions.shape[0]
-                
+                action_dim = episode_actions.shape[-1]
+
                 for t in range(start_frame, min(start_frame + total_actions_needed, episode_len)):
-                    actions.append(episode_actions[t][:2].copy())
-                
+                    a = episode_actions[t][:3].copy()
+                    if action_dim < 3:
+                        # V4: [lx, az] → [lx, az, 0] 으로 3D 패딩
+                        a = np.pad(a, (0, 3 - len(a)))
+                    actions.append(a)
+
                 # 부족한 액션 패딩
                 while len(actions) < total_actions_needed:
-                    actions.append(np.zeros(2))
+                    actions.append(np.zeros(3))
             
             actions = np.array(actions)
             # -------------------------------------------------------------------------
@@ -303,32 +404,58 @@ class MobileVLAH5Dataset(Dataset):
             if _apply_counterfactual_stop:
                 stop_variations = [
                     "Stop in front of the gray basket", "Halt immediately",
-                    "Freeze and stay still", "Do not move", "정지해", "움직이지 마"
+                    "Freeze and stay still", "Do not move", "정지해", "움직이지 마",
+                    "Stop moving", "Wait here", "그 자리에서 멈춰",
                 ]
                 language_base = f"<grounding>An image of a robot {random.choice(stop_variations)}"
                 actions = np.zeros_like(actions)
                 
             elif _apply_counterfactual_steer:
-                # 50:50 확률로 좌/우 주입
+                # [V5 Update] 50% Strafe, 50% Turn-in-place 주입
+                is_turn = random.random() < 0.5
                 is_left = random.random() < 0.5
-                if is_left:
-                    steer_vars = ["Turn left", "Steer to the left", "왼쪽으로 가", "좌측으로 회전해"]
-                    language_base = f"<grounding>An image of a robot {random.choice(steer_vars)}"
-                    # [Linear, Angular] -> [0.0, 0.6] 강한 좌회전
-                    actions = np.tile(np.array([0.0, 0.6]), (actions.shape[0], 1))
+
+                if is_turn:
+                    if is_left:
+                        steer_vars = ["Rotate left", "Turn left in place", "왼쪽으로 회전해", "제자리에서 왼쪽으로 틀어"]
+                        # [lx, ly, az] -> [0.0, 0.0, -0.2] (L-Angle)
+                        actions = np.tile(np.array([0.0, 0.0, -0.2]), (actions.shape[0], 1))
+                    else:
+                        steer_vars = ["Rotate right", "Turn right in place", "오른쪽으로 회전해", "제자리에서 오른쪽으로 틀어"]
+                        # [lx, ly, az] -> [0.0, 0.0, 0.2] (R-Angle)
+                        actions = np.tile(np.array([0.0, 0.0, 0.2]), (actions.shape[0], 1))
                 else:
-                    steer_vars = ["Turn right", "Steer to the right", "오른쪽으로 가", "우측으로 회전해"]
-                    language_base = f"<grounding>An image of a robot {random.choice(steer_vars)}"
-                    # [Linear, Angular] -> [0.0, -0.6] 강한 우회전
-                    actions = np.tile(np.array([0.0, -0.6]), (actions.shape[0], 1))
+                    if is_left:
+                        steer_vars = ["Move left", "Steer to the left side", "왼쪽으로 가", "좌측으로 이동해"]
+                        # [lx, ly, az] -> [0.0, 0.6, 0.0] (Left Strafe)
+                        actions = np.tile(np.array([0.0, 0.6, 0.0]), (actions.shape[0], 1))
+                    else:
+                        steer_vars = ["Move right", "Steer to the right side", "오른쪽으로 가", "우측으로 이동해"]
+                        # [lx, ly, az] -> [0.0, -0.6, 0.0] (Right Strafe)
+                        actions = np.tile(np.array([0.0, -0.6, 0.0]), (actions.shape[0], 1))
+                
+                language_base = f"<grounding>An image of a robot {random.choice(steer_vars)}"
                     
             else:
-                use_action_aware_train = (self.instruction_preset == "action_aware_train")
+                # [Track 1] 100% Strict Action-Aware 강제 적용 ('action_aware_train' 이거나 'strict_action_aware' 인 경우)
+                use_action_aware_train = (self.instruction_preset in ["action_aware_train", "strict_action_aware"])
+                use_path_type_aware = (self.instruction_preset == "path_type_aware")
+                
                 if use_action_aware_train:
                     language_base = self._get_action_aware_instruction(actions)
+                elif self.instruction_override is not None:
+                    # BugFix: config의 instruction_override 로직 적용
+                    # TODO: 이 부분은 path_type 기반 override. 추후 action 단위 override 원할 시 수정
+                    language_base = self._get_path_type_instruction(self.episode_files[ep_idx]) 
+                    # override dict에서 뽑아오는 로직이 원래 불량했음. 임시로 path_type_instruction로 연결
+                elif use_path_type_aware:
+                    language_base = self._get_path_type_instruction(self.episode_files[ep_idx])
                 elif 'language_instruction' in f:
                     raw = f['language_instruction'][0]
                     language_base = raw.decode('utf-8') if isinstance(raw, bytes) else str(raw)
+                    # [V5] Kosmos-2 LoRA는 <grounding> 접두사로 학습됨 → 일관성을 위해 추가
+                    if self.grounding_prefix and not language_base.startswith('<grounding>'):
+                        language_base = f"<grounding>{language_base}"
                 else:
                     language_base = "Navigate to the gray basket"
 
@@ -342,11 +469,13 @@ class MobileVLAH5Dataset(Dataset):
                     images = [T.functional.hflip(img) for img in images]
                     
                     # 2. 액션/레이블 반전 (좌우가 바뀌면 LEFT ↔ RIGHT, FL ↔ FR 도 바뀌어야 함)
-                    if not self.discrete_action:
-                        # Continuous action: [linear_x, angular_z] -> angular_z 부호 반전
-                        actions_tensor_aug = torch.from_numpy(np.array(actions)).float()
-                        actions_tensor_aug[..., 1] = -actions_tensor_aug[..., 1]
-                        actions = actions_tensor_aug.numpy()
+                    # 이 시점 actions는 raw (N,3) numpy [lx, ly, az]
+                    # V5: ly(a[1])가 회전축, az(a[2])가 제자리회전축 → 둘 다 부호 반전
+                    actions_tensor_aug = torch.from_numpy(np.array(actions)).float()
+                    actions_tensor_aug[..., 1] = -actions_tensor_aug[..., 1]  # ly 반전
+                    if actions_tensor_aug.shape[-1] > 2:
+                        actions_tensor_aug[..., 2] = -actions_tensor_aug[..., 2]  # az 반전
+                    actions = actions_tensor_aug.numpy()
                     
                     # 3. 언어 텍스트 반전 (LEFT ↔ RIGHT 교체)
                     lang_map = {
@@ -366,42 +495,47 @@ class MobileVLAH5Dataset(Dataset):
         if self.discrete_action:
             cls_labels = []
             for a in actions:
-                # a is (2,)
-                curr_x, curr_y = a[0], a[1]
-                x, y = float(curr_x), float(curr_y)
-                
-                is_x_pos = x > 0.3
-                is_x_neg = x < -0.3
-                is_y_pos = y > 0.3
-                is_y_neg = y < -0.3
-                
-                # 9-classes: 0:Stop, 1:F, 2:B, 3:L, 4:R, 5:FL, 6:FR, 7:BL, 8:BR
-                if not is_x_pos and not is_x_neg and not is_y_pos and not is_y_neg:
-                    label = 0
-                elif is_x_pos and not (is_y_pos or is_y_neg):
-                    label = 1
-                elif is_x_neg and not (is_y_pos or is_y_neg):
-                    label = 2
-                elif not (is_x_pos or is_x_neg) and is_y_pos:
-                    label = 3
-                elif not (is_x_pos or is_x_neg) and is_y_neg:
-                    label = 4
-                elif is_x_pos and is_y_pos:
-                    label = 5
-                elif is_x_pos and is_y_neg:
-                    label = 6
-                elif is_x_neg and is_y_pos:
-                    label = 7
-                elif is_x_neg and is_y_neg:
-                    label = 8
+                # a is (3,): [lx, ly, az]
+                # V5: lx=linear_x, ly=linear_y(strafe), az=angular_z(turn)
+                x  = float(a[0])
+                y  = float(a[1])
+                az = float(a[2])
+
+                is_x = abs(x) > 0.3
+                is_y = abs(y) > 0.3
+                is_z = abs(az) > 0.1
+
+                # 8-classes: 0:Stop, 1:F, 2:L, 3:R, 4:FL, 5:FR, 6:L-Angle, 7:R-Angle
+                if not is_x and not is_y:
+                    if az < -0.1:   # L-Angle (t)
+                        label = 6
+                    elif az > 0.1:  # R-Angle (r)
+                        label = 7
+                    else:
+                        label = 0
+                elif x > 0.3:
+                    if y > 0.3:     # FL (q)
+                        label = 4
+                    elif y < -0.3:  # FR (e)
+                        label = 5
+                    else:           # F (w)
+                        label = 1
+                elif abs(x) < 0.3:
+                    if y > 0.3:     # L (a)
+                        label = 2
+                    elif y < -0.3:  # R (d)
+                        label = 3
+                    else:
+                        label = 0
                 else:
-                    label = 0
+                    label = 0 # Default (includes backward)
+                
                 cls_labels.append(label)
             
-            # 9 classes -> 6 classes mapping
+            # [Backward Compatibility] 6-classes or other sizes
             if self.num_classes == 6:
-                # 0:Stop, 1:F, 2:B(Stop), 3:L, 4:R, 5:FL, 6:FR
-                mapping = {0: 0, 1: 1, 3: 2, 4: 3, 5: 4, 6: 5}
+                # 0:Stop, 1:F, 2:L, 3:R, 4:FL, 5:FR (omit 6,7)
+                mapping = {0: 0, 1: 1, 2: 2, 4: 2, 3: 3, 5: 3, 6: 2, 7: 3} # Simplified mapping if needed
                 cls_labels = [mapping.get(int(l), 0) for l in cls_labels]
             
             actions_tensor_full = torch.tensor(cls_labels, dtype=torch.long)
@@ -426,8 +560,8 @@ class MobileVLAH5Dataset(Dataset):
             # actions shape: (window_size + next_n - 1, 2 or 6 or higher)
             actions_tensor_full = torch.from_numpy(np.array(actions)).float()
             
-            # [CRITICAL] Slice to 2D [linear_x, angular_z] for navigation
-            if actions_tensor_full.shape[-1] > 2:
+            # [CRITICAL] Slice to 3D [lx, ly, az] for navigation (V5) / 2D [lx, az] for V4
+            if actions_tensor_full.shape[-1] > 3:
                 actions_tensor_full = actions_tensor_full[..., :2]
                 
             actions_tensor_full = torch.clamp(actions_tensor_full, -1.0, 1.0)
