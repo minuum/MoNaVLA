@@ -1,0 +1,58 @@
+{
+    "_comment": "V5 Exp04: Google-Robot Pretrained Backbone (kosmos_ph_google-robot-post-train.pt) + no-straight + stratified split. 텍스트 이해 기반 action head 학습.",
+    "parent": "configs/mobile_vla_v5_exp01_discrete.json",
+    "exp_name": "v5-exp04-google-robot",
+    "task_name": "mobile_vla_v5_exp04",
+    "output_root": "runs/v5_nav",
+    "log_root": "runs/v5_nav",
+
+    "_comment_backbone": "V4 ckpt 대신 google-robot pretrained backbone 사용. load_vlm_only=true로 백본만 로드.",
+    "model_load_path": null,
+    "model_load_source": "torch",
+    "pretrained_vlm_path": "/home/billy/25-1kp/MoNaVLA/.vlms/google_robot_pretrain/kosmos_ph_google-robot-post-train.pt",
+    "load_vlm_only": true,
+
+    "learning_rate": 1e-4,
+    "max_epochs": 30,
+
+    "act_head": {
+        "type": "MobileVLAClassificationDecoder",
+        "num_classes": 6,
+        "hidden_size": 1024,
+        "class_weights": [5.0, 0.3, 4.0, 4.0, 2.0, 2.0]
+    },
+    "train_dataset": {
+        "type": "NavDataset",
+        "data_dir": "/home/billy/25-1kp/MoNaVLA/ROS_action/v5_data_bak/mobile_vla_dataset_v5",
+        "episode_pattern": "episode_*.h5",
+        "discrete_action": true,
+        "num_classes": 6,
+        "window_size": 6,
+        "fwd_pred_next_n": 3,
+        "instruction_preset": "default",
+        "grounding_prefix": true,
+        "augment": true,
+        "use_color_jitter": true,
+        "use_random_crop": true,
+        "train_split": 0.8,
+        "stratified_split": true,
+        "exclude_path_types": ["straight"],
+        "min_episode_frames": 8
+    },
+    "val_dataset": {
+        "type": "NavDataset",
+        "data_dir": "/home/billy/25-1kp/MoNaVLA/ROS_action/v5_data_bak/mobile_vla_dataset_v5",
+        "episode_pattern": "episode_*.h5",
+        "discrete_action": true,
+        "num_classes": 6,
+        "window_size": 6,
+        "fwd_pred_next_n": 3,
+        "instruction_preset": "default",
+        "grounding_prefix": true,
+        "is_validation": true,
+        "train_split": 0.8,
+        "stratified_split": true,
+        "exclude_path_types": ["straight"],
+        "min_episode_frames": 8
+    }
+}

@@ -14,6 +14,11 @@ import sys
 import os
 from pathlib import Path
 
+# ── MPI hang 방지: mpi4py가 설치된 환경에서 Lightning이 orted 데몬을 spawn해 블로킹됨
+# MPI.COMM_WORLD.Get_size() 호출 시 hang → _MPI4PY_AVAILABLE=False로 패치해 detect() 스킵
+import lightning.fabric.plugins.environments.mpi as _mpi_env_mod
+_mpi_env_mod._MPI4PY_AVAILABLE = False
+
 # ── Path 설정 ─────────────────────────────────────────────────
 ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT_DIR))

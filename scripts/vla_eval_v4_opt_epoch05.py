@@ -43,7 +43,7 @@ def parse_action_logits(outputs):
     if isinstance(outputs, (tuple, list)): outputs = outputs[0]
     pred_np = outputs.detach().cpu().float().numpy()
     ndim = pred_np.ndim
-    if ndim == 4: class_logits = pred_np[0, -1, -1, :]
+    if ndim == 4: class_logits = pred_np[0, -1, 0, :]
     elif ndim == 3: class_logits = pred_np[0, -1, :]
     elif ndim == 2: class_logits = pred_np[0, :]
     else: return None

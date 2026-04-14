@@ -5,7 +5,10 @@ from datetime import datetime
 import numpy as np
 
 class InferenceLogger:
-    def __init__(self, log_dir="/home/soda/vla/docs/inference_reports"):
+    def __init__(self, log_dir=None):
+        if log_dir is None:
+            default_root = os.getenv("VLA_ROOT", os.getenv("HOME", "/tmp"))
+            log_dir = os.path.join(default_root, "docs/inference_reports")
         self.log_dir = log_dir
         if not os.path.exists(self.log_dir):
             os.makedirs(self.log_dir)

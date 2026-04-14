@@ -22,8 +22,10 @@ import gc
 import copy
 
 # 1. Add project root and RoboVLMs to sys.path
+# __file__ = .../MoNaVLA/robovlm_nav/serve/inference_server.py
+# project_root = .../MoNaVLA (two levels up from serve/)
 current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(current_dir)
+project_root = os.path.dirname(os.path.dirname(current_dir))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
@@ -66,6 +68,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Mobile VLA Inference API", version="1.0.0")
+
 
 # API Key 설정
 API_KEY_NAME = "X-API-Key"
@@ -180,7 +183,7 @@ class MobileVLAInference:
         self.action_buffer = ActionBuffer(chunk_size=10)
         self.inference_count = 0
         self.image_history = []
-        self.prev_action = np.zeros(2)  # For Action Smoothing
+        self.prev_action = np.zeros(3)  # [lx, ly, az] 3DOF for Action Smoothing
         self.smoothing_alpha = 0.6      # 0.6 current, 0.4 prev
         
         logger.info(f"Loading model from {checkpoint_path}")
@@ -205,21 +208,39 @@ class MobileVLAInference:
         logger.info(f"📊 [INIT] Window: {self.window_size}, T={self.temperature}, Penalty: {self.logit_penalty}")
 
         self.inference_mode = "classification" if self.config.get("discrete_action", False) else self._resolve_inference_mode()
+        self.num_classes = int(self.config.get("train_dataset", {}).get("num_classes", 9))
         self.class_labels, self.class_action_map, self.class_index_action_map = self._build_classification_map()
         
-        # 6-class mapping 강제 보정 (v3 dataset 기준)
-        if self.config.get("num_classes") == 6:
-            speed = float(self.config.get("classification_speed", 1.15))
-            diag = speed * 0.707
+        # V3/V5 Dataset Label Mapping
+        speed = float(self.config.get("classification_speed", 1.15))
+        angle_speed = 0.5 # Default rotation speed
+        diag = speed * 0.707
+        
+        # [CRITICAL] Sync with nav_h5_dataset_impl.py mapping
+        # 6-class mapping: {0: 0(Stop), 1: 1(F), 3: 2(L), 4: 3(R), 5: 4(FL), 6: 5(FR)}
+        if self.num_classes == 6:
             self.class_index_action_map = {
-                0: [0.0, 0.0],   # STOP
-                1: [speed, 0.0], # FORWARD
-                2: [0.0, speed], # LEFT
-                3: [0.0, -speed],# RIGHT
-                4: [diag, diag], # FL
-                5: [diag, -diag] # FR
+                0: [0.0, 0.0, 0.0],   # STOP
+                1: [speed, 0.0, 0.0], # FORWARD
+                2: [0.0, speed, 0.0],  # LEFT (3->2)
+                3: [0.0, -speed, 0.0], # RIGHT (4->3)
+                4: [diag, diag, 0.0],  # FWD+L (5->4)
+                5: [diag, -diag, 0.0], # FWD+R (6->5)
             }
-            logger.info("🎯 Forced 6-class index mapping (STOP/F/L/R/FL/FR)")
+            logger.info("🎯 Applied 6-class sync mapping: 2=L, 3=R, 4=FL, 5=FR")
+        else:
+            self.class_index_action_map = {
+                0: [0.0, 0.0, 0.0],   # STOP
+                1: [speed, 0.0, 0.0], # FORWARD (W)
+                2: [0.0, 0.0, -angle_speed], # ROTATE LEFT (T key)
+                3: [0.0, speed, 0.0],  # STRAFE LEFT (A)
+                4: [0.0, -speed, 0.0], # STRAFE RIGHT (D)
+                5: [diag, diag, 0.0],  # FWD + STRAFE LEFT
+                6: [diag, -diag, 0.0], # FWD + STRAFE RIGHT
+                7: [-speed, 0.0, 0.0], # BACKWARD (S)
+                8: [0.0, 0.0, angle_speed],  # ROTATE RIGHT (R key)
+            }
+            logger.info("🎯 Normal 9-class mapping applied")
         
         # Integration fallback for scale_factor
         self.scale_factor = self.config.get("scale_factor", self.config.get("classification_speed", 1.15))
@@ -242,10 +263,15 @@ class MobileVLAInference:
         except Exception as e:
             logger.warning(f"⚠️ [INTERVENTION] Failed to apply window size: {e}")
         
+        # Re-normalize tokenizer path after MobileVLATrainer may have overwritten it
+        # (MobileVLATrainer.__init__ can derive model_path from model_url which may be a stale path)
+        self._normalize_config_paths()
+        vlm_model_path = str(Path(project_root) / ".vlms" / "kosmos-2-patch14-224")
+        tok_path = self.config.get('tokenizer', {}).get('pretrained_model_name_or_path', vlm_model_path)
+        if not Path(tok_path).exists():
+            tok_path = vlm_model_path
         from transformers import AutoProcessor
-        self.processor = AutoProcessor.from_pretrained(
-            self.config['tokenizer']['pretrained_model_name_or_path']
-        )
+        self.processor = AutoProcessor.from_pretrained(tok_path)
         logger.info("✅ MobileVLAInference initialized successfully")
 
     def _normalize_config_paths(self) -> None:
@@ -258,7 +284,16 @@ class MobileVLAInference:
                 return val
             p = Path(val).expanduser()
             if p.is_absolute():
-                return str(p)
+                # Only return as-is if it actually exists; otherwise fall through to search
+                if p.exists():
+                    return str(p)
+                # Absolute path doesn't exist (e.g. stale /home/soda/... path from ancestor config)
+                # Extract the model basename and search under project_root
+                basename = p.name
+                project_candidate = Path(project_root) / ".vlms" / basename
+                if project_candidate.exists():
+                    return str(project_candidate.resolve())
+                return str(p)  # fallback: return original even if not found
 
             candidates = [
                 Path(project_root) / val,
@@ -271,12 +306,9 @@ class MobileVLAInference:
             # Fallback: project-root anchored path
             return str((Path(project_root) / val).resolve())
 
-        if "model_path" in self.config:
-            self.config["model_path"] = _norm_path(self.config.get("model_path"))
-        if "model_config" in self.config:
-            self.config["model_config"] = _norm_path(self.config.get("model_config"))
-        if "model_load_path" in self.config:
-            self.config["model_load_path"] = _norm_path(self.config.get("model_load_path"))
+        for key in ("model_path", "model_config", "model_load_path", "model_url"):
+            if key in self.config:
+                self.config[key] = _norm_path(self.config.get(key))
 
         tokenizer_cfg = self.config.get("tokenizer", {})
         if isinstance(tokenizer_cfg, dict) and "pretrained_model_name_or_path" in tokenizer_cfg:
@@ -412,27 +444,31 @@ class MobileVLAInference:
         """모델 로딩 (VLA_QUANTIZE=false면 FP16, true면 INT8로 로드)"""
         import sys
         import os
-        project_root = os.getenv("VLA_ROOT", "/home/soda/vla")
+        # Use the module-level project_root (correctly resolved to MoNaVLA dir)
+        # Fall back to VLA_ROOT env only if set; do NOT default to /home/soda/vla
+        _vla_root = os.getenv("VLA_ROOT", project_root)
         # Ensure RoboVLMs is in path
-        if project_root not in sys.path:
-            sys.path.append(project_root)
-            
+        if _vla_root not in sys.path:
+            sys.path.append(_vla_root)
+
         def _update_paths(config_dict):
-            # soda 서버와 billy 서버의 경로 차이를 모두 동적 대응
-            old_roots = ["/home/billy/25-1kp/vla", "/home/soda/vla"]
+            # kosmos-2 model path normalization: ensure local path is used
             fixed_model_base = os.getenv("VLA_MODEL_PATH", os.path.join(project_root, ".vlms"))
-            
+            old_roots = ["/home/billy/25-1kp/vla", "/home/soda/vla"]
+
             for k, v in config_dict.items():
                 if isinstance(v, str):
                     # 1순위: 모델 기반 경로 전용 강제 치환 (가장 확실함)
                     if "kosmos-2-patch14-224" in v:
-                         config_dict[k] = os.path.join(fixed_model_base, "kosmos-2-patch14-224")
-                         continue
-                    
+                        candidate = os.path.join(fixed_model_base, "kosmos-2-patch14-224")
+                        if os.path.exists(candidate):
+                            config_dict[k] = candidate
+                        continue
+
                     # 2순위: 기타 일반 경로 치환
                     for old_root in old_roots:
                         if old_root in v:
-                             config_dict[k] = v.replace(old_root, project_root)
+                            config_dict[k] = v.replace(old_root, project_root)
                 elif isinstance(v, dict):
                     _update_paths(v)
         _update_paths(self.config)
@@ -505,12 +541,9 @@ class MobileVLAInference:
         self.model.to(self.device).eval()
         
         if not self.use_quant:
-            if torch.cuda.is_available() and torch.cuda.is_bf16_supported():
-                 logger.info("🚀 Converting backbone to BFloat16 (Ampere+ Optimized)")
-                 self.model.bfloat16()
-            else:
-                 logger.info("🚀 Converting backbone to Float16 (Standard)")
-                 self.model.half()
+            # Note: LSTM (act_head) does not support BFloat16 on CUDA; use Float16 for stability
+            logger.info("🚀 Converting backbone to Float16 (Standard)")
+            self.model.half()
         else:
             logger.info("✅ Kept in INT8 (BitsAndBytes) mode")
              
@@ -688,7 +721,7 @@ class MobileVLAInference:
             self.image_history = [] 
             
             latency_ms = (time.time() - start_time) * 1000
-            return np.array([0.0, 0.0]), latency_ms, np.zeros((1, 2))
+            return np.array([0.0, 0.0, 0.0]), latency_ms, np.zeros((1, 3))
 
 
 
@@ -866,11 +899,11 @@ def get_model(refresh=False, use_quant=None):
         # Checkpoint and Config from Env or Default
         checkpoint_path = os.getenv(
             "VLA_CHECKPOINT_PATH",
-            "runs/v4_nav/kosmos/mobile_vla_v4_exp01/2026-03-15/v4-retrain-v4/epoch_epoch=epoch=04-val_loss=val/loss=1.851.ckpt"
+            "runs/v5_nav/kosmos/mobile_vla_v5_exp01/2026-04-10/v5-exp01-discrete/epoch_epoch=epoch=05-val_loss=val_loss=2.270.ckpt"
         )
         config_path = os.getenv(
-            "VLA_CONFIG_PATH", 
-            "configs/mobile_vla_v4_exp01.json"
+            "VLA_CONFIG_PATH",
+            "configs/mobile_vla_v5_exp01_discrete.json"
         )
         
         model_instance = MobileVLAInference(
@@ -946,7 +979,8 @@ async def predict(request: InferenceRequest, api_key: str = Depends(verify_api_k
         )
         
     except Exception as e:
-        logger.error(f"Prediction failed: {e}")
+        import traceback
+        logger.error(f"Prediction failed: {e}\n{traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -987,11 +1021,21 @@ async def test_endpoint(api_key: str = Depends(verify_api_key)):
 
 if __name__ == "__main__":
     import uvicorn
-    
-    # Run server
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--port", type=int, default=int(os.getenv("VLA_PORT", "8000")))
+    parser.add_argument("--host", type=str, default="0.0.0.0")
+    args = parser.parse_args()
+
+    # 모델을 uvicorn 시작 전에 미리 로드 → /health에서 model_loaded=true 보장
+    logger.info("🔄 Pre-loading model before server start...")
+    get_model()
+    logger.info("✅ Model pre-loaded. Starting uvicorn...")
+
     uvicorn.run(
         app,
-        host="0.0.0.0",
-        port=8000,
+        host=args.host,
+        port=args.port,
         log_level="info"
     )

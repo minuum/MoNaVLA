@@ -1,0 +1,10 @@
+{
+    "_comment": "V5 Exp06: Pure HF Kosmos-2 백본 (google-robot 없이) + action_aware_train. Exp05에서 pretrained_vlm_path만 제거. 텍스트 이해 경로(image_to_text_projection) 온전한 상태에서 시작.",
+    "parent": "configs/mobile_vla_v5_exp05_action_aware.json",
+    "exp_name": "v5-exp06-pure-hf",
+    "task_name": "mobile_vla_v5_exp06",
+    "pretrained_vlm_path": null,
+    "load_vlm_only": false,
+    "model_load_path": null,
+    "model_load_source": null
+}

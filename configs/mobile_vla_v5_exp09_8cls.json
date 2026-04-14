@@ -15,15 +15,20 @@
     "batch_size": 4,
     "num_workers": 4,
     "learning_rate": 2e-5,
-    "max_epochs": 40,
+    "max_epochs": 5,
     "model_load_path": "/home/billy/25-1kp/MoNaVLA/runs/v4_nav/kosmos/mobile_vla_v4_regression_v2/2026-03-26/v4-regression-v2-weighted-v2/last.ckpt",
     "model_load_source": "lightning",
     "resume": null,
     "seed": 42,
     "act_head": {
         "type": "MobileVLAClassificationDecoder",
-        "num_classes": 8,
         "hidden_size": 1024,
+        "action_dim": 8,
+        "num_classes": 8,
+        "down_sample": "none",
+        "latent": 1,
+        "fwd_pred_next_n": 3,
+        "num_layers": 4,
         "class_weights": [5.0, 1.0, 10.0, 10.0, 5.0, 5.0, 15.0, 15.0]
     },
     "train_dataset": {
@@ -34,7 +39,7 @@
         "num_classes": 8,
         "window_size": 8,
         "fwd_pred_next_n": 3,
-        "instruction_preset": "default",
+        "instruction_preset": "action_aware_train",
         "grounding_prefix": true,
         "counterfactual_steer_prob": 0.15,
         "counterfactual_stop_prob": 0.05,
@@ -53,8 +58,14 @@
         "num_classes": 8,
         "window_size": 8,
         "fwd_pred_next_n": 3,
-        "instruction_preset": "default",
+        "instruction_preset": null,
         "grounding_prefix": true,
+        "instruction_override": {
+            "left": ["Navigate toward the gray basket until it is centered in the frame"],
+            "right": ["Navigate toward the gray basket until it is centered in the frame"],
+            "straight": ["Navigate toward the gray basket until it is centered in the frame"],
+            "default": ["Navigate toward the gray basket until it is centered in the frame"]
+        },
         "is_validation": true,
         "train_split": 0.9,
         "min_episode_frames": 10
