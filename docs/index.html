@@ -1,216 +1,268 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MoNaVLA Project Hub - Next-Gen Navigation VLA</title>
-    <!-- Google Fonts: Inter & Outfit -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Outfit:wght@500;700&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --primary: #2563eb;
-            --primary-dark: #1e40af;
-            --accent: #f59e0b;
-            --bg: #ffffff;
-            --bg-alt: #f8fafc;
-            --text: #0f172a;
-            --text-muted: #64748b;
-            --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-            --radius: 12px;
-        }
+  <meta charset="utf-8">
+  <meta name="description"
+        content="MoNaVLA: Advanced Vision-Language-Action Models for Precise Robot Navigation in Dynamic Domestic Environments.">
+  <meta name="keywords" content="MoNaVLA, Vision-Language-Action, Robotics, Navigation">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MoNaVLA: Mobile Navigation Vision-Language-Action Models</title>
 
-        * { box-sizing: border-box; }
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: var(--bg);
-            color: var(--text);
-            margin: 0;
-            line-height: 1.6;
-        }
-
-        h1, h2, h3 { font-family: 'Outfit', sans-serif; }
-
-        .container { max-width: 1100px; margin: 0 auto; padding: 40px 20px; }
-
-        /* Header & Hero */
-        .hero {
-            text-align: center;
-            padding: 80px 0 60px;
-            background: radial-gradient(circle at top right, #eff6ff 0%, #ffffff 100%);
-            border-bottom: 1px solid #e2e8f0;
-        }
-        .badge {
-            display: inline-block;
-            padding: 4px 12px;
-            background: #dbeafe;
-            color: var(--primary);
-            border-radius: 20px;
-            font-size: 0.85rem;
-            font-weight: 600;
-            margin-bottom: 20px;
-        }
-        .hero h1 { margin: 0; font-size: 3.5rem; letter-spacing: -1px; color: var(--text); }
-        .hero p { font-size: 1.25rem; color: var(--text-muted); max-width: 700px; margin: 20px auto; }
-
-        /* Main Dashboard Grid */
-        .dashboard-grid {
-            display: grid;
-            grid-template-columns: 2fr 1fr;
-            gap: 30px;
-            margin-top: -40px;
-        }
-
-        .card {
-            background: white;
-            border-radius: var(--radius);
-            padding: 30px;
-            border: 1px solid #e2e8f0;
-            box-shadow: var(--card-shadow);
-            transition: transform 0.2s;
-        }
-        .card:hover { transform: translateY(-4px); }
-
-        .card-title {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-size: 1.5rem;
-            margin-bottom: 20px;
-            color: var(--text);
-        }
-        .card-title i { color: var(--primary); }
-
-        /* Exp 09 Section Styles */
-        .highlight-box {
-            background: #f1f5f9;
-            border-radius: 8px;
-            padding: 20px;
-            margin: 15px 0;
-        }
-        .action-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-        .action-table th, .action-table td { padding: 10px; border-bottom: 1px solid #e2e8f0; text-align: left; font-size: 0.9rem; }
-        .action-table th { color: var(--text-muted); font-weight: 600; }
-
-        /* Roadmap vertical list */
-        .roadmap-list { list-style: none; padding: 0; }
-        .roadmap-item {
-            display: flex;
-            gap: 15px;
-            padding-bottom: 20px;
-            border-left: 2px solid #e2e8f0;
-            margin-left: 10px;
-            padding-left: 20px;
-            position: relative;
-        }
-        .roadmap-item::before {
-            content: '';
-            position: absolute;
-            left: -6px;
-            top: 0;
-            width: 10px;
-            height: 10px;
-            background: var(--primary);
-            border-radius: 50%;
-        }
-        .roadmap-item.completed::before { background: #10b981; }
-        .roadmap-item.active::before { background: var(--accent); }
-
-        /* Footer */
-        footer {
-            text-align: center;
-            padding: 60px 0;
-            color: var(--text-muted);
-            font-size: 0.9rem;
-        }
-
-        /* Responsive */
-        @media (max-width: 850px) {
-            .dashboard-grid { grid-template-columns: 1fr; }
-            .hero h1 { font-size: 2.5rem; }
-        }
-    </style>
+  <!-- Google Fonts for Academic Feel -->
+  <link href="https://fonts.googleapis.com/css?family=Google+Sans|Noto+Sans|Castoro" rel="stylesheet">
+  <!-- Bulma Framework (Similar to OpenVLA/Nerfies) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <style>
+    body {
+        font-family: 'Noto Sans', sans-serif;
+    }
+    .title.is-1 {
+        font-family: 'Google Sans', sans-serif;
+        font-weight: 800;
+        letter-spacing: -1px;
+    }
+    .hero-body {
+      padding: 4rem 1.5rem;
+    }
+    .hero {
+      background: linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%);
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .publication-links {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 12px;
+      margin-top: 25px;
+    }
+    .publication-links .button {
+        border-radius: 8px; /* Slightly modern NanoLLM touch */
+        font-weight: 600;
+        transition: all 0.2s ease;
+    }
+    .publication-links .button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .abstract-content {
+      font-size: 1.15rem;
+      line-height: 1.7;
+      text-align: justify;
+    }
+    .methodology-box {
+      background-color: #ffffff;
+      border-radius: 12px;
+      padding: 30px;
+      margin-top: 20px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      border: 1px solid #e2e8f0;
+    }
+    .table-container {
+        margin-top: 25px;
+    }
+    th {
+        background-color: #f1f5f9 !important;
+        color: #334155 !important;
+    }
+    .highlight {
+        color: #2563eb;
+        font-weight: bold;
+    }
+    .roadmap-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+    .roadmap-list li {
+        padding: 15px 0;
+        border-bottom: 1px solid #e2e8f0;
+        font-size: 1.1rem;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+    }
+    .roadmap-list li:last-child {
+        border-bottom: none;
+    }
+    .roadmap-list i {
+        font-size: 1.5rem;
+    }
+    .footer {
+        background-color: #0f172a;
+        color: #94a3b8;
+    }
+    .footer a {
+        color: #38bdf8;
+    }
+  </style>
 </head>
 <body>
 
 <section class="hero">
-    <div class="container">
-        <span class="badge">Version 5.0 Update</span>
-        <h1>MoNaVLA Project Hub</h1>
-        <p>Advanced Vision-Language-Action Models for Precise Robot Navigation in Dynamic Domestic Environments.</p>
+  <div class="hero-body">
+    <div class="container is-max-desktop">
+      <div class="columns is-centered">
+        <div class="column has-text-centered">
+          <h1 class="title is-1 publication-title">MoNaVLA: Advanced Vision-Language-Action Models for Precise Robot Navigation</h1>
+          <div class="is-size-5 publication-authors">
+            <span class="author-block">Advanced Agentic Robotics Team</span>
+          </div>
+
+          <div class="column has-text-centered" style="margin-top: 10px;">
+            <div class="publication-links">
+              <!-- Code Link. -->
+              <span class="link-block">
+                <a href="https://github.com/minuum/MoNaVLA"
+                   class="button is-dark">
+                  <span class="icon">
+                      <i class="fab fa-github"></i>
+                  </span>
+                  <span>Code Repo</span>
+                  </a>
+              </span>
+              <!-- Features / Report Link. -->
+              <span class="link-block">
+                <a href="sensitivity_report.html"
+                   class="button is-link is-light">
+                  <span class="icon">
+                      <i class="fas fa-file-alt"></i>
+                  </span>
+                  <span>Sensitivity Report</span>
+                  </a>
+              </span>
+              <!-- Dataset Status -->
+              <span class="link-block">
+                <a href="#"
+                   class="button is-primary is-light">
+                  <span class="icon">
+                      <i class="fas fa-database"></i>
+                  </span>
+                  <span>V5 Dataset Active</span>
+                  </a>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
+  </div>
 </section>
 
-<div class="container">
-    <div class="dashboard-grid">
-        <!-- Main Content: Exp 09 Update -->
-        <div class="card">
-            <div class="card-title">🚀 Latest: Exp 09 Optimized Action Model</div>
-            <p>V5 데이터셋의 핵심 과제인 <strong>'제자리 회전(Turn-in-place)'</strong> 성능 보강을 위해 클래스 체계를 전면 개편했습니다.</p>
-            
-            <div class="highlight-box">
-                <h4 style="margin-top:0">핵심 전략 : Bootstrapping & 8-Class Discretization</h4>
-                <ul style="font-size: 0.95rem;">
-                    <li><strong>8-Class 구조</strong>: 기존 Strafe(이동)에 통합되었던 회전 동작을 별도 클래스로 분해</li>
-                    <li><strong>역사실적 주입(Counterfactual)</strong>: 15%의 확률로 "회전" 명령과 액션을 강제 주입하여 데이터 불균형 극복</li>
-                    <li><strong>Grounding 강화</strong>: 한/영 병기 지시문을 통해 VLM의 명령 이해도 최적화</li>
-                </ul>
-            </div>
-
-            <table class="action-table">
-                <thead>
-                    <tr>
-                        <th>Class ID</th>
-                        <th>Action Name</th>
-                        <th>Target Instruction</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr><td>0</td><td>STOP</td><td>"Halt in front of the gray basket."</td></tr>
-                    <tr><td>1</td><td>Forward</td><td>"Navigate straight forward."</td></tr>
-                    <tr><td>6/7</td><td><strong>Turn (L/R)</strong></td><td>"Rotate toward the basket in place."</td></tr>
-                    <tr><td>4/5</td><td>Diagonal</td><td>"Angle toward left-front side."</td></tr>
-                </tbody>
-            </table>
+<section class="section">
+  <div class="container is-max-desktop">
+    <!-- Abstract. -->
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Abstract</h2>
+        <div class="content abstract-content">
+          <p>
+            <strong>MoNaVLA</strong>는 로봇의 동적 네비게이션을 위해 설계된 차세대 Vision-Language-Action 모델입니다. 
+            시각적 편향(Visual Bias) 문제를 해결하기 위해 텍스트-로짓 민감도 분석을 수행하였으며, 
+            가장 최신화된 <strong>Exp 09</strong>에서는 8-Class Discretization과 Counterfactual Bootstrapping 기법을 적용하여 
+            제자리 회전(Turn-in-place)과 같은 미세한 기동을 극적으로 향상시켰습니다.
+          </p>
         </div>
-
-        <!-- Sidebar: Status & Info -->
-        <div style="display: flex; flex-direction: column; gap: 30px;">
-                <div class="card">
-                <div class="card-title">⚡ Research Findings</div>
-                <p style="font-size:0.9rem; color: var(--text-muted);">텍스트-로짓 민감도 분석 결과, 모델이 시각 정보에 과도하게 의존하는 경향(Visual Bias)을 확인했습니다. 이를 해결하기 위해 Exp 09에서 텍스트 결합도를 15% 이상 인위적으로 높였습니다.</p>
-                <a href="sensitivity_report.html" style="color: var(--primary); text-decoration: none; font-weight: 600; font-size: 0.9rem;">View Slides →</a>
-            </div>
-
-            <div class="card">
-                <div class="card-title">📅 Roadmap</div>
-                <ul class="roadmap-list">
-                    <li class="roadmap-item completed">
-                        <div>
-                            <strong>Dataset V5 Compilation</strong>
-                            <p style="font-size: 0.8rem; margin:0;">150 Episodes, 9 Scenarios set.</p>
-                        </div>
-                    </li>
-                    <li class="roadmap-item active">
-                        <div>
-                            <strong>Exp 09 Training (8-Class)</strong>
-                            <p style="font-size: 0.8rem; margin:0;">Currently In-progress...</p>
-                        </div>
-                    </li>
-                    <li class="roadmap-item">
-                        <div>
-                            <strong>Real-robot Validation</strong>
-                            <p style="font-size: 0.8rem; margin:0;">Gradio-based hardware test.</p>
-                        </div>
-                    </li>
-                </ul>
-            </div>
-        </div>
+      </div>
     </div>
+    <!--/ Abstract. -->
+  </div>
+</section>
 
-    <footer>
-        &copy; 2026 MoNaVLA Deepmind Team. Advanced Agentic Coding for Robotics.
-    </footer>
-</div>
+<section class="section" style="background-color: #f8fafc;">
+  <div class="container is-max-desktop">
+    <div class="columns is-centered">
+      <div class="column is-full-width">
+        <h2 class="title is-3 has-text-centered">Methodology: Optimizing Action Policies (Exp 09)</h2>
+        <div class="methodology-box">
+          <h3 class="title is-4"><i class="fas fa-bolt has-text-warning"></i> Counterfactual Bootstrapping</h3>
+          <p>
+            제자리 회전(Class 6, 7)은 에피소드 극초반에만 짧게 발생하여 데이터 불균형을 야기합니다.
+            이를 해결하기 위해 데이터로더 수준에서 <strong>15% 확률로 "제자리 회전 명령 + 회전 액션"을 강제로 주입</strong>하여, 명령어와 액션 간의 Grounding 결합도를 물리적으로 강화합니다.
+          </p>
+          <br>
+          <h3 class="title is-4"><i class="fas fa-sitemap has-text-info"></i> 8-Class Discretization</h3>
+          <p>
+            기존의 좌/우 이동(Strafe)과 제자리 회전(Turn-in-place)을 분리하여 더욱 정밀한 3DOF 기동을 구현합니다.
+          </p>
+          <div class="table-container">
+            <table class="table is-bordered is-striped is-narrow is-hoverable is-fullwidth">
+              <thead>
+                <tr>
+                  <th>Class ID</th>
+                  <th>Action Name</th>
+                  <th>Target Instruction (Example)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td>0</td><td>STOP</td><td>"Halt in front of the gray basket."</td></tr>
+                <tr><td>1</td><td>Forward</td><td>"Navigate straight forward."</td></tr>
+                <tr><td>2 / 3</td><td>Strafe (L/R)</td><td>"Move left to the obstacle."</td></tr>
+                <tr><td>4 / 5</td><td>Diagonal</td><td>"Angle toward left-front side."</td></tr>
+                <tr><td><span class="highlight">6 / 7</span></td><td><span class="highlight">Turn (L/R)</span></td><td><span class="highlight">"Rotate toward the basket in place."</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container is-max-desktop">
+    <div class="columns is-centered">
+      <div class="column is-full-width">
+        <h2 class="title is-3 has-text-centered">Experimental Progress & Roadmap</h2>
+        <div class="content methodology-box" style="margin-top: 20px;">
+          <ul class="roadmap-list">
+            <li>
+                <i class="fas fa-check-circle has-text-success"></i>
+                <div>
+                    <strong>Dataset V5 Compilation</strong><br>
+                    <span class="is-size-6 has-text-grey">150 Episodes, 9 Scenarios (Balanced)</span>
+                </div>
+            </li>
+            <li>
+                <i class="fas fa-sync-alt has-text-info fa-spin"></i>
+                <div>
+                    <strong>Exp 09 Training</strong><br>
+                    <span class="is-size-6 has-text-grey">8-Class Action Model Optimization (Status: RUNNING)</span>
+                </div>
+            </li>
+            <li>
+                <i class="far fa-circle has-text-grey-light"></i>
+                <div>
+                    <strong>Real-robot Validation</strong><br>
+                    <span class="is-size-6 has-text-grey">Hardware test using Gradio-based interface and deployment</span>
+                </div>
+            </li>
+            <li>
+                <i class="far fa-circle has-text-grey-light"></i>
+                <div>
+                    <strong>BBox Grounding Integration</strong><br>
+                    <span class="is-size-6 has-text-grey">Enhancing spatial awareness with bounding box prompts</span>
+                </div>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="container">
+    <div class="content has-text-centered">
+      <p>
+        MoNaVLA project page design is inspired by <a href="https://openvla.github.io/">OpenVLA</a> and <a href="https://dusty-nv.github.io/NanoLLM/">NanoLLM</a>.<br>
+        &copy; 2026 Advanced Agentic Robotics.
+      </p>
+    </div>
+  </div>
+</footer>
 
 </body>
 </html>
