@@ -1,0 +1,6 @@
+[submodule "menemory"]
+	path = menemory
+	url = https://github.com/minuum/menemory.git
+[submodule "third_party/simpler_env"]
+	path = third_party/simpler_env
+	url = https://github.com/simpler-env/SimplerEnv.git
