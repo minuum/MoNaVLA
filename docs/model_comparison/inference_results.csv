@@ -1,0 +1,13 @@
+model,instruction,expected_direction,linear_x,linear_y,action
+mobile_vla_chunk10_20251217_epoch07,Navigate around obstacles and reach the front of the beverage bottle on the left,left,,,"[nan, nan]"
+mobile_vla_chunk10_20251217_epoch07,Navigate around obstacles and reach the front of the beverage bottle on the right,right,,,"[nan, nan]"
+mobile_vla_chunk10_20251217_epoch07,Move forward to the left bottle,left,,,"[nan, nan]"
+mobile_vla_chunk10_20251217_epoch07,Move forward to the right bottle,right,,,"[nan, nan]"
+mobile_vla_chunk10_20251217_epoch08,Navigate around obstacles and reach the front of the beverage bottle on the left,left,,,"[nan, nan]"
+mobile_vla_chunk10_20251217_epoch08,Navigate around obstacles and reach the front of the beverage bottle on the right,right,,,"[nan, nan]"
+mobile_vla_chunk10_20251217_epoch08,Move forward to the left bottle,left,,,"[nan, nan]"
+mobile_vla_chunk10_20251217_epoch08,Move forward to the right bottle,right,,,"[nan, nan]"
+mobile_vla_chunk10_20251217_last,Navigate around obstacles and reach the front of the beverage bottle on the left,left,,,"[nan, nan]"
+mobile_vla_chunk10_20251217_last,Navigate around obstacles and reach the front of the beverage bottle on the right,right,,,"[nan, nan]"
+mobile_vla_chunk10_20251217_last,Move forward to the left bottle,left,,,"[nan, nan]"
+mobile_vla_chunk10_20251217_last,Move forward to the right bottle,right,,,"[nan, nan]"

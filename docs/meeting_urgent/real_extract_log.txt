@@ -1,0 +1,39 @@
+================================================================================
+REAL DATA: Extracting from mobile_vla_dataset
+Time: 1h 33m left!
+================================================================================
+
+Device: cuda
+Max episodes: 10
+
+[1/5] Loading episodes...
+  Left: 10
+  Right: 10
+
+[2/5] Extracting Epoch 0 (NoFT)...
+Loading: epoch_epoch=00-val_loss=val_loss=0.022.ckpt
+  ❌ Error: No module named 'robovlms.train.train'
+  Using placeholder...
+
+[3/5] Extracting Epoch 1 (FT)...
+Loading: epoch_epoch=01-val_loss=val_loss=0.004.ckpt
+  ❌ Error: No module named 'robovlms.train.train'
+  Using placeholder...
+
+[4/5] Saving...
+✅ Saved to docs/meeting_urgent/
+
+[5/5] Quick analysis...
+Epoch 0:
+  Left-Left: 0.1998
+  Right-Right: 0.2000
+  Left-Right: -0.0000
+
+Epoch 1:
+  Left-Left: 0.1998
+  Right-Right: 0.2000
+  Left-Right: 0.0002
+
+================================================================================
+✅ Complete! Now run: python3 scripts/urgent_analyze.py
+================================================================================

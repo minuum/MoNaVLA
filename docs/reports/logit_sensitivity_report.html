@@ -1,0 +1,48 @@
+
+    <html>
+    <head>
+        <title>Text-Logit Sensitivity Report</title>
+        <style>
+            body { font-family: sans-serif; margin: 40px; background-color: #f5f5f5; }
+            h1 { color: #333; }
+            .container { display: flex; gap: 20px; }
+            .image-box { flex: 1; text-align: center; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+            .results-box { flex: 2; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+            th, td { padding: 10px; border: 1px solid #ddd; text-align: left; }
+            th { background-color: #f8f9fa; }
+            .highlight { font-weight: bold; color: #d9534f; }
+            img { max-width: 100%; border-radius: 4px; }
+        </style>
+    </head>
+    <body>
+        <h1>Text-Logit Sensitivity Report</h1>
+        <div class="container">
+            <div class="image-box">
+                <h2>Test Image (V4 Baseline)</h2>
+                <img src="data:image/jpeg;base64,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$
+                <div style="background: #fff4e5; padding: 10px; border-radius: 6px; font-size: 0.85rem; margin-top: 10px; border: 1px solid #ffcc80;">
+                    📌 <b>Technical Note on Normalization:</b><br>
+                    이미지가 부자연스럽게 보이는 이유는 모델 입력 전 <b>ImageNet Mean/Std 정규화</b>를 거친 수치(Tensor)를 시각화했기 때문입니다. 이는 모델이 보는 실제 정보를 정확히 반영합니다.
+                </div>
+            </div>
+            <div class="results-box">
+                <h2>Logit Distribution by Prompt</h2>
+                <table>
+                    <tr>
+                        <th>Prompt</th>
+                        <th>Predicted Action</th>
+                        <th>Stop</th>
+                        <th>Forward</th>
+                        <th>Left</th>
+                        <th>Right</th>
+                        <th>FWD-L</th>
+                        <th>FWD-R</th>
+                    </tr>
+    <tr><td>Go forward to the basket.</td><td class='highlight'>Right</td><td>0.1991</td><td>0.0880</td><td>0.2359</td><td>0.2529</td><td>0.1109</td><td>0.1132</td></tr><tr><td>Go left.</td><td class='highlight'>Right</td><td>0.2189</td><td>0.0524</td><td>0.2705</td><td>0.3064</td><td>0.0765</td><td>0.0753</td></tr><tr><td>Go right.</td><td class='highlight'>Right</td><td>0.2316</td><td>0.0409</td><td>0.2790</td><td>0.3269</td><td>0.0630</td><td>0.0586</td></tr><tr><td>Stop here.</td><td class='highlight'>Right</td><td>0.2401</td><td>0.0373</td><td>0.2793</td><td>0.3339</td><td>0.0580</td><td>0.0514</td></tr>
+                </table>
+            </div>
+        </div>
+    </body>
+    </html>
+    

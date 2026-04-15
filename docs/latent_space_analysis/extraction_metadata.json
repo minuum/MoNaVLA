@@ -1,0 +1,38 @@
+{
+  "fine_tuned": {
+    "checkpoint": "runs/mobile_vla_no_chunk_20251209/kosmos/mobile_vla_finetune/2025-12-09/mobile_vla_no_chunk_20251209/epoch_epoch=04-val_loss=val_loss=0.001.ckpt",
+    "model": "Case 5 Epoch 4",
+    "left_shape": [
+      50,
+      8,
+      64,
+      2048
+    ],
+    "right_shape": [
+      50,
+      8,
+      64,
+      2048
+    ]
+  },
+  "pre_trained": {
+    "source": "Kosmos-2 (no fine-tuning)",
+    "left_shape": [
+      50,
+      8,
+      64,
+      2048
+    ],
+    "right_shape": [
+      50,
+      8,
+      64,
+      2048
+    ]
+  },
+  "parameters": {
+    "window_size": 8,
+    "max_episodes": 50,
+    "device": "cuda"
+  }
+}

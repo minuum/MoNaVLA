@@ -1,0 +1,93 @@
+{
+  "kosmos2_finetuned": {
+    "file_path": "/home/billy/25-1kp/vla/RoboVLMs_upstream/runs/mobile_vla_lora_20251203/kosmos/mobile_vla_finetune/2025-12-03/mobile_vla_lora_20251203/epoch_epoch=09-val_loss=val_loss=0.013.ckpt",
+    "file_size_gb": 6.826517042703927,
+    "checkpoint_type": "lightning",
+    "keys": [
+      "epoch",
+      "global_step",
+      "pytorch-lightning_version",
+      "state_dict",
+      "loops",
+      "callbacks",
+      "optimizer_states",
+      "lr_schedulers",
+      "MixedPrecision",
+      "hparams_name",
+      "hyper_parameters"
+    ],
+    "state_dict": {
+      "total_params": 2969,
+      "total_param_count": 3694281492,
+      "estimated_memory_gb": 13.762271001935005,
+      "module_groups": {
+        "model": 2969
+      },
+      "components": {
+        "vlm": 2944,
+        "action_head": 24,
+        "other": 1
+      },
+      "sample_keys": {
+        "vlm": [
+          "model.backbone.text_model.model.embed_tokens.weight",
+          "model.backbone.text_model.model.layers.0.self_attn.k_proj.base_layer.weight",
+          "model.backbone.text_model.model.layers.0.self_attn.k_proj.base_layer.bias",
+          "model.backbone.text_model.model.layers.0.self_attn.k_proj.lora_A.default.weight",
+          "model.backbone.text_model.model.layers.0.self_attn.k_proj.lora_B.default.weight"
+        ],
+        "action_head": [
+          "model.act_head.rnn.weight_ih_l0",
+          "model.act_head.rnn.weight_hh_l0",
+          "model.act_head.rnn.bias_ih_l0",
+          "model.act_head.rnn.bias_hh_l0",
+          "model.act_head.rnn.weight_ih_l1"
+        ],
+        "other": [
+          "model.action_token"
+        ]
+      }
+    },
+    "model_config": {},
+    "statistics": {
+      "action_head_params": 12737300
+    }
+  },
+  "robovlms_finetuned": {
+    "file_path": "/home/billy/25-1kp/vla/best_robovlms_mobile_model_epoch_1.pt",
+    "file_size_gb": 6.7964164689183235,
+    "checkpoint_type": "state_dict_only",
+    "keys": [
+      "model_state_dict",
+      "optimizer_state_dict",
+      "epoch",
+      "val_loss",
+      "train_loss",
+      "action_types"
+    ],
+    "state_dict": {
+      "total_params": 6,
+      "total_param_count": 0,
+      "estimated_memory_gb": 0.0,
+      "module_groups": {
+        "root": 6
+      },
+      "components": {
+        "vlm": 0,
+        "action_head": 0,
+        "other": 6
+      },
+      "sample_keys": {
+        "vlm": [],
+        "action_head": [],
+        "other": [
+          "model_state_dict",
+          "optimizer_state_dict",
+          "epoch"
+        ]
+      }
+    },
+    "model_config": {},
+    "statistics": {}
+  }
+}

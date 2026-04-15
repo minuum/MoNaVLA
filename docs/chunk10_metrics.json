@@ -1,0 +1,7 @@
+{
+    "checkpoint": "epoch_epoch=05-val_loss=val_loss=0.284.ckpt",
+    "val_loss": 0.284,
+    "rmse": 0.533,
+    "epoch": 5,
+    "note": "Calculated from val_loss (val_loss = MSE, RMSE = sqrt(MSE))"
+}

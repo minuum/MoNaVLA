@@ -1,0 +1,26 @@
+[
+    {
+        "Exp ID": "EXP-17",
+        "Model": "Window 8, Chunk 1 (Linear)",
+        "Status": "Champion (94.72% PM)",
+        "Config": "Mobile_VLA/configs/mobile_vla_exp17_win8_k1.json",
+        "Checkpoint": "runs/unified_regression_win12/kosmos/mobile_vla_exp17_win8_k1/2026-02-10/exp17_win8_k1/epoch=epoch=09-val_loss=val_loss=0.0013.ckpt",
+        "Key Insight": "Optimal window (8) for short-horizon task (18 frames). First-frame zero logic added."
+    },
+    {
+        "Exp ID": "EXP-16",
+        "Model": "Window 6, Chunk 1 (Linear)",
+        "Status": "Efficient (89.72% PM)",
+        "Config": "Mobile_VLA/configs/mobile_vla_exp16_win6_k1.json",
+        "Checkpoint": "runs/unified_regression_win12/kosmos/mobile_vla_exp16_win6_k1/.../epoch=09.ckpt",
+        "Key Insight": "Lightweight inference, high accuracy."
+    },
+    {
+        "Exp ID": "EXP-12",
+        "Model": "Hybrid (W6+Resampler)",
+        "Status": "Training (Step 7164)",
+        "Config": "Mobile_VLA/configs/mobile_vla_exp12_win6_k1_resampler.json",
+        "Checkpoint": "TBD",
+        "Key Insight": "Combining efficiency of W6 with robustness of Resampler."
+    }
+]

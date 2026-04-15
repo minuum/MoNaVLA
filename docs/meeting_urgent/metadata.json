@@ -1,0 +1,11 @@
+{
+  "method": "REAL IMAGE DATA - patch-based features",
+  "shape": [
+    10,
+    8,
+    64,
+    2048
+  ],
+  "epochs": 10,
+  "note": "Features extracted from actual images, not model hidden states"
+}

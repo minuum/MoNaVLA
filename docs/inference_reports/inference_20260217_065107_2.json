@@ -1,0 +1,22 @@
+[
+  {
+    "step": 0,
+    "timestamp": 1771278673.5022206,
+    "instruction": "Navigate to the brown pot",
+    "action": [
+      0.0,
+      0.0
+    ],
+    "latency_ms": 187.45708465576172
+  },
+  {
+    "step": 1,
+    "timestamp": 1771278673.5547285,
+    "instruction": "Navigate to the brown pot",
+    "action": [
+      0.7998046875,
+      -0.51513671875
+    ],
+    "latency_ms": 52.4141788482666
+  }
+]

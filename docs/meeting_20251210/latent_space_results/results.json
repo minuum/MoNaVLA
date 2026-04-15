@@ -1,0 +1,13 @@
+{
+  "similarity": {
+    "left_left": 0.9987035989761353,
+    "right_right": 0.9975377917289734,
+    "left_right": 0.9974979162216187,
+    "separation": 0.0006227493286132812
+  },
+  "num_samples": {
+    "left": 10,
+    "right": 10
+  },
+  "model": "runs/mobile_vla_no_chunk_20251209/lightning_logs/version_0/checkpoints/epoch_epoch=04-val_loss=val_loss=0.001.ckpt"
+}

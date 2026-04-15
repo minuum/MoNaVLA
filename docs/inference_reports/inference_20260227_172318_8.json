@@ -1,0 +1,82 @@
+[
+  {
+    "step": 0,
+    "timestamp": 1772180599.3949227,
+    "instruction": "Navigate to the brown pot on the right",
+    "action": [
+      0.0,
+      0.0
+    ],
+    "latency_ms": 71.60711288452148
+  },
+  {
+    "step": 1,
+    "timestamp": 1772180599.671481,
+    "instruction": "Navigate to the brown pot on the right",
+    "action": [
+      1.15,
+      0.0
+    ],
+    "latency_ms": 71.72846794128418
+  },
+  {
+    "step": 2,
+    "timestamp": 1772180599.9482844,
+    "instruction": "Navigate to the brown pot on the right",
+    "action": [
+      1.15,
+      0.0
+    ],
+    "latency_ms": 71.94733619689941
+  },
+  {
+    "step": 3,
+    "timestamp": 1772180600.215466,
+    "instruction": "Navigate to the brown pot on the right",
+    "action": [
+      0.0,
+      -1.15
+    ],
+    "latency_ms": 71.21014595031738
+  },
+  {
+    "step": 4,
+    "timestamp": 1772180600.4994988,
+    "instruction": "Navigate to the brown pot on the right",
+    "action": [
+      1.15,
+      -1.15
+    ],
+    "latency_ms": 71.46883010864258
+  },
+  {
+    "step": 5,
+    "timestamp": 1772180600.7780998,
+    "instruction": "Navigate to the brown pot on the right",
+    "action": [
+      1.15,
+      -1.15
+    ],
+    "latency_ms": 71.44761085510254
+  },
+  {
+    "step": 6,
+    "timestamp": 1772180601.0515704,
+    "instruction": "Navigate to the brown pot on the right",
+    "action": [
+      1.15,
+      -1.15
+    ],
+    "latency_ms": 71.41351699829102
+  },
+  {
+    "step": 7,
+    "timestamp": 1772180601.3265805,
+    "instruction": "Navigate to the brown pot on the right",
+    "action": [
+      1.15,
+      -1.15
+    ],
+    "latency_ms": 72.37577438354492
+  }
+]
