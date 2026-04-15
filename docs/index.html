@@ -120,49 +120,33 @@
 </head>
 <body>
 
-<section class="hero">
-  <div class="hero-body">
+<section class="hero is-fullheight-with-navbar" style="background: url('assets/hero_robot.png') no-repeat center center; background-size: cover; position: relative;">
+  <div class="overlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(to right, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.4) 100%);"></div>
+  <div class="hero-body" style="position: relative; z-index: 10;">
     <div class="container is-max-desktop">
-      <div class="columns is-centered">
-        <div class="column has-text-centered">
-          <h1 class="title is-1 publication-title">MoNaVLA: Advanced Vision-Language-Action Models for Precise Robot Navigation</h1>
-          <div class="is-size-5 publication-authors">
-            <span class="author-block">Advanced Agentic Robotics Team</span>
-          </div>
-
-          <div class="column has-text-centered" style="margin-top: 10px;">
-            <div class="publication-links">
-              <!-- Code Link. -->
-              <span class="link-block">
-                <a href="https://github.com/minuum/MoNaVLA"
-                   class="button is-dark">
-                  <span class="icon">
-                      <i class="fab fa-github"></i>
-                  </span>
-                  <span>Code Repo</span>
-                  </a>
-              </span>
-              <!-- Features / Report Link. -->
-              <span class="link-block">
-                <a href="sensitivity_report.html"
-                   class="button is-link is-light">
-                  <span class="icon">
-                      <i class="fas fa-file-alt"></i>
-                  </span>
-                  <span>Sensitivity Report</span>
-                  </a>
-              </span>
-              <!-- V5 Experiments Link. -->
-              <span class="link-block">
-                <a href="v5/index.html"
-                   class="button is-success is-light">
-                  <span class="icon">
-                      <i class="fas fa-chart-line"></i>
-                  </span>
-                  <span>V5 Exp Comparison</span>
-                  </a>
-              </span>
-            </div>
+      <div class="columns is-vcentered">
+        <div class="column is-7 has-text-left">
+          <h1 class="title is-1 has-text-white mb-6" style="font-size: 3.5rem; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);">
+            MoNaVLA: <span class="has-text-info">Mobile Navigation</span><br>
+            Vision-Language-Action Models
+          </h1>
+          <p class="subtitle is-4 has-text-grey-lighter mb-6">
+            Advanced Agentic Robotics for Precise Navigation in Dynamic Domestic Environments. 
+            Empowering robots with spatial reasoning through next-token BBox grounding.
+          </p>
+          <div class="publication-links" style="justify-content: flex-start;">
+            <span class="link-block">
+              <a href="https://github.com/minuum/MoNaVLA" class="button is-white is-outlined is-rounded">
+                <span class="icon"><i class="fab fa-github"></i></span>
+                <span>Source Code</span>
+              </a>
+            </span>
+            <span class="link-block">
+              <a href="reports/viewer.html?file=v5_experiment_report_20260415.md" class="button is-info is-rounded">
+                <span class="icon"><i class="fas fa-rocket"></i></span>
+                <span>V5 Exp Status</span>
+              </a>
+            </span>
           </div>
         </div>
       </div>
@@ -245,24 +229,24 @@
                 </div>
             </li>
             <li>
+                <i class="fas fa-check-circle has-text-success"></i>
+                <div>
+                    <strong>Exp 09 Optimized Policy</strong><br>
+                    <span class="is-size-6 has-text-grey">Completed with discrete 8-class grounding bootstapping.</span>
+                </div>
+            </li>
+            <li>
                 <i class="fas fa-sync-alt has-text-info fa-spin"></i>
                 <div>
-                    <strong>Exp 09 Training</strong><br>
-                    <span class="is-size-6 has-text-grey">8-Class Action Model Optimization (Status: RUNNING)</span>
+                    <strong>V5.Exp10: Action-Aware BBox Grounding</strong><br>
+                    <span class="is-size-6 has-text-grey">Status: <span class="tag is-info is-light">RUNNING (Epoch 0)</span>. Grounding perception in Navigation dataset.</span>
                 </div>
             </li>
             <li>
                 <i class="far fa-circle has-text-grey-light"></i>
                 <div>
-                    <strong>Real-robot Validation</strong><br>
-                    <span class="is-size-6 has-text-grey">Hardware test using Gradio-based interface and deployment</span>
-                </div>
-            </li>
-            <li>
-                <i class="far fa-circle has-text-grey-light"></i>
-                <div>
-                    <strong>BBox Grounding Integration</strong><br>
-                    <span class="is-size-6 has-text-grey">Enhancing spatial awareness with bounding box prompts</span>
+                    <strong>Real-robot Validation (V5)</strong><br>
+                    <span class="is-size-6 has-text-grey">Final evaluation of grounding-to-action transfer on physical hardware.</span>
                 </div>
             </li>
           </ul>
