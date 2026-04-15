@@ -3,236 +3,164 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MoNaVLA Experiment Docs - Text Sensitivity</title>
+    <title>MoNaVLA Project Dashboard</title>
     <style>
         :root {
             --primary: #2563eb;
-            --bg-color: #f8fafc;
-            --text-color: #1e293b;
-            --card-bg: #ffffff;
+            --primary-light: #38bdf8;
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-main: #f8fafc;
+            --text-dim: #94a3b8;
+            --accent: #fbbf24;
+            --success: #4ade80;
         }
         body {
-            font-family: 'Pretendard', -apple-system, sans-serif;
+            font-family: 'Inter', 'Pretendard', system-ui, sans-serif;
             margin: 0;
-            padding: 0;
             background-color: var(--bg-color);
-            color: var(--text-color);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
+            color: var(--text-main);
+            overflow-x: hidden;
         }
-        .docs-container {
-            width: 900px;
-            height: 600px;
-            background: var(--card-bg);
-            border-radius: 12px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-            overflow: hidden;
-            position: relative;
+        .navbar {
+            background: rgba(30, 41, 59, 0.8);
+            backdrop-filter: blur(10px);
+            padding: 1rem 2rem;
+            position: fixed;
+            width: 100%;
+            top: 0;
+            z-index: 100;
+            border-bottom: 1px solid #334155;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-sizing: border-box;
+        }
+        .logo { font-size: 1.5rem; font-weight: 800; color: var(--primary-light); text-decoration: none; }
+        
+        .hero {
+            height: 60vh;
             display: flex;
             flex-direction: column;
-        }
-        .header {
-            background: var(--primary);
-            color: white;
-            padding: 15px 25px;
-            font-size: 1.25rem;
-            font-weight: 600;
-            display: flex;
-            justify-content: space-between;
-        }
-        .slide-container {
-            flex: 1;
-            position: relative;
-            padding: 30px;
-        }
-        .slide {
-            display: none;
-            height: 100%;
-            animation: fadeIn 0.4s ease;
-        }
-        .slide.active {
-            display: block;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        .footer {
-            padding: 15px 25px;
-            background: #f1f5f9;
-            border-top: 1px solid #e2e8f0;
-            display: flex;
-            justify-content: space-between;
+            justify-content: center;
             align-items: center;
+            text-align: center;
+            background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+            padding-top: 80px;
         }
-        button {
-            padding: 8px 16px;
-            border: none;
-            border-radius: 6px;
-            background: var(--primary);
-            color: white;
-            font-weight: 600;
-            cursor: pointer;
-            transition: opacity 0.2s;
-        }
-        button:disabled {
-            background: #cbd5e1;
-            cursor: not-allowed;
-        }
-        button:hover:not(:disabled) {
-            opacity: 0.9;
-        }
+        .hero h1 { font-size: 4rem; margin: 0; background: linear-gradient(to right, #38bdf8, #818cf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .hero p { font-size: 1.25rem; color: var(--text-dim); max-width: 600px; margin: 20px 0; }
+
+        .container { max-width: 1200px; margin: 0 auto; padding: 40px 20px; }
+
+        .section-title { font-size: 2rem; border-left: 5px solid var(--primary); padding-left: 15px; margin-bottom: 40px; }
+
+        /* Roadmap Styles */
+        .roadmap { background: var(--card-bg); border-radius: 20px; padding: 40px; border: 1px solid #334155; }
+        .roadmap-item { display: flex; align-items: flex-start; gap: 20px; margin-bottom: 30px; position: relative; }
+        .roadmap-item:not(:last-child)::after { content: ''; position: absolute; left: 15px; top: 40px; width: 2px; height: calc(100% - 10px); background: #334155; }
+        .status-icon { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+        .status-done { background: var(--success); color: #000; }
+        .status-doing { background: var(--primary); color: #fff; animation: pulse 2s infinite; }
+        .status-todo { background: #334155; color: var(--text-dim); }
         
-        /* Typography & Layout within slides */
-        h2 { margin-top: 0; color: var(--primary); border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; }
-        .two-cols { display: flex; gap: 30px; height: calc(100% - 50px); }
-        .col { flex: 1; overflow-y: auto; }
-        .img-preview { width: 100%; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-        
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 0.9rem; }
-        th, td { padding: 10px 12px; border: 1px solid #cbd5e1; text-align: center; }
-        th { background-color: #f1f5f9; font-weight: 600; }
-        .highlight { color: #dc2626; font-weight: bold; background-color: #fee2e2; }
-        .blue-highlight { color: var(--primary); font-weight: bold; }
-        
-        li { margin-bottom: 15px; line-height: 1.6; }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(37, 99, 235, 0); } 100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); } }
+
+        .roadmap-content h3 { margin: 0; font-size: 1.25rem; }
+        .roadmap-content p { color: var(--text-dim); margin: 5px 0; }
+        .tag { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; margin-top: 5px; }
+        .tag-high { background: rgba(74, 222, 128, 0.2); color: #4ade80; border: 1px solid rgba(74, 222, 128, 0.3); }
+
+        .report-btn { 
+            background: var(--primary); 
+            color: white; 
+            text-decoration: none; 
+            padding: 12px 24px; 
+            border-radius: 8px; 
+            font-weight: 600; 
+            display: inline-block; 
+            margin-top: 40px;
+            transition: transform 0.2s, background 0.2s;
+        }
+        .report-btn:hover { transform: translateY(-2px); background: #1d4ed8; }
+
+        .links-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-top: 20px; }
+        .link-card { background: #0f172a; padding: 20px; border-radius: 12px; border: 1px solid #334155; text-decoration: none; color: inherit; transition: border-color 0.2s; }
+        .link-card:hover { border-color: var(--primary-light); }
+        .link-card h4 { margin: 0 0 10px 0; color: var(--primary-light); }
     </style>
 </head>
 <body>
 
-<div class="docs-container">
-    <div class="header">
-        <span>🤖 MoNaVLA Experiment Report</span>
-        <span id="page-indicator">Page 1 / 4</span>
-    </div>
-
-    <div class="slide-container">
-        <!-- Page 1: Abstract -->
-        <div class="slide active" id="slide-1">
-            <h2>실험 개요: 텍스트-로짓 민감도 (Text-Logit Sensitivity)</h2>
-            <p><strong>가설:</strong> "멀티모달 VLA 모델이 로봇의 주행 액션을 예측할 때, 사용자의 자연어 지시(Prompt)를 무시하고 시각적 정보(화면 중앙의 객체 등)에만 과도하게 의존하는가?"</p>
-            <p><strong>실험 방법:</strong></p>
-            <ul>
-                <li>동일한 정지 이미지(1프레임)를 고정.</li>
-                <li>단어 프롬프트만 다르게 입력 ("Go forward", "Go left", "Go right", "Stop").</li>
-                <li>각 입력별로 도출되는 6개 Action Class의 Softmax 확률(명령어별 로그 분포 변동량)을 측정.</li>
-            </ul>
+    <nav class="navbar">
+        <a href="#" class="logo">MoNaVLA 🤖</a>
+        <div>
+            <span style="color: var(--text-dim);">Finalizing V5 Research</span>
         </div>
+    </nav>
 
-        <!-- Page 2: Test Image -->
-        <div class="slide" id="slide-2">
-            <h2>테스트 이미지 (Visual Input)</h2>
-            <div style="text-align: center;">
-                <img src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCADgAOADASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDhbS2t7nUrWG63/ZpJVWbywS2wkbsAAnOM9Aa9j8TvYW+hNrklst3d2sR+xtuyEEm0Mw5AxgZJ7AHtnPikU5bUQImI8vJyD3qy006xzIk8sYmKmQxuV3FW3KTjqQeR6V14vLamIcakJWa79r667q6/TscdSrBxlSmrpp/1/WxNrmoprdnY3f2eNJ1knt5W/iynlkYwcbT5mec4IIB6k5jWs0NjHeOg+zySNErZ53KATx6cjmr2mzwpcRHUMXDKZN80xy0oYKArHG7ja2G3ZG4Y27QaXWrgJYWEBZpYIfMEUTIAEDbS5Dg5JLBiAQQARy1RhcPVwsI0oxsrvz01dl+G/Tz0FhKVKFNwVkle2r0u/Tp2OeePe478/p0FalnDjFVECNKxjzsydu7rjtmtm0jyBXovQHvqX7SLgVoLHxSWsPAq4I6q5AtvHyoraeMHSLokZ2iM/wDkRKz7ZMyitO6uEtdFulYEm42xrgZwQd/rx9w+v9RzVmlF3Lppt2SL2lxbND0uPdu22cQ3YxnCDmrPlHNaV0m+4L/X9ah8s56VhSm504zfVJlTacnZWRWEdLBDi5lYLjO3LY61bWLNPjjYSPkDbxiqIK2tR/6Tb/8AXun9azgKu6nexXOovCgO61RIZM4+8VD8fg4qmTzWa1Q2mtxrpmoWWrYwRUMigHNNCK5GahdOanYgUzr2qgIcU0rU5Q5prIcUxEJXimEYqby2zQY80xoqOOKrSCrrxZPWqc8LEN8wANNFljQWk/tu3iinEJkJVmIByoGSvPrjGe2c1NqcW24Ye9ZFhbPb6xZXInI8udC/HBXPI/Kt3Wm2XIBBJZtoA/nRCL52+ll+oOT0R5LoyEs7Hk461oyrxVbSE2wOfXFXZBxXrw+E5Z/EUJVqCXcU2Fm2g5254zVqc7WTP3SfmwMmo5FodnoSrrVFOPd5qqOhNdRYxZUcVz0YCTKx6A11umR741Yd65aqszem7xNKCPAFWAmafHHhelSBcDNSxEtqnOaj8Rhk0W2cMQBdMTg9R5E3X9KtQDC1D4qG3wnv/uyuf/IMtc9T4TSDszuZ4yJWHU59MU0R1alXMjH3oWP2rJJRSS6AQrFxRFFiSU8ckd/arap7VE8LxCeWMAu3IB74AGP0pXFY5OfCa5rB7m4jP5W8Ipgd3YKFxk45pZJlGsapIzEpLMsiKCPuiGNSf++lYY9qqzau0RMcNsgI6FmoSAvRo6ffbJp0iqyfMcD1rFa41S74Td/2ySof7D1C5kJn3DufMfpT5RGjNfWUCkSTx5Hocn9KoS69apwiySfQYqKXQVhUvJeQhV6gAnH4mnQ6TZSRkpK0pHX5wAPyquUlyRAfEXP/AB7ED/afFVpPFSBv9XCAP+m1W28P2BdZZ4EQ5wCznk+xNSf2Np6yiJLRGbO/btzz64/DrVWsSmnuY994pimjj8qb7K6Zy8Tlg+cdQcjjHbHU9eMVbXxhPa5eSa2vf3gYfaLUbcemFC5HtXVXGmWsFi8zW8SmM/NhB0rPS2sLob4AHTJVkZRjNKKRfMYK+IFctJbxbM5z5T3BXgehkIpW1iRucH8d3+NdZZ2sVsPLSFcdhtHFXvssAB/cx9Mn5BS5VHZGrqSn8Tdzz19VDu0lzBHNuOSrKyrn6IV49uldhZ376np0FzKFDuMkBcD8B2qVoLZpCvkRY6fcFCGNoVaHb5ZHG3pVK172C91Y8705dtqMdzVphRo8CGNp5VkeJF5QNtBJOAM4ODmrUcmjXkZkhvpLbCqWFymVGe25f8MV6amkrMylRnJcyX9IzLiPeoGB1znHP51G68Vu6h4e1Kyh+0SW++BRzLEwZR9cdKxnFNNPVGErrRmddjbGPciu60eHbbRgjnAriL4cRj/bFeiacgESY7qK5az95G9Je4XlXC0Y6VLs4pMYqXsHUljGKTxFsPhY7lDATcgjgjypKrS6jbW4+eTc391eSKk03U01fUrK2BKRxXCzAI3zFlzjJwRjk5HB965qybg0tzajLkqRla9mehYy1SqmaaiirCLWUmCWgiR8U2QHzAo71ZVahK7rgtj7o4qRNHKT+FrGKaSe7nml3sWCA4A9qIodOt2jMNkI9p67dxJ+tasVreXtxJLcAxQ7jsU8tUF3pjW6ARK0rSyfPjJ2j1xWicdmZyUitJcgvkBtoGMAdKqPHJcW7SrEz5OM45/Kt6Cz8qItJGWcHGB3H41MY1UABAADx7U3O2iFydzzu407VJhtkhIjRtoXgFv9qtK70+ZfDy/Yrcw3CuCUIHIzjnPUYrrLiJpIyqtsJ7gVC8W6IoxJBGCe9LnbDlSONtrY2khWRfORmQMTmTPr9OSenSukW3C4Kr+HpT4tNhiyQ0jEnIJPT6VZK0nK5MY2Kctv5kLo2CGBGCMisl9Jhj2xoNhVRgKuFreK+9RsijnAzSTLOeFnPEocQkndyF7D1qYQSeVy+4nufStduRVd+Wq+ZjSRiNp6mWOd+ZEGMDoM9aa0CRLtRQq5JAHvzWq68Gqcy8GqLRyl1o9/pqSpPYTQwJt37VzEOQRyPl6kfjxVJVzbSQNDbTI0ZALwr5gbHBEgG5cYHA465BBIPaWnjaOSZ2OpsrunyxXUCFF5+8AoQ+3XFTXd1DfxLK1vpVxcEbpJ0jG+RgPlAR1bHReSx6ce3nQlmMWo1aal5p6Lz1V/u1Ppp5rg6kHCvQSb35bxu/Nf5t2Ocu9cdtDmt381Pl3OVAKnkd+vGM5rjsBWg8ra8TMWYpNkgZZQMEHHQHHXnpgg13lxpWlTWojaKaKEx+W7SFn3H5SZWOSOMsdqqpJwARgYqL4P021skvbDUbO7t5XdC9whiw4BKopbIXhW+9jqvPIrtlj6dK0a14u+mmj+avY5I4OhVnzYV2i9Hzpvle+llbZdXfc4S7DGS1RgMs/JHTP+cV6Tp6gW6EkAAck9q861N0N/bSwqRF5mQoU9SAfw5B4/Ku2sdG1XVY0MzfZrfqA3U/h/jXXUneVzx5UXTvG6dm9Vs7O116ly81y0tflQ+a/sePz/AMKz1Or6w4WGFhGfQbVH+NdJYeFtPsiHdTPKP4pOf0rcRVQAAADsBWcpvoQoq+py1j4L8yQG9uGI4yiHiuy0zR7LT1AtoFU9N3U0tunetKBOBWMmaRLEa4FWUXjNV4fvOu7JB/LirS1DGkOAoEYBLdz1pRT8cVImiM4qM/TFSkZphFAmQvULCp3qE0yWiFl5qvNGsiFWHB44q01QuOKVyGQbcUwjmpiKjbrQQRngHNRsoY1MwyKj24poZA6hRxUDjirTCoHFWmMqOKpTDmr0lUpueapFowb3w14ihtFW4tLww71xHG/m4YLtB2oTjCjGewwKp2Edt4cuVk1rTbxbdgSjpvikQrzlOVz2yPp9D6s+py5ChBz3zSbi5DE8+tfAQ4kquPLOGj/lbi/1Pqamde1punVpRad9rr/P599jgLzxBotxLDDFcahNaySr54mVMJGc7gHAL5UnafUAgHOGrJvIn0ySbTbvYUs5Hm37MEhwvOMn+FFOOvJ+g7PxLe+GrNJjqcMc9y4BdYUBmOMHlhgrxjqRkVyHiS9h1QS6lDGU+2WIkdSc/MN6n8PlA7dM45r3crxVTEzg5RlyvS8tdeln6Xvp2O7Lq1Kn/BpuPutu+zaWjW3TmW3Y5LT1D+IdOyAcP/hXsUIPlCvGLS6htdesZJnEcakkse1dzL4+tv8AU6ZZT3svTIUqv+P6V9VVg3Udj4eEkqaR2dR3F/aWSb7q5ihX1kcCuDe68XawP9ZHp8Ldl+U/1P8AKmQeGdPFyi6jqT3N3JkiMOAWx19TU8sVuxXb2Oom8f6PbzCO3E105IGY12r+Z/wru4l53AnkDivMdW0jTrDRwbW0jR/NjG/GW+8O55r0+JsYFZ1LWTRpC+tyzBndJn1GPyqyvSq0R5fjv/SrC1izUkA4paBzRmkJjTTDUlMakIhaoWqdqhaghsjNQuKmqNhTM2QGo3qYiomqSBlMNPpDTQyBhUDirJFV5O9WhlOSqctXZOtU5a0KiaOj6iutQyTRW88HlTtA8c4CsrKATkAn1x+BrmvHeu6tp15DaWrvb2ckIYTxjDO+47lDdsAIeMH5uSc1Z+Gt4stjqsBkWRo76SXzN7sX3gc5dQT908nk85A4zmfEyUGTSISwUt57DccD/ln3PFfC5fhKNDPFh5RvHXf/AA3vr+p3VFNQdlr0+ZwjkM27+IHIPofWtoRmLS94UfPaFixAO5sv19eNo57Y9Kwog0oLRqzDrkKenT+h/Kuku4ZrfSokmjKbrHzFyQcqwbB4P1r9Er1KatG6uzfI6db27m7pJSfq7NfPcxbWGG8vrHzraJy0hiY4I+UKWzgHGSRz7cV31tFHbxeXFEka/wB1FAFc54eQPo8v+zqMB/8AIM4/rXSKQAOprkjK9Sa7O34I58VU51Bta8q+fW/4jLh5Y7eZoEeSUIfLjQFi7dgFHUk8VseKha+HtOtorazt4LJQ8p2r83m5RFOc8kh3yTknA565oWUEs+q2MUTxoxuEfLeiHew+pCkVlfE+5hbUNkJLTNNBbSgjH+rV5OPUYmSvDxrdXNaFHpFSk1+Cv6PYindU5PvoT6hP9p0e3cHIkuIv/Qq9RjUDFeTEf8SLTRjG67i/9Cr1lO1e43eKM0rNliAD95/vf0FTiooxgE+pzUwrNlokXpR2pAeKD0pCYlMYc0+mNQSRtULDNTmo2AoIaICKjYVMwqJqRmyFqhbipmqBqRA2mt0paQ0wIzUEnWp2qvJ1q0Mpy9aqSHNWbklVdh2BNZ0d1Hc7zG25VbbkdyOv61oiluc/8JJZnutbjkMYPnxhhFGFUMTJnAAAA4GAAAPQVP4q8RXMdpBeXPh6Jore7jhEN4HL+ays3YLkYAypB6qeeMWvBumQ6YfEEunak8ttd2sN3a3EqgvEp89QG3MASpQjOQDjOQDxW1nV7mbwncodasywjEqy5jWZ3WVCqp5U0gz6NtwCF5HLD46UY1c0lWik7uC+0mrxV9l/wT36dqSqpx1V7NvVJPts9LLXY5PTvEOuW2vxxFntriOWLfYW8HkebtbdsKoucnJByCfmIx2rovEmsW+rMl5ZSNtFiVOcB0YPLwQOh6H6EVkx+P8AxDLpAsYZLRUJYlgqGWXJJYMjEhixJz8uW68knObYxmDTrqNiCURwcHjjIr6Kng/3yr1IKMlorO911b0Vult2dWVc1SpOdnpGVnrt0S6deiS2NTw1fwx281jJuEksyTq5xtVI0ZTkk8f6xcewPSuos54LtnEE8cpUfNsYEiuR023jl0eJzGu5vtqM4GCV222AT1xyfzNeiL4T0hPFw8rR4HtHs3mmV4g6CZnUAgEELwjYAIHB464xx+Z0sFKTcW3Lmf8A4C0vxPGjSdeEZt9LfdHX+v6bdIhgTXbaW6cxLCjzI7MFXfgJgk8fdduPb2rhvG+oJqniyARqqqryswWTeGIYRhs+6xA+2cc9a9pTwzpkEg8jTbFUJ5220a4H5V85WiE67cSZ5LcnqajDUva4ypipxlGSXLZ2ta99Gm7+fZ6dzO9oqJ30uF0vSEH/AD9xfzNeroa8ousi30ZT/wA/cVeqxtXqy+FGcd2XUOFqQVArcCpgeKkokHNLTAaUHikwHGmNS5yKaaRI00xhT+9NbrQQyFxUJFTtULUGbRA4qBxisbxfq95pENtLascO5VlVAxPHXmuSbxvffxSXA/7d0/xpWJ5T0I0hrzlvG14D/r7n/wAB0/xpE8ZajNKkcck+WYLloEAGT35phys9DaoJBU3OBnr3qGTmqQihdf6t/wDdNcp4cuFliu41UqEuXKgjqCxOfzzXWXI3Iw9RXKLHHp/iEOpVI71NhXaBmRQSDn/dDfkK0RpG1nc29I0+fS/BtxaXS7Jo9HjLJ3Ut9obBz3GcH3rzPUdLisvDdl5UxmufKxIqEEK7TY24HPRV6+ue4r1fX9Qb/hINa09HjaP+whJIByyOrS4HtkODg+34+d+JZ47TULKCAxxtKLQsi8HBjQk4Hqep75NfL5PVqyquT3k1L8P+Cfa4SFKtQqTq6cyaXzSW3+JJr0MLVtJWyjimtg7RY2yFuSDngn65x07e9bCbm8KmdoUVpJrrL42ucBPlI7AZ45PU/jFq80aaZLDJKqGQ/LnJJI54A9wB7Z/A6EslnceGYGgfdA9zdbipweViLfe6Hnv/ACr6KVeUo0+bu9fky/qNHDZhUhQaScfhv1tLp20T+ZFpH/Ito3pLeD/xy3r23S2/4m1z/wBe0P8A6HLXiOinPhJfX7Rd/wDou3r2vSj/AMTe65/5dYf/AEOWvEx/+/0fWf8A6XE+Wp/7rH1f5I2f3vm9F8vHXPP+f8K+ZbFMahO2OrV9Nqflr5o085vZfrXuU4cl9W7u+vTyXkc/Y7K+OBowPX7XFxXpscnNeYamNkuke94lejRSc4PWtJLREp6s1Uap93FU42+Wpg/FQXcsg04dKgVuak3UguOzxSZpN1NL9aQmG6mk5pM/NQx4oM2NeoGqRjUEr7RQZs5vxlGj6fbyEfMk2B+IP+FclHDGxAeItuXjiur8WPnTI/8ArsP5GuQSfbImOMCpY1sDWkTyOyI4A/hwMCobeJJL+GMrw0qA4+tS/aMCTpzUWnPv1O3P/TZP500U9j0UmoXNHmAnrTZG4rRGJWm71y2u2/mRwlW2MsylH/utnAP5mumlPBrA1xS2nSEDLKNyj1I5H8q0Rcdzd0qDTdc13Xr2EiaaZI7aUgkL5TRIQB7k7ge424478LrV94Hi1XTmXSJ7kPFGTO7PHHLbrEY1272GSCqjkDJU5NYen61b6LrxS5trm+t4bd98aSFNu5SDnCkkbWA6jBOc8VRt9ObV9ElvNOVprixkY3EQ++IG+4wXHOCH3EdAyn1I8PC4L6tUk+Z8jUUn9/W/oum6Wu57+IjKnL95rKGlr9rJpedtbpaebvbppvG3hOERJYeEbeeNVALXEEUbcfRXz25J55/FB4rgvYra4sNHttP+wSSTCODAWRvkIyABzhACe/t0rkY0a3lCXNu8UhUMBIhU4PQ4PYity3urb+w7yFViNxvDg4O4LtcHHGMEkZ5HQcHqPUqYSkoKSV/w30d7WRllNRxxXvLWz++z7+TbZoXfirUdX1HTL6+tbdv7NuFuQlurRlyCDjJY4+779T+Hp2ieLNAu9YuGg1KLy2tolDyK0allZ9wywH98fXPHQ48qto95bCYJXuaSGxVVaQb0Zjg+XK6Z49iKynlmH54zircu1vW/5nmqu3Hll0/r+vU92k13TIoZZWvYWSNSx8tg5IAzwFySfbGT2rwa6t9NsNJsr221SF7+YuZ7VyreXsJ67TuXI24GD0Y+gp502KZvnWSQf7cjN/M1dg0mOI7Yl8tfRRW8qM3JNTsk77LVdmVSrwg/egpevz/r5Edhrv8AwkGq6NBc2CpCbxPmc7kftjkf5xXrdtpGl2YBtdPtIfaKBVx+Qryy90NZIgThz6OgOKWxj1LTIjFaTTQRM/mMkEzRAtgAn5SOcAD8K8rOMoq46cZ0q3JbS2vffcKeIjGChy9W/vS8vI9Qe0s7+4M8dzMWizEwtrx0QEE5BVGC7hnnIz27VObRvsb28F7dwOxGJhJ5jrznjzNw56cg9fXmvNzqmrWMu62vHgzCkWEijIVVztADKcYya0k8aaitvGii33ooBlmjLFyO5CsoyfbA9K8Wtkeb0pJYbENx6Xk1b1Wxft6L3X4HZwWl9Afm1q9nx/z0jgH8oxWgxuGiby5iJCp2syggHsSBjI9siuIt/HN4tugextZ5v4mEzRK30XaxH5mtGDx3EtqXutMnWbP3LeRXXGPVivfPauOpQ4jp66v0cWaKVDdWN+Ea0oAmu7CQ9ylo6f8AtQ1aEs8cqRyqGDKWMiKAqkY4OWzk5OMDHynJHGcCz8baZdEmWC7tAATmZFbv0/dlue9Pm8Z6GgJa4uQPUWcx/klZSx3EUXZxl/4Av0iNwoLt95civNceYh9L09VzwV1Bzkf9+aub9SI5s7UH/r7b/wCN1lWXi3RbuRY4Lt1LZAM0EkQ4GerqBVt/EWjROEk1nT0YnAVrlASfTrSnnecwdpQt6xYOjTfzGanqU+k2v2q9gt4rYMFaQTSPtJ6ZCxHA9/cetMMl9c2aXdvawTRSRCWPbcEFwRkYBQcn3xWhHc2mo28himgurdsxvtYOp45U9uh6e9TIY40jhhVAigKqIAAoA4AA7Vn/AKz4+yjZc1+36b3HLDUYxs0+ZPXXS3pv+JxPin7VFaLHcWyxqJ0AdZCwbKscj5QOxB5yMdMEE8abqKPkrkjg8qP613vj6422VjAY5CWuC5cL8q7VYYJ7E7uB7H0rzl22qecc+oH9K+tybGVcZhVWrb3f4HJVgoytHYc1+igjapLdPnXiptPmdb+1MaqzvcRxqGfAyzBRkgcDn0NUGc8fP/4//wDWq/osT3etaYiZYi+gc4y3CyKxz7YByew5r1Kj5YOV7WT1JhHmkl3PTpNGn+9HdxjP96En/wBmFQ/2NqczlI9Tskz0L2Lt+f74VuyPGSAnA9zzVe21PSJb1bdrm1e8jbKR+YrurhSDgdQcFu3TNfDZdnWPq4hU6tePKnq2lZpedlZPu7M3eHi4txi2ZCaDeNdiOa+idNxBWK3KMfxLNj16GpLvwbbzrt/tK+jH+x5X9UNaMvirSoJzFcX9nCwYqUe4UMCDyMEjn+VQ3vjDw5Z7fM1a3ctnAhbzOnrtzjr3r6nKsVGfPJ1nO70vHlstdEnq/X0FVhOc1Hks+yX6JHzghvBqU17bLFbmUYK/exkDJ6dcjNTaVZ3WnXsd1b3OyROOFyGB4KkHqCOCKejBVyasRSrwc173s48vLbR6EzxVacuaUne7fo3vZdLlzVjca3qJvrholkCBFjjiCKqD7qjHOAOATk4AGeBVRI/LguyVKkREH8jWpBLNHgxu4B9en5GrX76RGjJVfNXa7IAhYZBwduM8gH6io9mo01TgrJWLwuKVHEqtPXf8U1+oyzMkWcNvGOjf41ailh8sqx2ndwCKRIlVthyPpQtoXO9XKkHIxVyt1OIuRorjCsD9K0UjTPI5x3rMhtXJGC/PfOM/lW5bWU24Z2kfzqGCJvs25U2jOfWrv9nFxzx9BUsSpGibsDHXNaybSnQfhSAwJNFifllz+NQ/2IEztziul8kNVe8t7lraQWbxpPj5GkUsoPuBg0XEc1LpxUAbM/hVZ9P8uMvKQqr3JwBWpJba60oAnsQAesat687gc5GM8Ag5wc44KWmkTxRxm+vGvbhefMdAig+yjgfXrRcGjCNmCf3VxGfYNzSm0lVc56+2a6R7ZGBDxq31GazpbKCQkJGoHdl4/AYpk3MRkm3bQynB7inMbpFO2Q1qx6bH1zIB2AkbA/WpDpg4xLL9Mg/zFDYkc5I1zIDvCv8AVQaoSwY+b7NBn18pT/SuuOmOOk0mPov+FRSaQ4UnziT7oD/LFK4HK2pC3OdiL7hQKvskOPu4+hxUuoaE0yD9+F5zlEIP86zo9AntZgxuTOoYHZLu2kehwQcH65+lYzXVGlNq9m7E7LH/ALX/AH0f8ao3rLDbkqM8g4b5v50suj3pUhLpRwecNx+tQxaVd70E0qOFGDy3zH1P/wBbHWnFO+xrNRSdpJ/f+qQRjzUG+JS3qVHFOKyJnb0+tWo4LpjgLGSDgnk1cGn3BGC0YB7hP/r1scyMRo5icjvULRSHJIroDpkg/wCW7Z9lX/CopdLjX5Xnldu67iP5VaKMJIV2fKgxjvViCBuAiKPYVtRaQHwGXkcnIrStNPhiPuRxTubNGHHaStwAzD6Vfh0yd2VQpHPU8V0cdsgUkpx6mrD7MFRH83B3AYFFyWjHj0SWSVfnMar97C8mtOLRURONpxyQTzV6JlyoyQBz1HSrO9GfaTwR39KzldhYzktFBIRMc1ZVHD5IxnjjvVwxrjCLkGkdecbWbPT6f5NTcljAvADEdavJbrtHYnupxWFPqltFcm1i827ul4MNuu8j/ePRf+BEVajh1S6AFzOLSI/8srdsv9GfHH/AR+NMEXbm6itpwgkaSYr8sCDc598DoPc4FQNHfXhBus28B/5YQvy3+839B+ZqxbWsNrH5cEaopOWx1Y+pPUn3NTLndgj8+9K4iFfKjiWNEEYA4G3AprhFTdkcc9aknmSNBubB9uTVK4tluyBIhA67Rxn6n+lK4mRSN9pyIyQg6sP4vpSfZwq4AAUdvSpvsLDJilZD7nI/WgRXEYBbZIB0+XFVcmxX8skkKDxU4hPGRzR586tzEDnvu5/lQbl41UFX/wB3ApADRqpwMD2qJ0GSc4UDvU3mhjuKtjvlDTPNiCktMoagTZn3MYCj3qi6bmOV4FaFzLDIRtmRsHoGHNZ97fQWjRmeQorZAwrNk/gDUiKssGSduKrrBufFSHV9NYHNwQR28p+f/HamsZrS6ZmhlYgcHMZXH5gU0UiKG1KON3Afj8anMDD+MY+lS3EiPAwV0LDkfN3FQl0kgR4mBDAHlulWhpETIw/iqq7EHvx3qeQjGTnP0qu0ikELG2R3xjP51SGaVqFliZc4ni6seNw7H+lSxjryTgdQf5VXeAkb4hmRTkDP3vUdO/8AhViNi8SSploj0yMc9x6jvTOmSL0Mrsu0jp0xzj2qQyBELFjtAPIqn5jOuD3ORg8/jUyqgHl7z5r52RqfmfAzhVHJ45wKTaSuzMtw4YpIXwhH4Z7VbIBAYHIxwRyR/wDWrAj1K6kYpYWgljKZW4l+WLJQsuOcsMkA45HPBIxUsejy36ous3ct0G4a2jTy4CeOMDlsEHqe/eo5k9inC3xE7eIbdWkhsDJfzqxDR2/KocfxOTtX/PFR/wBnanqTZ1a+8i3bg2tiSM/70nDH3xtFbdrDbW1vHDApgiQZRY02oo+gqcRhVZV8l4+hJPLHtQZENpYW9lCLazt0ggXoiKAv6VbhhbYpAG3HQCkj2JGMDYvTAHBOKnEzE7QG5OCD1/AGobHYcpiTJzjHXnvVK4vEVgE+dzwqr35pLlmvJzFbRmWVflZm+7H1POO/t+dJ5EdiCoBaRuHkJJJ/z2xRcVit5bvMrTMCxXgA8KPb1qxym3bhmA7HilZYwuQz7ScDJxj/AOtToo0QkF1PGB2NBI6NcL82Qep5qQ7VGRtBHHWkEZaRlO4r6noPyqQIgVgoAweff9aBEEsafIAV57HmmeWpAJXHbFShDjBO1RzyeFx71DIGKBskHqcDJ7UXEI4XaMrx1HaqszDBHO7HHoae8hVx1yemahk+b5WJDnuKoRTmAVuCAMElj61AoYEksdvPQYFTyp+7O/HX6cVRuTNLEFglMPGSNucj/OKTYRjd2bsTOqbRkcnvgVWVVLExj5c44H86q/ZtRmQ778qMjlIQD6461LDbziYFr5mVeSoQDOQevH4/hSTfY3dOKV1NP7/8iYoAwBBUAdR3FU3/AHFzJEj7oz88Zx0z1/XNXHXeVzk454OKqzPEjI8gICHYcYyA3GfrnFaoyGuS4O7tVRlPbrVxjlCVGR2z3qnIrbQFIA7EUyjVgQOM9IxyWJ6D1zUkzizI8pd8EyiQhwAMHGJFzjeMEbtm4jKnHzcp9lt5JXJhAy2QFy2zByhySSrD+8mzJ5x93F23WBd6RxqFlLNJhMB2bqW7kn1PXmsb1Z7Ll9dX+Gn4s6OhUEF0JmBISEqhDA5JYMd4I6spGNpBRh3HapI9ItI5ort41lmVURJ3UGRgM4JOByMkbjye5qSNWtpktZRJ+9G6GQEtkAcqc9SBx7jnsauEmN03q2CTgYB/A1UaaTu3d+f9WXyDmeyFjiQrsYknjOc4P41fRMFGVeMEe/4flSxRAoshIUIAcnAIPqc8VLgIgVX4xnDDk+vSqZA7yWVVcRHAx8xXGM8Z5p0aMBsd9pI4Y9f0NQ7me5YSyhQiZzt4X0798H1qSe8t7d/JVHmuX5VMBeB3OexPes2ybDsJBFK7ny41P32x2xzT42luI1UCaOJsgMFKyMD1wP4Qfz+lRQRxtKLm5w78HYAdqHpxnqfcj8qvwM07bmSRY0JDKOvoMkevBpFIZFDFbW6xxbUy2Bt5Izz3zio2gjDxYLEkg5wf1/KrbggKX+YZB+Xt7YHX/wDVSGBdoCtt9Noxgdhj6UkSypJb43RlSwHGScCo4bcIWBwWyMDPIHbr361dTdt3KHXaeSMHqf8A69RrciQFGZN2OdynD9e/HYUXJI2EbP8AMjE842jDD86kaJI5Ase4MRknGcUsQgHKoMZwvQEZByB+tHsZCW3YVgPf8qCWMmjbazSFcD7vaqs4ULgocHIIIA2mr275SQ4Az8p3HnrnPpVW4TLNzmTvxn3x7U0SUV2sVZkIY44x9etMdMuql/nByvHJ/L61fbbGAC6jdzz1wPeoZIvJz8wPJ+8ATTuFjIuolIKqwJ3c4HcdcVXaKNo/kQsBxnbjFXZo48swOxckAlcKW9f89aoXGnLdQuv2lwsmDmM4I+hxjt/OqCNr6kLY3HOFGR1PUnoPxpEjDIcEYB5GSSD79xVH/hH0DuqX18D0DGUAZ9uOaePDsLROWvLw5HIaX+fFL3u39fcdHLQ/mf3L/wCSLLLIVwrYJ6tjJ6dhVORPkliaQhmXBOO54q4iRrEka5PljuMnjp36+9NdIyuR1HWtDEoRXC3NtG77VY/e74PQ/qDTXXB+bkZyM00R+XfSwhQVP71PY9/15/Gns4z5Z4Y5wD3Hf+dMaNePYoJKnDMWYkgZ/wA8U5JGEgi8wCRgXUKvbn8Tz+FQPcxmSKMHPmZXAUncexJHbjrUqRoZFMhZCSCAHIyRTZ0k88VtfQ+VKSpU/eXh426DB657+/HarNh80AEjbbqMgSDnaVyQrDPY8/TkdqqebmQgOxYN3UkH16jH+fappYiyJcxDZcRhSjOOCv8AdOex446557UiScXb72JV1ZeBuDBTwT2yCOOcd6sx3bFCzyIEBL5PyDaOMHJx+v4Vi2+s/bbgRW9u1xKjbGTOyOIjqHY56c8DOetadvbF3El07zTKQ0aqcKgHQqD0J9Tk89aliLCTS3LhEH2VAQDI/wB9/TaG6cAcn16GprYC2fEcDlydzOzFi3qSfXj9OvpHcDbhBuIPIJckNj36gfnnNSRwNLYJcIo3MuVynAXHGQe/PekyWKjlLdFwWIAAIAGcYxj1HNadozLJuZGT5d2T3zjsO9Z8ZV1CLEUijIG4ZBUkZIAxjHvzzn0rR0wRvD+5KtHg4kLbwTn6dOKiSBD3kidXT5lZSvyA89c49/pQGa32M7sDk7TnAPPA9M9KnaCV3byQxwOjA4P48dxVGB1MyuQzxgfIgOVDHr1GeM9fas3qJksM881u7XELArkkA7sDnnj1/pUCxB8StucFsjcuCB09PWrLypI3zuBvJUHH3m6dB9KIoVKqi7AqYBCE7QMHPHQ9Tzx2qrEFZEPmJNIzBQxG1vTnt7ZxTldhIkYjBKkfcJAAI5PTj6CnpLGBIEl3qHGMLjO709qhBkaQCOMSL0LMMfL68ehoEySSWO0g3BiyglckjK9Tjt9KgZZc+a6bG2lcyvn5ex6Z6+/apYAJPNRcqzblbnGT6/rSfIIcO554xyRnt9RTEUQpL/KYjvBLYbJHvkgE96jc5wSwO7AAcAcY5J9aGZDK/kxgxufvIw+Y5IP0qPIiDKsSxCPLbAQccY/GmBnzSSoGQLtAJz2I56/jUS4YbvKClvvDtn9M1buInni3+SGXIK7TyDke/XvULRld8bFmkXkZGAx6enFUhEahGUr91gSTlvbtmmO5GAFLZOMgZyPaneWqAgiVSoI2oDxj/P6027ikkkUhwRgbVziqGQx5J2jzC784IwPx/OoZWeMEKQVx0K/N/npUrkL8oYhicHbzjpx7VVncMhjyjo7eXIpXII+vPOfWqKSKFyyxPDKMkxsFJ/2W45PscH8KdNIxVtqNuH8OcZ96WW3UrJHIB5ZTy+v3RioLWYTQBpF3NgoxYZGR1/DrTKij/9k=" alt="Test Scene" class="img-preview" style="max-height: 380px; width: auto;" />
-                <p style="margin-top:20px; color:#64748b;"><em>*이 이미지를 고정값으로 두고 텍스트 입력만 변경했습니다. 오른쪽으로 돌기 좋은 혹은 우측에 시각적 이끌림이 있는 상태입니다.</em></p>
-            </div>
-        </div>
+    <header class="hero">
+        <h1>Vision-Language-Action</h1>
+        <p>Mobile Navigation VLA 모델 안정화 및 전술적 일반화 연구</p>
+        <p style="color: var(--accent); font-weight: 700;">Latest Milestone: V5.Exp10 Action Awareness</p>
+    </header>
 
-        <!-- Page 3: Quantitative Results -->
-        <div class="slide" id="slide-3">
-            <h2>검증 결과 (Softmax Probabilities)</h2>
-            <p>동일한 이미지에 대해 텍스트 프롬프트를 변경했을 때의 클래스별 예측 확률입니다.</p>
-            <table>
-                <tr>
-                    <th>입력 텍스트</th>
-                    <th>최종 예측</th>
-                    <th>Stop</th>
-                    <th>Forward</th>
-                    <th>Left</th>
-                    <th>Right</th>
-                    <th>FWD-L</th>
-                    <th>FWD-R</th>
-                </tr>
-                <tr>
-                    <td>"Go forward..."</td>
-                    <td><strong>Right</strong></td>
-                    <td>19.9%</td>
-                    <td class="blue-highlight">8.8%</td>
-                    <td>23.5%</td>
-                    <td>25.2%</td>
-                    <td class="blue-highlight">11.0%</td>
-                    <td class="blue-highlight">11.3%</td>
-                </tr>
-                <tr>
-                    <td>"Go left."</td>
-                    <td><strong>Right</strong></td>
-                    <td>21.8%</td>
-                    <td>5.2%</td>
-                    <td class="blue-highlight">27.0%</td>
-                    <td>30.6%</td>
-                    <td>7.6%</td>
-                    <td>7.5%</td>
-                </tr>
-                <tr>
-                    <td>"Go right."</td>
-                    <td><strong>Right</strong></td>
-                    <td>23.1%</td>
-                    <td>4.0%</td>
-                    <td>27.9%</td>
-                    <td class="blue-highlight">32.6%</td>
-                    <td>6.3%</td>
-                    <td>5.8%</td>
-                </tr>
-                <tr>
-                    <td>"Stop here."</td>
-                    <td><strong>Right</strong></td>
-                    <td class="blue-highlight">24.0%</td>
-                    <td>3.7%</td>
-                    <td>27.9%</td>
-                    <td>33.3%</td>
-                    <td>5.8%</td>
-                    <td>5.1%</td>
-                </tr>
-            </table>
-            <p style="font-size: 0.9rem; margin-top: 15px; color:#475569;">
-                <strong>관측:</strong> "Go left"를 입력하면 Left 확률이 증가하고, "Stop"을 넣으면 Stop 확률이 눈에 띄게 상승합니다. 텍스트 지시에 따라 분명히 확률이 변화하지만, 최종 Argmax 예측값은 시각적 편향으로 인해 계속 <strong>Right</strong>를 가리킵니다.
-            </p>
-        </div>
-
-        <!-- Page 4: Findings & Conclusion -->
-        <div class="slide" id="slide-4">
-            <h2>결론 및 향후 대응 방향 (Findings)</h2>
-            <div class="two-cols">
-                <div class="col">
-                    <h3 style="color:#0f172a;">1. 언어 반영도 (Text Sensitivity) 확인됨</h3>
-                    <p>테스트 결과, VLM은 사용자의 시스템 프롬프트를 <strong>백색소음으로 치부하지 않습니다</strong>. 각 지시어의 방향성에 맞춰 해당 클래스의 확률값이 실제로 약 3~5%씩 움직였습니다.</p>
-                    
-                    <h3 style="color:#0f172a;">2. 압도적인 시각 편향 (Visual Over-reliance)</h3>
-                    <p>그러나 언어 모델의 가중치보다 <strong>시각적 특징 추출의 가중치가 행동 예측에 더 결정적인 영향</strong>을 줍니다. 이는 "우회전할 것 같은" 주행 경로 시각 단서가 "왼쪽으로 가라"는 텍스트 명령어의 영향을 상쇄해버리는 결과입니다.</p>
+    <main class="container">
+        <h2 class="section-title">Experimental Roadmap</h2>
+        
+        <div class="roadmap">
+            <div class="roadmap-item">
+                <div class="status-icon status-done">✓</div>
+                <div class="roadmap-content">
+                    <h3>Dataset V5 Compilation</h3>
+                    <p>150 Episodes, 9 Scenarios (Balanced Nav/Obstacle)</p>
                 </div>
-                <div class="col" style="background:#f8fafc; padding:15px; border-radius:8px; border:1px solid #e2e8f0;">
-                    <h3 style="color:#2563eb; margin-top:0;">🚀 Next Step : BBox 개입 전략</h3>
-                    <p>현재 모델의 상태를 <strong>"귀는 열려 있지만 눈으로 보는 것을 맹신하는 상태"</strong>로 정의할 수 있습니다. 교수님 미팅 방어용으로 아주 훌륭한 관측입니다.</p>
-                    <p>따라서, 이 편향을 역이용하여 <strong>[목표물 BBox 좌표]</strong>를 자연어 프롬프트와 함께 주입하는 트랙 2(스포츠카 시동 전략)가 필수적입니다.</p>
-                    <p style="font-size:0.85rem; color:#64748b;">(예시: "Go forward to the basket at [Xmin, Ymin, Xmax, Ymax]")</p>
+            </div>
+
+            <div class="roadmap-item">
+                <div class="status-icon status-done">✓</div>
+                <div class="roadmap-content">
+                    <h3>Exp 09: Optimized Discrete Policy</h3>
+                    <p>8-class grounding bootstrapping 완료 / 시각 편향성 데이터 확보</p>
+                </div>
+            </div>
+
+            <div class="roadmap-item">
+                <div class="status-icon status-doing">⚡</div>
+                <div class="roadmap-content">
+                    <h3>V5.Exp10: Action-Aware BBox Grounding</h3>
+                    <p><strong>Status:</strong> Validation Loss 0.012 달성. 객체-액션 상관관계 최적화</p>
+                    <span class="tag tag-high">Active Research</span>
+                    <div class="links-grid">
+                        <a href="docs/v5/exp10/index.html" class="link-card">
+                            <h4>📊 Action Alignment Report</h4>
+                            <p>실제 H5 액션과 모델 예측값 사이의 92% 일치도 분석</p>
+                        </a>
+                        <a href="docs/v5/exp10/action_alignment.md" class="link-card">
+                            <h4>📝 Full Technical Docs</h4>
+                            <p>로짓 레벨 분석 및 일반화 성능 리포트 (Markdown)</p>
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="roadmap-item">
+                <div class="status-icon status-todo">○</div>
+                <div class="roadmap-content">
+                    <h3>Real-robot Validation (Physical V5)</h3>
+                    <p>추론 통합(Integration) 및 실제 하드웨어 성능 검증 예정</p>
                 </div>
             </div>
         </div>
-    </div>
 
-    <div class="footer">
-        <button id="btn-prev" onclick="changeSlide(-1)" disabled>← Previous</button>
-        <button id="btn-next" onclick="changeSlide(1)">Next →</button>
-    </div>
-</div>
+        <div style="text-align: center;">
+            <a href="docs/index.html" class="report-btn">과거 실험 보고서 전체보기 (Text Sensitivity)</a>
+        </div>
+    </main>
 
-<script>
-    let currentSlide = 1;
-    const totalSlides = 4;
-
-    function changeSlide(direction) {
-        document.getElementById(`slide-${currentSlide}`).classList.remove('active');
-        currentSlide += direction;
-        document.getElementById(`slide-${currentSlide}`).classList.add('active');
-        
-        document.getElementById('page-indicator').innerText = `Page ${currentSlide} / ${totalSlides}`;
-        
-        document.getElementById('btn-prev').disabled = currentSlide === 1;
-        document.getElementById('btn-next').disabled = currentSlide === totalSlides;
-    }
-</script>
+    <footer style="text-align: center; padding: 40px; color: var(--text-dim); font-size: 0.9rem;">
+        &copy; 2026 MoNaVLA Deep Learning Team. Advanced Agentic Coding Environment.
+    </footer>
 
 </body>
 </html>
