@@ -52,14 +52,32 @@ setattr(train_mod, "BaseTrainer", NavTrainer)
 import main as main_mod
 main_mod.BaseTrainer = NavTrainer
 
-# ── 설정
-CKPT = os.path.join(ROOT, "runs/v5_nav/kosmos/mobile_vla_v5_exp01/2026-04-10/v5-exp01-discrete",
-                    "epoch_epoch=epoch=05-val_loss=val_loss=2.270.ckpt")
-CONFIG = os.path.join(ROOT, "configs/mobile_vla_v5_exp01_discrete.json")
-V5_DATA = os.path.join(ROOT, "ROS_action/v5_data_bak/mobile_vla_dataset_v5")
+# ── CLI 인자 파싱 (하드코딩 대신)
+import argparse as _argparse
+_ap = _argparse.ArgumentParser(add_help=False)
+_ap.add_argument("--ckpt",    default=None)
+_ap.add_argument("--config",  default=None)
+_ap.add_argument("--data",    default=None)
+_ap.add_argument("--num_classes", type=int, default=None)
+_ap.add_argument("--train_split", type=float, default=None)
+_ap.add_argument("--window_size", type=int, default=None)
+_ap.add_argument("--instruction_preset", default=None)
+_cli, _ = _ap.parse_known_args()
 
-CLASS_NAMES = {0:"STOP", 1:"FORWARD", 2:"LEFT", 3:"RIGHT", 4:"FWD+L", 5:"FWD+R"}
-NUM_CLASSES = 6
+# ── 설정 (CLI 우선, fallback으로 기본값)
+CKPT = _cli.ckpt or os.path.join(ROOT, "runs/v5_nav/kosmos/mobile_vla_v5_exp01/2026-04-10/v5-exp01-discrete",
+                    "epoch_epoch=epoch=05-val_loss=val_loss=2.270.ckpt")
+CONFIG = _cli.config or os.path.join(ROOT, "configs/mobile_vla_v5_exp01_discrete.json")
+V5_DATA = _cli.data or os.path.join(ROOT, "ROS_action/v5_data_bak/mobile_vla_dataset_v5")
+
+NUM_CLASSES = _cli.num_classes or 6
+_VAL_TRAIN_SPLIT = _cli.train_split or 0.85
+_VAL_WINDOW_SIZE = _cli.window_size or 6
+_VAL_INSTRUCTION_PRESET = _cli.instruction_preset or "default"
+
+CLASS_NAMES_6 = {0:"STOP", 1:"FORWARD", 2:"LEFT", 3:"RIGHT", 4:"FWD+L", 5:"FWD+R"}
+CLASS_NAMES_8 = {0:"STOP", 1:"FORWARD", 2:"LEFT", 3:"RIGHT", 4:"FWD+L", 5:"FWD+R", 6:"TURN_L", 7:"TURN_R"}
+CLASS_NAMES = CLASS_NAMES_8 if NUM_CLASSES == 8 else CLASS_NAMES_6
 
 # ── 모델 로드 (inference_server와 동일한 방식)
 def load_model():

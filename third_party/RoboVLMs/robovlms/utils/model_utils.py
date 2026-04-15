@@ -98,7 +98,7 @@ def update_tokenizer(tokenizer, tokenizer_config):
     if new_tokens is not None and len(new_tokens) > 0:
         tokenizer.add_special_tokens({"additional_special_tokens": new_tokens})
 
-    if tokenizer.pad_token is None:
+    if getattr(tokenizer, "pad_token", None) is None:
         try:
             tokenizer.pad_token_id = tokenizer.eod_id
         except:
@@ -109,7 +109,8 @@ def update_tokenizer(tokenizer, tokenizer_config):
                     f"Tokenizer {tokenizer_type} does not have a pad token. "
                     f"The pad token will be added to the tokenizer."
                 )
-    assert tokenizer.vocab_size < 2**18
+    if hasattr(tokenizer, "vocab_size"):
+        assert tokenizer.vocab_size < 2**18
     return tokenizer
 
 

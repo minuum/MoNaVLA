@@ -62,6 +62,7 @@ class MobileVLAH5Dataset(Dataset):
         fwd_pred_next_n=5,
         image_size=224,
         discrete_action=False,
+        use_bbox_target=False,
         abs_action=False,
         is_validation=False,
         train_split=0.9,
@@ -98,8 +99,8 @@ class MobileVLAH5Dataset(Dataset):
         self.exclude_path_types = set(exclude_path_types) if exclude_path_types else set()
         self.train_split = train_split
         self.tokenizer = kwargs.get('tokenizer', None)
-        # [V5] grounding_prefix
         self.grounding_prefix = kwargs.get('grounding_prefix', False)
+        self.use_bbox_target = use_bbox_target
         # [BugFix/Track1] instruction_override 명시적 저장 및 반영
         self.instruction_override = kwargs.get('instruction_override', None)
         
@@ -464,6 +465,50 @@ class MobileVLAH5Dataset(Dataset):
                         language_base = f"<grounding>{language_base}"
                 else:
                     language_base = "Navigate to the gray basket"
+                    
+                # [Track 2] BBox 생성 (OpenCV 임시 활용)
+                if self.use_bbox_target:
+                    # 마지막 프레임 혹은 현재 프레임 영상 기반 bbox
+                    target_img_np = images_src[min(start_frame + self.window_size - 1, total_len - 1)]
+                    try:
+                        import cv2
+                        hsv = cv2.cvtColor(target_img_np, cv2.COLOR_RGB2HSV)
+                        # 임시로 Grayish + Reddish 물체를 잡음 (넓은 임계값)
+                        # 여기서는 화면 중앙 근처에 있는 컨투어를 우선하거나, 가장 큰 면적을 바구니로 가정
+                        lower_bound = np.array([0, 0, 0])
+                        upper_bound = np.array([180, 255, 200])
+                        mask = cv2.inRange(hsv, lower_bound, upper_bound)
+                        # 화면 아래쪽에 가중치(바구니는 바닥에 있음)
+                        H, W = mask.shape
+                        mask[0:H//3, :] = 0
+                        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                        
+                        xmin, ymin, xmax, ymax = W//3, H//3, 2*W//3, 2*H//3 # Default center bbox
+                        if contours:
+                            c = max(contours, key=cv2.contourArea)
+                            if cv2.contourArea(c) > 100:
+                                x, y, w, h = cv2.boundingRect(c)
+                                xmin, ymin, xmax, ymax = x, y, x+w, y+h
+                        
+                        # BBox 토큰 계산 (Kosmos-2 32x32 Grid 매핑)
+                        x1_idx = int((xmin / W) * 31)
+                        y1_idx = int((ymin / H) * 31)
+                        p1 = y1_idx * 32 + x1_idx
+                        
+                        x2_idx = int((xmax / W) * 31)
+                        y2_idx = int((ymax / H) * 31)
+                        p2 = y2_idx * 32 + x2_idx
+                        
+                        bbox_text = f"<box_2d><patch_index_{p1:04d}><patch_index_{p2:04d}></box_2d>"
+                        # language_base 뒤에 Action 출력 대신 BBox를 정답으로 연결
+                        if "Action:" in language_base:
+                            language_base = language_base.split("Action:")[0] + f"Action: {bbox_text}"
+                        else:
+                            language_base = f"{language_base} Action: {bbox_text}"
+                    except Exception as e:
+                        # Fallback
+                        bbox_text = f"<box_2d><patch_index_0528><patch_index_0656></box_2d>" # Center approx
+                        language_base = f"{language_base} Action: {bbox_text}"
 
             # -------------------------------------------------------------------------
             # [LFS Update] Augmentation - Image Flip (좌우 반전)
@@ -583,9 +628,9 @@ class MobileVLAH5Dataset(Dataset):
                     chunk = torch.cat([chunk, last_val.repeat(pad_len, 1)], dim=0)
                 action_chunks.extend(chunk)
             
-            # Reshape into (seq_len, chunk_size, 2)
-            action_chunck = torch.stack(action_chunks).reshape(self.window_size, self.fwd_pred_next_n, 2)
-            actions_tensor = actions_tensor_full # (window_size + next_n - 1, 2)
+            # Reshape into (seq_len, chunk_size, dims)
+            action_chunck = torch.stack(action_chunks).reshape(self.window_size, self.fwd_pred_next_n, actions_tensor_full.shape[-1])
+            actions_tensor = actions_tensor_full # (window_size + next_n - 1, dims)
         
         data_dict = {
             'rgb': images_tensor,

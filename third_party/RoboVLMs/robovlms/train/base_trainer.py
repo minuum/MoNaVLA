@@ -619,12 +619,12 @@ class BaseTrainer(pl.LightningModule):
             action_mask=chunck_mask,
             caption_labels=(
                 language.clone()
-                if (isinstance(rgb, torch.Tensor) and rgb.shape[1] == 1)
+                if self.configs.get("train_setup", {}).get("predict_caption", False)
                 else None
             ),
             caption_mask=(
                 text_mask.clone()
-                if (isinstance(rgb, torch.Tensor) and rgb.shape[1] == 1)
+                if self.configs.get("train_setup", {}).get("predict_caption", False)
                 else None
             ),
             vision_gripper=hand_rgb,
