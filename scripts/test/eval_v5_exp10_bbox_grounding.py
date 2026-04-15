@@ -111,26 +111,48 @@ def evaluate():
             if i >= 100: break # Evaluation subset
             try:
                 sample = ds[i]
-                # Dataset provides 'language' which contains the GT bbox text
-                gt_text = sample['language']
-                gt_box = parse_bbox_tokens(gt_text)
-                if gt_box is None: continue
+                # Dataset provides 'lang' which contains the GT bbox text
+                gt_instr = sample['lang']
+                gt_box = parse_bbox_tokens(gt_instr)
+                if gt_box is None:
+                    continue
 
                 # Prepare model input
                 batch = ds.collater([sample])
                 gpu_batch = {k: v.cuda() if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
                 
-                # Inference using generate method of Kosmos
+                # Inference using forward to get logits
+                outputs = model.model(
+                    pixel_values=gpu_batch['rgb'],
+                    input_ids=gpu_batch['text'],
+                )
+                logits = outputs.logits # [1, seq_len, vocab_size]
+                
+                # Use generate for text prediction
                 output_ids = model.model.generate(
                     pixel_values=gpu_batch['rgb'],
-                    input_ids=gpu_batch['text'][:, :1], # Just dummy start or specific prompt
+                    input_ids=gpu_batch['text'],
                     max_new_tokens=20,
+                    return_dict_in_generate=True,
+                    output_scores=True
                 )
-                pred_text = model.model.tokenizer.decode(output_ids[0], skip_special_tokens=False)
+                
+                pred_text = model.model.tokenizer.decode(output_ids.sequences[0], skip_special_tokens=False)
                 pred_box = parse_bbox_tokens(pred_text)
                 
+                # Calculate Action Probability (Confidence)
+                # We look at the scores for the generated patch tokens
+                patch_scores = []
+                for score in output_ids.scores: # list of tensors [1, vocab_size]
+                    probs = torch.softmax(score[0], dim=-1)
+                    max_prob, max_idx = torch.max(probs, dim=-1)
+                    token = model.model.tokenizer.decode([max_idx.item()])
+                    if "patch_index" in token:
+                        patch_scores.append(max_prob.item())
+
+                mean_conf = np.mean(patch_scores) if patch_scores else 0
+                
                 if pred_box is None:
-                    # No BBox detected in text
                     iou = 0
                 else:
                     iou = calculate_iou(gt_box, pred_box)
@@ -139,6 +161,17 @@ def evaluate():
                 if iou >= 0.5:
                     success_at_05 += 1
                 total_count += 1
+                
+                if i % 5 == 0:
+                    debug_print(f"Frame {i:03} | IoU: {iou:.3f} | Action Conf (Avg Prob): {mean_conf:.4%}")
+                    debug_print(f"  > Pred Text: {pred_text[:60]}...")
+                
+                if i % 10 == 0:
+                    debug_print(f"Frame {i} | IoU: {iou:.3f} | Action Conf: {mean_conf:.4f} | Text: {pred_text[:50]}...")
+
+            except Exception as e:
+                debug_print(f"Error at frame {i}: {e}")
+                continue
 
             except Exception as e:
                 continue
