@@ -1,0 +1,74 @@
+benchmark_id: v5_lr_4way_sanity
+version: 2026-04-17
+owner: MoNaVLA
+purpose: >
+  Fixed sanity benchmark for left/right directional discrimination in V5 navigation
+  models. This benchmark is intended to catch structural directional collapse before
+  running broader offline PM/DM or rollout evaluation.
+
+scope:
+  task_family: navigation
+  model_family: V5 discrete policy
+  compatible_num_classes: [8]
+  primary_use: pre-benchmark sanity gate
+
+required_outputs:
+  - summary.json
+  - sample_overlays
+  - per_subset_prediction_table
+
+selection_policy:
+  mode: fixed_subset_manifest
+  source_file: benchmarks/definitions/splits/v5_lr_4way_sanity.yaml
+  unit: dataset_sequence
+  deterministic: true
+  notes:
+    - Use fixed dataset indices when available.
+    - If dataset indexing changes, remap once and version-bump this benchmark.
+
+target_classes:
+  - class_id: 2
+    class_name: LEFT
+    directional_family: left_pure
+  - class_id: 3
+    class_name: RIGHT
+    directional_family: right_pure
+  - class_id: 4
+    class_name: FWD+L
+    directional_family: left_forward
+  - class_id: 5
+    class_name: FWD+R
+    directional_family: right_forward
+
+subsets:
+  - subset_id: left_left_pure
+    expected_path_pattern: left_left
+    expected_gt: LEFT
+    failure_signal: predicts right-family
+  - subset_id: center_left_forward
+    expected_path_pattern: center_left
+    expected_gt: FWD+L
+    failure_signal: predicts right-family or pure-right
+  - subset_id: right_right_pure
+    expected_path_pattern: right_right
+    expected_gt: RIGHT
+    failure_signal: predicts left-family or forward-left
+  - subset_id: center_right_forward
+    expected_path_pattern: center_right
+    expected_gt: FWD+R
+    failure_signal: predicts left-family or pure-left
+
+verdict_policy:
+  pass_condition: >
+    No left-family subset may collapse entirely into right-family predictions,
+    and no right-family subset may collapse entirely into left-family predictions.
+  warn_condition: >
+    Any subset with fewer than 2 fixed samples or any benchmark run with missing subset coverage.
+  fail_condition: >
+    Structural one-sided collapse on any required subset, or missing benchmark coverage
+    due to unstable validation split.
+
+recommended_followup:
+  - offline PM/DM benchmark
+  - path-type confusion matrix
+  - closed-loop simulation
