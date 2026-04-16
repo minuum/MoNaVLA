@@ -26,6 +26,8 @@
 ### 2. 계획 (plan.md 작성)
 리서치 완료 후 `plan.md`를 작성한다. 코드는 아직 작성하지 않는다.
 
+기본 형식은 `docs/plans/STANDARD_PLAN_TEMPLATE.md`를 따른다.
+
 plan.md에 포함할 내용:
 - 접근 방식 상세 설명
 - 실제 변경사항을 보여주는 코드 스니펫
