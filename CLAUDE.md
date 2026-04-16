@@ -103,6 +103,12 @@ git reset 또는 git revert → 범위를 좁혀서 재시작
 
 ---
 
+## 에이전트 진입점
+
+새 세션/에이전트 시작 시 읽기 순서: **`docs/AGENT_ENTRYPOINT.md`** 참조.
+
+---
+
 ## Menemory 연동
 
 세션 시작 시 `.menemory/core/master_memory.md`를 반드시 읽어라. 이 파일이 프로젝트의 장기 핵심 메모리다.
