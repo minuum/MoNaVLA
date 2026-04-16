@@ -1,153 +1,180 @@
-# Plan: Exp07 — Path-Type-Aware Instruction (에피소드 타입별 고정 instruction)
+# Plan: Exp11 — Option B (Google-Robot Backbone + 8-class)
 
-## 핵심 아이디어
-
-**문제:** 현재 모든 V5 에피소드가 동일한 instruction ("Navigate until the gray basket is centered...") 을 가짐. 모델이 instruction을 무시해도 학습 손실이 최소화됨.
-
-**해결:** 에피소드 파일명의 path_type(`straight_path`, `left_path`, `right_path`)을 읽어서 direction-specific instruction을 할당. 학습 데이터에 실제 텍스트-액션 correlation을 부여.
-
-**목표:** 추론 시 "go left" vs "go right" 입력에 모델이 다른 액션을 출력.
+> **방향 확정 (2026-04-16):** Exp04 백본 + Exp09 액션 공간 통합. 아직 아무도 안 해본 조합.
 
 ---
 
-## 구현 계획
+## 리서치 요약
 
-### Step 1: `nav_h5_dataset_impl.py` — `_get_path_type_instruction()` 추가
+### 8-class는 이미 지원됨 (버그 없음)
 
-`__getitem__` 내부에서 파일명으로 path_type을 감지하고 instruction을 반환하는 메서드 추가.
-
+`nav_h5_dataset_impl.py:587-590`:
 ```python
-# nav_h5_dataset_impl.py에 추가 (클래스 변수)
-PATH_TYPE_INSTRUCTIONS = {
-    "left": [
-        "Navigate to the left toward the gray basket",
-        "Move left to approach the target",
-        "Steer left to reach the basket",
-        "Head left toward the object",
-        "왼쪽으로 이동해서 바구니에 접근해",
-        "좌측으로 방향을 잡아 목표로 이동해",
-    ],
-    "right": [
-        "Navigate to the right toward the gray basket",
-        "Move right to approach the target",
-        "Steer right to reach the basket",
-        "Head right toward the object",
-        "오른쪽으로 이동해서 바구니에 접근해",
-        "우측으로 방향을 잡아 목표로 이동해",
-    ],
-    "straight": [
-        "Navigate straight forward to the gray basket",
-        "Go directly ahead to the target",
-        "Proceed straight to the basket",
-        "Move forward toward the object",
-        "바구니를 향해 직진해",
-        "앞으로 곧장 이동해",
-    ],
-    "default": [
-        "Navigate until the gray basket is centered and fills the lower half of the frame.",
-    ],
-}
+if self.num_classes == 6:
+    mapping = {0: 0, 1: 1, 2: 2, 4: 2, 3: 3, 5: 3, 6: 2, 7: 3}
+    cls_labels = [mapping.get(int(l), 0) for l in cls_labels]
+# num_classes == 8이면 이 블록 스킵 → 0~7 그대로 사용
+```
+→ **6-class 매핑 버그는 8-class 학습에 해당 없음.** `num_classes=8`만 설정하면 됨.
 
-def _get_path_type_instruction(self, ep_file_path):
-    """에피소드 파일명에서 path_type을 감지해 direction-specific instruction 반환."""
-    stem = Path(ep_file_path).stem
-    if "left_path" in stem:
-        key = "left"
-    elif "right_path" in stem:
-        key = "right"
-    elif "straight_path" in stem:
-        key = "straight"
-    else:
-        key = "default"
-    variations = self.PATH_TYPE_INSTRUCTIONS[key]
-    return f"<grounding>An image of a robot {random.choice(variations)}"
+### 8-class 정의 (Exp09 기준)
+
+| Index | 이름 | 설명 |
+|-------|------|------|
+| 0 | STOP | 정지 |
+| 1 | FORWARD | 직진 (W) |
+| 2 | LEFT | 좌 슬라이드 (A) |
+| 3 | RIGHT | 우 슬라이드 (D) |
+| 4 | FWD+LEFT | 대각선 좌전진 |
+| 5 | FWD+RIGHT | 대각선 우전진 |
+| 6 | ROT_LEFT | 제자리 좌회전 (CCW, az > 0.1) |
+| 7 | ROT_RIGHT | 제자리 우회전 (CW, az < -0.1) |
+
+6-class 대비 추가된 것: `ROT_LEFT(6)`, `ROT_RIGHT(7)` — inference_server.py의 9-class와 달리 여기서는 8번이 없음.
+
+### 두 실험의 핵심 차이
+
+| 항목 | Exp04 (Google-Robot) | Exp09 (8-class) | Exp11 (통합) |
+|------|---------------------|----------------|-------------|
+| 백본 | Google-Robot pretrain | V4 ckpt | **Google-Robot** |
+| num_classes | 6 | 8 | **8** |
+| window_size | 6 | 8 | **8** |
+| data_dir | v5_data_bak (54ep) | mobile_vla_dataset_v5 (150ep) | **mobile_vla_dataset_v5** |
+| exclude_straight | ✅ | ❌ | **결정 필요 ↓** |
+| learning_rate | 1e-4 | 2e-5 | **5e-5 (중간값)** |
+| max_epochs | 30 | 5 | **20** |
+
+---
+
+## 데이터 구조 확정 (실제 측정값)
+
+### 에피소드 타입별 실제 분포
+
+| 타입 | ep수 | 프레임 | 주요 액션 |
+|------|------|--------|---------|
+| center_straight | 20 | 280 | FWD 100% — **제외** |
+| left_straight | 20 | 360 | ROT_R 1프레임 + FWD 나머지 |
+| right_straight | 20 | 360 | ROT_L 1프레임 + FWD 나머지 |
+| center_left | 15 | 270 | FWD+L/FWD+R 위주 |
+| center_right | 15 | 270 | FWD+L/FWD+R 위주 |
+| left_left | 15 | 277 | FWD+L/LEFT 위주 |
+| left_right | 15 | 285 | FWD+R 위주 |
+| right_left | 15 | 283 | FWD+L 위주 |
+| right_right | 15 | 241 | FWD+R/RIGHT 위주 |
+
+### ROT의 의미
+
+```
+left_straight  에피소드: [ROT_R, FWD, FWD, FWD, ...]  ← 첫 프레임만 ROT_R
+right_straight 에피소드: [ROT_L, FWD, FWD, FWD, ...]  ← 첫 프레임만 ROT_L
+center_straight 에피소드: [FWD, FWD, FWD, ...]
 ```
 
-### Step 2: `__getitem__`의 instruction 분기에 `path_type_aware` preset 추가
+**ROT = "첫 장면에서 바스켓이 어느 쪽인지 보고 정렬 회전"**
+- 에피소드당 정확히 1프레임
+- left_straight → ROT_R (바스켓 왼쪽 → 오른쪽으로 회전해서 정렬)
+- right_straight → ROT_L (바스켓 오른쪽 → 왼쪽으로 회전해서 정렬)
 
-현재 코드 (nav_h5_dataset_impl.py:379):
-```python
-use_action_aware_train = (self.instruction_preset == "action_aware_train")
-if use_action_aware_train:
-    language_base = self._get_action_aware_instruction(actions)
-elif 'language_instruction' in f:
-    ...
-```
+### 확정: exclude_path_types = ["center_straight"]
 
-변경 후:
-```python
-use_action_aware_train = (self.instruction_preset == "action_aware_train")
-use_path_type_aware = (self.instruction_preset == "path_type_aware")
-if use_action_aware_train:
-    language_base = self._get_action_aware_instruction(actions)
-elif use_path_type_aware:
-    language_base = self._get_path_type_instruction(self.episode_files[ep_idx])
-elif 'language_instruction' in f:
-    ...
-```
+- center_straight 제외 (순수 FWD만, 유용한 정보 없음)
+- left/right_straight 유지 → ROT_L 20프레임 + ROT_R 20프레임 확보
+- **총 130ep 사용** (90 non-straight + 20 left_straight + 20 right_straight)
 
-**주의:** `ep_idx`는 `__getitem__` 안에서 `ep_idx, start_frame = self.frame_indices[idx]` 로 이미 분리됨. `self.episode_files[ep_idx]` 로 파일 경로 접근 가능.
+### 실제 클래스 분포 (130ep 기준)
 
-### Step 3: `configs/mobile_vla_v5_exp07_path_type.json` 생성
+| 클래스 | 프레임 | 비율 | weight |
+|--------|--------|------|--------|
+| 0 STOP | 0 | 0% | 1.0 |
+| 1 FORWARD | ~1,620 | ~65% | 0.5 |
+| 2 LEFT | 60 | ~2.4% | 10.0 |
+| 3 RIGHT | 46 | ~1.9% | 10.0 |
+| 4 FWD+L | 255 | ~10.2% | 4.0 |
+| 5 FWD+R | 270 | ~10.8% | 4.0 |
+| 6 ROT_L | 20 | ~0.8% | **50.0** |
+| 7 ROT_R | 20 | ~0.8% | **50.0** |
 
-Exp06을 parent로, `instruction_preset`만 변경:
+ROT_L/R는 1프레임/에피소드로 극히 희귀 → weight 50.0으로 강하게 보정.
+
+---
+
+## 변경 파일
+
+### 1. `configs/mobile_vla_v5_exp11_google_robot_8cls.json` (신규)
 
 ```json
 {
-    "_comment": "V5 Exp07: Pure HF Kosmos-2 + path_type_aware instruction. 에피소드 타입별 고정 direction instruction으로 텍스트-액션 correlation 강제.",
-    "parent": "configs/mobile_vla_v5_exp06_pure_hf.json",
-    "exp_name": "v5-exp07-path-type",
-    "task_name": "mobile_vla_v5_exp07",
+    "parent": "configs/mobile_vla_v5_exp04_google_robot.json",
+    "exp_name": "v5-exp11-google-robot-8cls",
+    "task_name": "mobile_vla_v5_exp11",
+
+    "num_classes": 8,
+    "window_size": 8,
+
+    "learning_rate": 5e-5,
+    "max_epochs": 20,
+
+    "act_head": {
+        "num_classes": 8,
+        "action_dim": 8,
+        "class_weights": [1.0, 0.5, 10.0, 10.0, 4.0, 4.0, 50.0, 50.0]
+    },
+
     "train_dataset": {
-        "instruction_preset": "path_type_aware"
+        "data_dir": "/home/billy/25-1kp/MoNaVLA/ROS_action/mobile_vla_dataset_v5",
+        "num_classes": 8,
+        "window_size": 8,
+        "exclude_path_types": ["center_straight"]
     },
     "val_dataset": {
-        "instruction_preset": "path_type_aware"
+        "data_dir": "/home/billy/25-1kp/MoNaVLA/ROS_action/mobile_vla_dataset_v5",
+        "num_classes": 8,
+        "window_size": 8,
+        "exclude_path_types": ["center_straight"]
     }
 }
 ```
 
-**val도 path_type_aware로** — val_loss가 같은 instruction 공간에서 측정되어야 의미 있음.
+Exp04 parent에서 오버라이드:
+- `num_classes`: 6 → 8
+- `window_size`: 6 → 8
+- `class_weights`: 6개 → 8개 (ROT_L/R는 50.0으로 강하게 보정)
+- `data_dir`: v5_data_bak → mobile_vla_dataset_v5
+- `exclude_path_types`: ["straight"] → **["center_straight"]** (left/right_straight 유지)
+- `learning_rate`, `max_epochs`: 조정
+- (나머지 동일: pretrained_vlm_path, load_vlm_only=true, stratified_split)
 
-### Step 4: 학습 실행
+### 2. 코드 수정 없음
 
-```bash
-tmux new-session -d -s v5exp07 -c /home/billy/25-1kp/MoNaVLA \
-  "PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
-   /home/billy/anaconda3/envs/openvla/bin/python robovlm_nav/train.py \
-   configs/mobile_vla_v5_exp07_path_type.json \
-   2>&1 | tee /tmp/v5_exp07_train_log.txt"
-```
-
-### Step 5: 텍스트 감도 테스트
-
-학습 완료 후 `test_v5_text_understanding.py`의 CHECKPOINTS에 Exp07 추가, neutral frame(straight_path)으로 테스트.
-
----
-
-## 수정 파일 목록
-
-| 파일 | 변경 내용 |
-|------|----------|
-| `robovlm_nav/datasets/nav_h5_dataset_impl.py` | `PATH_TYPE_INSTRUCTIONS` 클래스 변수 + `_get_path_type_instruction()` 추가, `__getitem__` 분기 추가 |
-| `configs/mobile_vla_v5_exp07_path_type.json` | 신규 생성 |
-| `scripts/test_v5_text_understanding.py` | CHECKPOINTS에 Exp07 추가 (학습 완료 후) |
-
----
-
-## 합격 기준
-
-```
-성공: left instruction → LEFT 또는 FWD+L 예측
-      right instruction → RIGHT 또는 FWD+R 예측
-      (두 instruction에서 예측 클래스가 달라야 함)
-
-실패: 모든 instruction → 동일 클래스
-```
+8-class 지원 코드는 이미 `nav_h5_dataset_impl.py`에 있음. Config만 추가하면 됨.
 
 ---
 
 ## 리스크
 
-- `path_type_aware`는 val에서도 direction-specific instruction이 주어짐 → val 중 "go left" + left_path 에피소드가 paired → val_loss는 Exp06보다 낮아질 것 (더 쉬운 task)
-- val_loss 낮다고 텍스트 이해가 확인된 건 아님 — 반드시 text sensitivity test로 최종 확인
+| 리스크 | 원인 | 대응 |
+|--------|------|------|
+| ROT_L/ROT_R 학습 안 됨 | 데이터 분포 확인 전 | 학습 전 `python -c "..."` 로 클래스 분포 출력 |
+| window_size=8 → 메모리 OOM | 시퀀스 길이 증가 | batch_size 줄이기 또는 window_size=6 유지 |
+| val_loss가 Exp04(0.776)보다 나빠짐 | 8-class가 6-class보다 어려운 문제 | 20 epoch 이상 학습 또는 lr 조정 |
+| FORWARD 과다 출력 | class_weight 부족 | FORWARD weight를 0.3으로 낮추기 |
+
+---
+
+## 기대 결과
+
+| 지표 | Exp04 | Exp09 | Exp11 예상 |
+|------|-------|-------|-----------|
+| 백본 | Google-Robot | V4 ckpt | Google-Robot |
+| val_loss | 0.776 | 1.203 | **0.5~0.9** (목표) |
+| PM (Partial Match) | 18.89% | 85.7%(Forward bias 의심) | **40%+** |
+| ROT_L/ROT_R | 미지원 | 있으나 미평가 | 유의미하게 등장 |
+
+---
+
+## 완료 체크리스트
+
+- [x] 데이터셋 클래스 분포 사전 확인 — 130ep, ROT_L/R 각 20프레임(0.9%) 확인
+- [x] `configs/mobile_vla_v5_exp11_google_robot_8cls.json` 생성 — 데이터 로딩 843 sequences 검증 완료
+- [ ] 학습 실행
+- [ ] PM/DM 검증 (Exp04, Exp09 대비 비교)

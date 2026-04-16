@@ -145,8 +145,8 @@ menemory show
 
 ### 데이터
 
-- **V5 (현재):** `ROS_action/v5_data_bak/mobile_vla_dataset_v5/` — 57개 H5 에피소드
-  - 구성: straight_path 24개, left_path 15개, right_path 15개, target_left_straight_path 4개 등
+- **V5 (현재):** `ROS_action/mobile_vla_dataset_v5/` — 150개 H5 에피소드
+  - 구성: straight 3종 × 20 = 60개, non-straight 6종 × 15 = 90개 (center/left/right × left/right path)
   - 포맷: `f['observations']['images']` (V4와 다름 — V4는 `f['images']`)
   - 액션: 6-class discrete (STOP/FORWARD/LEFT/RIGHT/FWD+L/FWD+R)
 - **V4 (구):** `ROS_action/basket_dataset_v2/` (528 H5 에피소드) — 현재 학습에 미사용

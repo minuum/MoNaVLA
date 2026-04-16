@@ -1,0 +1,33 @@
+{
+    "_comment": "V5 Exp11: Google-Robot Backbone + 8-class (ROT_L/R 포함). center_straight만 제외, left/right_straight 유지 → ROT 정렬 동작 학습. 150ep 중 130ep 사용.",
+    "parent": "configs/mobile_vla_v5_exp04_google_robot.json",
+    "exp_name": "v5-exp11-google-robot-8cls",
+    "task_name": "mobile_vla_v5_exp11",
+
+    "num_classes": 8,
+    "window_size": 8,
+
+    "learning_rate": 5e-5,
+    "max_epochs": 20,
+
+    "act_head": {
+        "type": "MobileVLAClassificationDecoder",
+        "num_classes": 8,
+        "action_dim": 8,
+        "hidden_size": 1024,
+        "class_weights": [1.0, 0.5, 10.0, 10.0, 4.0, 4.0, 50.0, 50.0]
+    },
+
+    "train_dataset": {
+        "data_dir": "/home/billy/25-1kp/MoNaVLA/ROS_action/mobile_vla_dataset_v5",
+        "num_classes": 8,
+        "window_size": 8,
+        "exclude_path_types": ["center_straight"]
+    },
+    "val_dataset": {
+        "data_dir": "/home/billy/25-1kp/MoNaVLA/ROS_action/mobile_vla_dataset_v5",
+        "num_classes": 8,
+        "window_size": 8,
+        "exclude_path_types": ["center_straight"]
+    }
+}
