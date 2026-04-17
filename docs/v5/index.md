@@ -2,6 +2,13 @@
 > **Project Phase**: Mobile Navigation VLA (V5)  
 > **Target**: Resolve "Forward Bias" and "Instruction Disobedience" via Discrete Action Policies.
 
+## 0. Latest V5 Docs
+
+- [V5 Development Log (2026-04-11 ~ 2026-04-17)](/home/billy/25-1kp/MoNaVLA/docs/v5/V5_DEVELOPMENT_LOG_20260411_0417.md:1)
+- [V5 Exp01~11 Analysis](/home/billy/25-1kp/MoNaVLA/docs/v5/exp01_11_analysis.md:1)
+- [V5 Sanity Analysis (2026-04-17)](/home/billy/25-1kp/MoNaVLA/docs/v5/V5_SANITY_ANALYSIS_20260417.md:1)
+- [V5 Evaluation Protocol](/home/billy/25-1kp/MoNaVLA/docs/v5/V5_EVALUATION_PROTOCOL.md:1)
+
 ## 1. V5 Experiment Matrix (Overview)
 
 | 실험 ID | 핵심 주제 (Core Theme) | 기반 모델 (Base) | 액션 체계 | 핵심 기술 | Val Loss | 상태 |
