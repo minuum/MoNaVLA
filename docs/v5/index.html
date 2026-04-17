@@ -142,7 +142,7 @@
                 <div class="notification is-white card">
                     <h3 class="title is-4 has-text-info"><i class="fas fa-lightbulb mr-2"></i>핵심 돌파구: Exp 04</h3>
                     <p>V4 체크포인트의 시각 오염(Backbone Blindness)을 해결하기 위해 Google-Robot 사전학습 가중치를 도입했습니다. 그 결과 <strong>Val Loss가 1/3 수준으로 감소</strong>하며 시각 정보 기반의 경로 생성이 정상화되었습니다.</p>
-                    <a href="exp04/report.md" class="button is-small is-info is-outlined mt-3">상세 리포트 보기</a>
+                    <a href="../reports/viewer.html?file=../v5/exp04/report.md" class="button is-small is-info is-outlined mt-3">상세 리포트 보기</a>
                 </div>
             </div>
 
@@ -150,7 +150,14 @@
                 <div class="notification is-danger is-light card">
                     <h3 class="title is-4 has-text-danger"><i class="fas fa-exclamation-triangle mr-2"></i>발견된 당면 과제: 편향성</h3>
                     <p>Exp 09의 Val Accuracy는 83%로 높으나, 실제 행동 예측은 <strong>직진(Forward)에 100% 쏠리는 현상</strong>이 관찰되었습니다. 이는 데이터 불균형으로 인한 국소 최적점(Local Minimum)에 빠진 것으로 분석됩니다.</p>
-                    <a href="exp09/report.md" class="button is-small is-danger is-outlined mt-3">편향성 분석 리포트</a>
+                    <a href="../reports/viewer.html?file=../v5/exp09/report.md" class="button is-small is-danger is-outlined mt-3">편향성 분석 리포트</a>
+                </div>
+            </div>
+            <div class="column is-6">
+                <div class="notification is-link is-light card">
+                    <h3 class="title is-4 has-text-link"><i class="fas fa-scale-balanced mr-2"></i>Exp14 BBox Navigation Track</h3>
+                    <p>정정 후 기준으로 Pure HF rule은 31.1%, Exp10 grounding + rule은 34.4%에 그쳤고, Step 1은 68.4%, Step 2(BBox + low-res image feature)는 75.9%까지 올라갔습니다. 현재 가장 강한 실용 baseline은 Exp14 Step 2입니다.</p>
+                    <a href="bbox_nav_comparison.html" class="button is-small is-link is-outlined mt-3">Exp14 Comparison</a>
                 </div>
             </div>
             <!-- Behavioral Analysis Section -->
@@ -189,10 +196,18 @@
                                 </div>
                                 <p class="help is-danger"><strong>판단:</strong> 가중치 조정에도 불구하고 모델이 Forward로 수렴함. 데이터의 절대적 빈도가 학습을 지배하고 있음.</p>
                             </div>
-                            <div class="column is-6 has-text-centered">
-                                <h4 class="subtitle is-5">시뮬레이션 가시화</h4>
-                                <img src="../../.gemini/antigravity/brain/f476d2f9-f96b-4262-9223-1119a6190811/v5_exp09_forward_bias_trajectory_1776221662527.png" alt="Exp 09 Behavior Visualization" style="border-radius: 8px; max-height: 250px;">
-                                <p class="is-size-7 mt-2">Forward Bias로 인해 회전 각도를 확보하지 못하고 직선 이동만 반복하는 패턴</p>
+                            <div class="column is-6">
+                                <h4 class="subtitle is-5">Pages-safe Reading Guide</h4>
+                                <div class="notification is-light" style="border-radius: 12px; text-align: left;">
+                                    <p><strong>GitHub Pages에서는 로컬 실험 이미지 경로를 직접 노출하지 않습니다.</strong></p>
+                                    <p class="mt-3">대신 아래 문서에서 실제 failure pattern과 최근 판정을 바로 확인할 수 있게 정리했습니다.</p>
+                                    <div class="buttons mt-4">
+                                        <a href="devlog.html" class="button is-warning is-light">V5 Dev Log</a>
+                                        <a href="sanity.html" class="button is-danger is-light">LEFT/RIGHT Sanity</a>
+                                        <a href="analysis.html" class="button is-info is-light">Exp01~11 Analysis</a>
+                                    </div>
+                                    <p class="is-size-7 mt-2">Exp09의 핵심 패턴은 forward-biased policy collapse, Exp11의 핵심 패턴은 left-family to right-family collapse로 요약됩니다.</p>
+                                </div>
                             </div>
                         </div>
                     </div>

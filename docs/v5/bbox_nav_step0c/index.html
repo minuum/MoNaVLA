@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Exp14 Step 0-C: Tuned Rule</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin: 0; padding: 24px; background: #0f172a; color: #e2e8f0; }
+  h1 { font-size: 2rem; margin-bottom: 8px; }
+  .sub { color: #94a3b8; margin-bottom: 24px; max-width: 900px; line-height: 1.6; }
+  .back { display: inline-block; margin-bottom: 16px; color: #60a5fa; text-decoration: none; }
+  .overall { display: inline-block; padding: 12px 24px; background: #1e293b; border-radius: 8px; margin-bottom: 20px; font-size: 1.3rem; }
+  .overall strong { color: #22c55e; }
+  .rule { background: #1e293b; padding: 10px 14px; border-radius: 6px; font-family: monospace; font-size: 0.85rem; margin-bottom: 20px; color: #fbbf24; }
+  table { border-collapse: collapse; margin-bottom: 28px; background: #1e293b; border-radius: 8px; overflow: hidden; }
+  th, td { padding: 8px 16px; text-align: left; border-bottom: 1px solid #334155; }
+  th { background: #0b1220; }
+  .path-section { margin-bottom: 36px; }
+  .path-section h2 { font-size: 1.3rem; padding: 8px 12px; background: #1e293b; border-radius: 6px; }
+  .path-section h2 .pm { color: #facc15; font-size: 0.9rem; margin-left: 8px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; margin-top: 10px; }
+  .sample { background: #1e293b; border-radius: 8px; overflow: hidden; border: 2px solid transparent; }
+  .sample.ok { border-color: #22c55e; }
+  .sample.bad { border-color: #ef4444; }
+  .sample img { width: 100%; display: block; }
+  .meta { padding: 8px 10px; font-size: 0.85rem; }
+  .cap { color: #facc15; margin-top: 4px; font-size: 0.75rem; font-family: monospace; }
+</style>
+</head>
+<body>
+  <a class="back" href="../../index.html">← Back to main</a>
+  <h1>Exp14 Step 0-C: Tuned Rule (grid search)</h1>
+  <p class="sub">
+    Step 0-B와 동일한 Exp10 grounding 결과에 rule threshold만 grid search로 튜닝.
+    Baseline PM 64.4% → Tuned PM 64.4%
+  </p>
+  <div class="overall">Overall PM: <strong>64.4%</strong>
+    (58/90) · baseline 64.4%</div>
+  <div class="rule">Best rule: STOP_area≥0.35 | LEFT cx&lt;0.15 | FWD+L cx&lt;0.30 | FWD cx≤0.70 | FWD+R cx≤0.85 | RIGHT else</div>
+  <h2>PM per Path Type</h2>
+  <table><tr><th>Path Type</th><th>Correct/Total</th><th>PM</th></tr><tr><td>center_straight</td><td>10/10</td><td><strong>100.0%</strong></td></tr><tr><td>center_left</td><td>4/10</td><td><strong>40.0%</strong></td></tr><tr><td>center_right</td><td>4/10</td><td><strong>40.0%</strong></td></tr><tr><td>left_straight</td><td>8/10</td><td><strong>80.0%</strong></td></tr><tr><td>left_left</td><td>6/10</td><td><strong>60.0%</strong></td></tr><tr><td>left_right</td><td>6/10</td><td><strong>60.0%</strong></td></tr><tr><td>right_straight</td><td>8/10</td><td><strong>80.0%</strong></td></tr><tr><td>right_left</td><td>6/10</td><td><strong>60.0%</strong></td></tr><tr><td>right_right</td><td>6/10</td><td><strong>60.0%</strong></td></tr></table>
+  
+          <div class="path-section">
+            <h2>center_straight <span class="pm">10/10 = 100.0%</span></h2>
+            <div class="grid">
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/center_straight__260408__f000.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/center_straight__260408__f003.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/center_straight__260408__f006.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/center_straight__260408__f009.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/center_straight__260408__f013.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/center_straight__260408__f000.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/center_straight__260408__f003.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/center_straight__260408__f006.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/center_straight__260408__f009.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/center_straight__260408__f013.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div></div>
+          </div>
+          <div class="path-section">
+            <h2>center_left <span class="pm">4/10 = 40.0%</span></h2>
+            <div class="grid">
+              <div class="sample bad">
+                <img src="../bbox_nav_step0b/images/center_left__260408__f000.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>LEFT</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="../bbox_nav_step0b/images/center_left__260408__f004.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FWD+L</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/center_left__260408__f008.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="../bbox_nav_step0b/images/center_left__260408__f012.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FWD+R</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/center_left__260408__f017.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="../bbox_nav_step0b/images/center_left__260408__f000.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>LEFT</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="../bbox_nav_step0b/images/center_left__260408__f004.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FWD+L</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/center_left__260408__f008.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="../bbox_nav_step0b/images/center_left__260408__f012.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FWD+R</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/center_left__260408__f017.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div></div>
+          </div>
+          <div class="path-section">
+            <h2>center_right <span class="pm">4/10 = 40.0%</span></h2>
+            <div class="grid">
+              <div class="sample bad">
+                <img src="../bbox_nav_step0b/images/center_right__260408__f000.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>RIGHT</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="../bbox_nav_step0b/images/center_right__260408__f004.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FWD+R</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/center_right__260408__f008.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="../bbox_nav_step0b/images/center_right__260408__f012.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FWD+L</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/center_right__260408__f017.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="../bbox_nav_step0b/images/center_right__260408__f000.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>RIGHT</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="../bbox_nav_step0b/images/center_right__260408__f004.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FWD+R</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/center_right__260408__f008.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="../bbox_nav_step0b/images/center_right__260408__f012.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FWD+L</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/center_right__260408__f017.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div></div>
+          </div>
+          <div class="path-section">
+            <h2>left_straight <span class="pm">8/10 = 80.0%</span></h2>
+            <div class="grid">
+              <div class="sample bad">
+                <img src="../bbox_nav_step0b/images/left_straight__260409__f000.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>ROT_R</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/left_straight__260409__f004.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/left_straight__260409__f008.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/left_straight__260409__f012.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/left_straight__260409__f017.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="../bbox_nav_step0b/images/left_straight__260409__f000.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>ROT_R</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/left_straight__260409__f004.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/left_straight__260409__f008.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/left_straight__260409__f012.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/left_straight__260409__f017.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div></div>
+          </div>
+          <div class="path-section">
+            <h2>left_left <span class="pm">6/10 = 60.0%</span></h2>
+            <div class="grid">
+              <div class="sample bad">
+                <img src="../bbox_nav_step0b/images/left_left__260409__f000.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FWD+L</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="../bbox_nav_step0b/images/left_left__260409__f004.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FWD+L</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/left_left__260409__f009.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/left_left__260409__f013.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/left_left__260409__f018.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="../bbox_nav_step0b/images/left_left__260409__f000.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FWD+L</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="../bbox_nav_step0b/images/left_left__260409__f004.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FWD+L</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/left_left__260409__f009.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/left_left__260409__f013.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/left_left__260409__f018.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div></div>
+          </div>
+          <div class="path-section">
+            <h2>left_right <span class="pm">6/10 = 60.0%</span></h2>
+            <div class="grid">
+              <div class="sample bad">
+                <img src="../bbox_nav_step0b/images/left_right__260409__f000.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FWD+R</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="../bbox_nav_step0b/images/left_right__260409__f004.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FWD+R</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/left_right__260409__f009.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/left_right__260409__f013.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/left_right__260409__f018.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="../bbox_nav_step0b/images/left_right__260409__f000.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FWD+R</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="../bbox_nav_step0b/images/left_right__260409__f004.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FWD+R</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/left_right__260409__f009.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/left_right__260409__f013.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/left_right__260409__f018.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div></div>
+          </div>
+          <div class="path-section">
+            <h2>right_straight <span class="pm">8/10 = 80.0%</span></h2>
+            <div class="grid">
+              <div class="sample bad">
+                <img src="../bbox_nav_step0b/images/right_straight__260409__f000.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>ROT_L</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/right_straight__260409__f004.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/right_straight__260409__f008.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/right_straight__260409__f012.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/right_straight__260409__f017.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="../bbox_nav_step0b/images/right_straight__260409__f000.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>ROT_L</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/right_straight__260409__f004.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/right_straight__260409__f008.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/right_straight__260409__f012.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/right_straight__260409__f017.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div></div>
+          </div>
+          <div class="path-section">
+            <h2>right_left <span class="pm">6/10 = 60.0%</span></h2>
+            <div class="grid">
+              <div class="sample bad">
+                <img src="../bbox_nav_step0b/images/right_left__260409__f000.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FWD+L</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="../bbox_nav_step0b/images/right_left__260409__f004.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FWD+L</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/right_left__260409__f008.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/right_left__260409__f012.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/right_left__260409__f017.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="../bbox_nav_step0b/images/right_left__260409__f000.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FWD+L</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="../bbox_nav_step0b/images/right_left__260409__f004.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FWD+L</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/right_left__260409__f008.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/right_left__260409__f012.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/right_left__260409__f017.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div></div>
+          </div>
+          <div class="path-section">
+            <h2>right_right <span class="pm">6/10 = 60.0%</span></h2>
+            <div class="grid">
+              <div class="sample bad">
+                <img src="../bbox_nav_step0b/images/right_right__260409__f000.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>RIGHT</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="../bbox_nav_step0b/images/right_right__260409__f004.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FWD+R</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/right_right__260409__f008.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/right_right__260409__f012.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/right_right__260409__f016.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="../bbox_nav_step0b/images/right_right__260409__f000.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FWD+R</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="../bbox_nav_step0b/images/right_right__260409__f003.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FWD+R</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/right_right__260409__f007.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/right_right__260409__f011.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="../bbox_nav_step0b/images/right_right__260409__f015.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">no bbox</div>
+                </div>
+              </div></div>
+          </div>
+</body>
+</html>

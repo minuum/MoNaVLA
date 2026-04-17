@@ -40,7 +40,7 @@
   <div class="hero-body">
     <div class="container is-max-desktop">
       <h1 class="title is-1 has-text-white mb-4" style="font-size:3.2rem;">V5 Exp01~11 Analysis</h1>
-      <p class="subtitle is-4 has-text-grey-lighter mb-0">정책 baseline, 실패 사례, grounding 성과, 다음 후보를 한 페이지로 정리한 V5 종합 분석.</p>
+      <p class="subtitle is-4 has-text-grey-lighter mb-0">기존 정책 계열과 Exp14 bbox-navigation 계열을 함께 놓고, 지금 시점의 실제 기준점을 한 페이지로 정리한 V5 종합 분석.</p>
       <div class="hero-links">
         <a href="../index.html" class="button is-white is-outlined"><span class="icon"><i class="fas fa-home"></i></span><span>Main</span></a>
         <a href="index.html" class="button is-info"><span class="icon"><i class="fas fa-chart-line"></i></span><span>V5 Dashboard</span></a>
@@ -52,17 +52,17 @@
 <section class="section">
   <div class="container is-max-desktop">
     <div class="columns is-multiline">
-      <div class="column is-6-tablet is-3-desktop"><div class="summary-card"><div class="summary-label">Policy Baseline</div><div class="summary-value">Exp04</div><div class="summary-help">Google-Robot foundation 전환이 가장 큰 구조적 개선을 만들었습니다.</div></div></div>
+      <div class="column is-6-tablet is-3-desktop"><div class="summary-card"><div class="summary-label">Policy Baseline</div><div class="summary-value">Exp11</div><div class="summary-help">기존 학습형 action baseline 중에서는 Exp11이 58.6%로 가장 높습니다.</div></div></div>
       <div class="column is-6-tablet is-3-desktop"><div class="summary-card"><div class="summary-label">Failure Case</div><div class="summary-value">Exp09</div><div class="summary-help">8-class 형식 통합은 됐지만 실제 정책은 forward bias를 못 벗어났습니다.</div></div></div>
-      <div class="column is-6-tablet is-3-desktop"><div class="summary-card"><div class="summary-label">Recent Strongest</div><div class="summary-value">Exp10</div><div class="summary-help">grounding/BBox 트랙이 최근 가장 빠르게 전진했습니다.</div></div></div>
-      <div class="column is-6-tablet is-3-desktop"><div class="summary-card"><div class="summary-label">Next Candidate</div><div class="summary-value">Exp11</div><div class="summary-help">Exp04 backbone과 Exp09 8-class를 다시 결합하는 재도전 흐름입니다.</div></div></div>
+      <div class="column is-6-tablet is-3-desktop"><div class="summary-card"><div class="summary-label">Current Strongest</div><div class="summary-value">Exp14 Step 2</div><div class="summary-help">BBox history + low-res image MLP가 75.9%로 현재 가장 강한 실용 baseline입니다.</div></div></div>
+      <div class="column is-6-tablet is-3-desktop"><div class="summary-card"><div class="summary-label">Key Correction</div><div class="summary-value">Exp10 ≠ policy win</div><div class="summary-help">Exp10 checkpoint는 generation 시 degenerate bbox를 내므로 rule-only transfer는 34.4%에 그칩니다.</div></div></div>
     </div>
   </div>
 </section>
 <section class="section" style="background:#eef4ff;">
   <div class="container is-max-desktop">
     <h2 class="title is-3">전체 비교표</h2>
-    <p class="section-subtitle mb-5">Exp01~04는 실패 원인 추적과 foundation 교체, Exp05~08은 표현 최적화, Exp09는 8-class 실패, Exp10은 grounding 성과, Exp11은 재설계 후보로 읽는 게 현재 가장 정확합니다.</p>
+    <p class="section-subtitle mb-5">Exp01~04는 실패 원인 추적과 foundation 교체, Exp05~08은 표현 최적화, Exp09는 8-class 실패, Exp10은 perception evidence, Exp11은 기존 학습형 기준점, Exp14는 bbox-navigation transfer 개선 흐름으로 읽는 게 현재 가장 정확합니다.</p>
     <div class="surface-card">
       <div class="table-container">
         <table class="table is-fullwidth is-bordered is-striped is-hoverable matrix-table">
@@ -71,14 +71,15 @@
             <tr><td><strong>Exp01</strong></td><td>분류로 바꾸면 해결되는가</td><td>Discrete classification</td><td>V4</td><td>val_loss 2.270, FORWARD 100%</td><td><span class="badge badge-amber">실패 baseline</span></td></tr>
             <tr><td><strong>Exp02</strong></td><td>직선 편향 제거 효과</td><td>straight 제거</td><td>V4</td><td>val_loss 2.210</td><td><span class="badge badge-blue">부분 개선</span></td></tr>
             <tr><td><strong>Exp03</strong></td><td>텍스트 의미 정렬 강화</td><td>CLIP Norm Loss</td><td>Exp02</td><td>val_loss 1.784</td><td><span class="badge badge-blue">정렬 가능성</span></td></tr>
-            <tr><td><strong>Exp04</strong></td><td>foundation 교체 효과</td><td>Google-Robot pretrained</td><td>Google-Robot</td><td>val_loss 0.776</td><td><span class="badge badge-green">현재 baseline</span></td></tr>
+            <tr><td><strong>Exp04</strong></td><td>foundation 교체 효과</td><td>Google-Robot pretrained</td><td>Google-Robot</td><td>val_loss 0.776, PM 0%</td><td><span class="badge badge-amber">학습 collapse</span></td></tr>
             <tr><td><strong>Exp05</strong></td><td>행동 문맥 prompt</td><td>action-aware instruction</td><td>Google-Robot</td><td>transition 안정화</td><td><span class="badge badge-slate">중간 최적화</span></td></tr>
             <tr><td><strong>Exp06</strong></td><td>HF 표준 정렬</td><td>grounding token alignment</td><td>Google-Robot</td><td>OOD 일반화 개선</td><td><span class="badge badge-slate">인프라 정비</span></td></tr>
             <tr><td><strong>Exp07</strong></td><td>path type conditioning</td><td>path-type aware instruction</td><td>Google-Robot</td><td>좌우 혼동 감소</td><td><span class="badge badge-blue">보조 성공</span></td></tr>
             <tr><td><strong>Exp08</strong></td><td>STOP 조건 학습</td><td>center-goal prompt</td><td>Google-Robot</td><td>첫 STOP 성공</td><td><span class="badge badge-blue">표현 개선</span></td></tr>
             <tr><td><strong>Exp09</strong></td><td>8-class full policy</td><td>8-class + weights</td><td>Google-Robot</td><td>val_loss 1.203, PM/DM 85.7%</td><td><span class="badge badge-amber">정책 실패</span></td></tr>
-            <tr><td><strong>Exp10</strong></td><td>Grounding 직접 학습</td><td>BBox next-token</td><td>Kosmos-2</td><td>val_loss 0.012, IoU 0.87</td><td><span class="badge badge-green">최근 성과</span></td></tr>
-            <tr><td><strong>Exp11</strong></td><td>Exp04 + 8-class 재결합</td><td>8-class 재설계</td><td>Google-Robot</td><td>최근 sanity 붕괴 확인</td><td><span class="badge badge-amber">재평가 필요</span></td></tr>
+            <tr><td><strong>Exp10</strong></td><td>Grounding 직접 학습</td><td>BBox next-token</td><td>Kosmos-2</td><td>val_loss 0.012, IoU 0.87, rule transfer 34.4%</td><td><span class="badge badge-blue">perception strong</span></td></tr>
+            <tr><td><strong>Exp11</strong></td><td>Exp04 + 8-class 재결합</td><td>8-class 재설계</td><td>Google-Robot</td><td>PM 58.6%</td><td><span class="badge badge-green">학습형 기준점</span></td></tr>
+            <tr><td><strong>Exp14 Step 0/1/2</strong></td><td>BBox를 policy proxy로 전환</td><td>rule → bbox MLP → bbox+image MLP</td><td>Kosmos-2 perception + small head</td><td>31.1% → 68.4% → 75.9%</td><td><span class="badge badge-green">현재 최강</span></td></tr>
           </tbody>
         </table>
       </div>
@@ -92,11 +93,12 @@
       <div class="exp-block"><h3 class="title is-5">Exp01</h3><p>연속 회귀 대신 discrete action classification으로 강제 선택 구조를 만든 baseline입니다. 결과는 거의 모든 장면에서 <strong>Forward</strong>로 붕괴했고, 문제는 회귀보다 데이터 불균형과 backbone 오염에 가까웠습니다.</p></div>
       <div class="exp-block"><h3 class="title is-5">Exp02</h3><p>straight 제거와 split 조정으로 FORWARD bias를 줄이려 했지만, V4 기반 한계가 여전히 컸습니다. 데이터 분포 조정 방향 자체는 맞았지만 결정타는 아니었습니다.</p></div>
       <div class="exp-block"><h3 class="title is-5">Exp03</h3><p><strong>CLIP Norm Loss</strong>로 left/right instruction 의미를 action representation에 더 강하게 붙이려 했습니다. loss는 좋아졌지만, 행동 지표까지 완전히 닫힌 문서는 부족합니다.</p></div>
-      <div class="exp-block"><h3 class="title is-5">Exp04</h3><p>Google-Robot foundation으로 전환하며 V5 정책 계열의 전환점이 됐습니다. 이 프로젝트에서 가장 중요한 완료 실험이고, 현재까지의 정책 baseline입니다.</p></div>
+      <div class="exp-block"><h3 class="title is-5">Exp04</h3><p>Google-Robot foundation으로 전환하며 V5 정책 계열의 전환점이 됐습니다. 다만 최근 재평가 결과 PM 0% collapse로 확인돼, <strong>좋은 loss가 실제 inference를 보장하지 않는다</strong>는 반례가 됐습니다.</p></div>
       <div class="exp-block"><h3 class="title is-5">Exp05~08</h3><p>Action-aware, HF token alignment, path-type conditioning, goal-centered prompt로 이어지는 표현 최적화 구간입니다. foundation을 바꾼 Exp04만큼 크지는 않지만 정책 표현과 STOP 조건 이해를 안정화하는 역할을 했습니다.</p></div>
       <div class="exp-block"><h3 class="title is-5">Exp09</h3><p>8-class를 형식적으로 통합한 실험입니다. 숫자는 좋아 보였지만 문서 결론은 명확합니다. <strong>Forward Bias가 남아 있고 rotation/stop이 실제로 잘 안 배워졌습니다.</strong></p></div>
-      <div class="exp-block"><h3 class="title is-5">Exp10</h3><p>정책 대신 grounding/BBox 자체를 실증한 트랙입니다. 최근 문서 기준으로 IoU 0.87, tactical match 약 92%까지 올라가며 V5에서 가장 빠르게 전진한 성과로 보입니다.</p></div>
-      <div class="exp-block"><h3 class="title is-5">Exp11</h3><p>Exp04의 foundation 장점과 Exp09의 8-class를 재결합하려는 재도전입니다. 최근 sanity 결과를 보면 left-family가 right-family로 접히는 문제가 확인돼 재평가가 필요합니다.</p></div>
+      <div class="exp-block"><h3 class="title is-5">Exp10</h3><p>정책 대신 grounding/BBox 자체를 실증한 트랙입니다. IoU와 alignment는 강하지만, free-form generation으로 바로 action rule에 연결하면 bbox가 corner로 붕괴해 <strong>policy transfer는 34.4%</strong>에 그쳤습니다.</p></div>
+      <div class="exp-block"><h3 class="title is-5">Exp11</h3><p>Exp04의 foundation 장점과 Exp09의 8-class를 재결합한 학습형 action baseline입니다. LEFT 계열 취약점은 남아 있지만, 현재 남아 있는 학습형 계열 중에서는 <strong>58.6%</strong>로 가장 높은 기준점입니다.</p></div>
+      <div class="exp-block"><h3 class="title is-5">Exp14 Step 0~2</h3><p>Exp10 perception을 작게 action으로 바꾸는 우회 경로입니다. Step 0 rule은 31.1%, Exp10 ckpt rule은 34.4%로 제한적이었지만, bbox history를 학습한 Step 1은 68.4%, 여기에 작은 image feature를 더한 Step 2는 <strong>75.9%</strong>까지 올라 현재 가장 강한 실용 baseline이 됐습니다.</p></div>
     </div>
   </div>
 </section>
@@ -104,9 +106,9 @@
   <div class="container is-max-desktop">
     <h2 class="title is-3">신뢰도 분류</h2>
     <div class="columns is-variable is-5 mt-2">
-      <div class="column is-4"><div class="surface-card"><h3 class="title is-5">확정된 결론</h3><p>Exp01은 실패 baseline, Exp04는 현재 정책 baseline, foundation 교체는 큰 효과, Exp09는 형식 통합 대비 정책 실패, Exp10은 최근 가장 빠른 성과라는 점은 문서 근거가 일치합니다.</p></div></div>
-      <div class="column is-4"><div class="surface-card"><h3 class="title is-5">애매하지만 유력</h3><p>Exp03의 semantic alignment가 행동에도 도움 됐을 가능성, Exp05~08의 표현 안정화 효과, Exp10 grounding이 navigation transfer로 이어질 가능성은 유력하지만 아직 닫히지 않았습니다.</p></div></div>
-      <div class="column is-4"><div class="surface-card"><h3 class="title is-5">아직 미확정</h3><p>Exp11이 Exp04보다 낫다는 주장, 8-class rotation 안정화, Exp10 성공이 차기 policy의 구조적 돌파구라는 주장은 추가 학습과 검증이 필요합니다.</p></div></div>
+      <div class="column is-4"><div class="surface-card"><h3 class="title is-5">확정된 결론</h3><p>Exp04는 PM 0% collapse, Exp11은 기존 학습형 기준점 58.6%, Exp10은 perception strong but transfer weak, Exp14 Step 2는 75.9%로 현재 최강이라는 점은 지금 문서 근거가 일치합니다.</p></div></div>
+      <div class="column is-4"><div class="surface-card"><h3 class="title is-5">애매하지만 유력</h3><p>Exp03의 semantic alignment가 행동에도 도움 됐을 가능성, Exp05~08의 표현 안정화 효과, Step 2가 center ambiguity를 image feature로 보완했다는 해석은 유력하지만 더 큰 split 검증은 아직 없습니다.</p></div></div>
+      <div class="column is-4"><div class="surface-card"><h3 class="title is-5">아직 미확정</h3><p>Step 2가 더 넓은 benchmark와 closed-loop에서도 유지되는지, Exp10 generation을 고치면 Step 2를 넘길 수 있는지, 차기 Step 3가 추가 이득을 주는지는 아직 미확정입니다.</p></div></div>
     </div>
   </div>
 </section>

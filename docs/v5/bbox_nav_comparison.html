@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Exp14 BBox Navigation Comparison</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin: 0; padding: 24px; background: #0f172a; color: #e2e8f0; }
+  h1 { font-size: 2rem; margin-bottom: 8px; }
+  h2 { margin-top: 28px; margin-bottom: 10px; }
+  .sub { color: #94a3b8; margin-bottom: 24px; max-width: 980px; line-height: 1.7; }
+  .back { display: inline-block; margin-bottom: 16px; color: #60a5fa; text-decoration: none; }
+  .hero-links { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 24px; }
+  .hero-links a { color: #e2e8f0; text-decoration: none; background: #1e293b; border: 1px solid #334155; padding: 10px 14px; border-radius: 999px; font-size: 0.92rem; }
+  .hero-links a:hover { border-color: #60a5fa; }
+  .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 20px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+  .box { background: #1e293b; padding: 16px 20px; border-radius: 12px; border: 1px solid #334155; }
+  .lbl { font-size: 0.82rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.6px; }
+  .num { font-size: 2.3rem; font-weight: 800; margin-top: 6px; }
+  .good { color: #22c55e; }
+  .warn { color: #fbbf24; }
+  .blue { color: #60a5fa; }
+  .violet { color: #a78bfa; }
+  .red { color: #f87171; }
+  table { border-collapse: collapse; margin: 10px 0 24px; background: #1e293b; border-radius: 8px; overflow: hidden; width: 100%; }
+  th, td { padding: 9px 14px; text-align: left; border-bottom: 1px solid #334155; }
+  th { background: #0b1220; }
+  .delta-up { color: #22c55e; font-weight: 700; }
+  .delta-flat { color: #94a3b8; font-weight: 700; }
+  .diag { background: #172554; border-left: 4px solid #60a5fa; padding: 14px 18px; border-radius: 8px; color: #dbeafe; margin-top: 20px; line-height: 1.7; }
+  .note { background: #422006; border-left: 4px solid #fbbf24; padding: 14px 18px; border-radius: 8px; color: #fde68a; margin-top: 20px; line-height: 1.7; }
+  .source-list a, .sample-links a { color: #60a5fa; }
+  .sample-links { line-height: 1.8; color: #94a3b8; }
+  code { background: #0b1220; padding: 2px 6px; border-radius: 4px; color: #fbbf24; font-size: 0.85rem; }
+  @media (max-width: 960px) {
+    .grid4 { grid-template-columns: 1fr 1fr; }
+    .grid2 { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 640px) {
+    .grid4 { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+  <a class="back" href="../index.html">← Back to main</a>
+  <h1>Exp14 BBox Navigation Comparison</h1>
+  <p class="sub">
+    동일한 BBox 기반 네비게이션 계열을 한 페이지에서 비교합니다. 지금 기준 결론은 두 단계입니다.
+    첫째, <strong>Exp10 checkpoint의 free-form BBox generation은 degenerate</strong>라 rule tuning으로는 거의 못 올립니다.
+    둘째, 그 대신 <strong>Step 1은 68.4%, Step 2는 75.9%</strong>까지 올라가며 현재 가장 강한 실용 baseline이 됐습니다.
+  </p>
+
+  <div class="hero-links">
+    <a href="bbox_nav_step0/index.html">Step 0 Detail</a>
+    <a href="bbox_nav_step0b/index.html">Step 0-B Detail</a>
+    <a href="bbox_nav_step0c/index.html">Step 0-C Detail</a>
+    <a href="bbox_nav_step1/index.html">Step 1 Detail</a>
+    <a href="bbox_nav_step2/index.html">Step 2 Detail</a>
+    <a href="bbox_nav_step2_repro/index.html">Step 2 Quick Repro</a>
+    <a href="index.html">V5 Dashboard</a>
+    <a href="devlog.html">V5 Dev Log</a>
+  </div>
+
+  <div class="grid4">
+    <div class="box">
+      <div class="lbl">Step 0</div>
+      <div class="num warn">31.1%</div>
+      <div>Pure HF Kosmos-2 grounding + fixed rule</div>
+    </div>
+    <div class="box">
+      <div class="lbl">Step 0-B</div>
+      <div class="num blue">34.4%</div>
+      <div>Exp10 ckpt grounding + fixed rule</div>
+    </div>
+    <div class="box">
+      <div class="lbl">Step 1</div>
+      <div class="num good">68.4%</div>
+      <div>BBox feature MLP, history=3</div>
+    </div>
+    <div class="box">
+      <div class="lbl">Step 2</div>
+      <div class="num good">75.9%</div>
+      <div>BBox + 16x16 image feature MLP</div>
+    </div>
+  </div>
+
+  <div class="box" style="margin-bottom:20px;">
+    <div class="lbl">Reference</div>
+    <div style="margin-top:8px;"><strong>Exp11 PM 58.6%</strong>는 현재 남아 있는 기존 학습형 기준점입니다. Exp14 Step 2가 이를 가장 크게 넘어섰습니다.</div>
+    <div style="margin-top:8px; color:#94a3b8;">즉 현재 Pages 기준 공식 비교는 <strong>Exp11 58.6%</strong> vs <strong>Step 2 75.9%</strong>입니다. same-split direct compare는 별도 빠른 검증 트랙으로 추가 중입니다.</div>
+  </div>
+
+  <div class="grid2">
+    <div class="box">
+      <h2 style="margin-top:0;">재현성 실험</h2>
+      <div style="line-height:1.7; color:#cbd5e1;">
+        재현성 실험은 <strong>기존에 본 Step 2 우세가 다시 나오는지</strong>를 빠르게 확인하는 트랙입니다.
+        현재 Pages에 올라간 quick repro는 <code>seed 0 / 8 epoch</code>만 다시 돌린 5분 컷 smoke check이고,
+        정식 최종 수치가 아니라 split 민감도를 보는 보조 진단으로만 해석합니다.
+      </div>
+    </div>
+    <div class="box">
+      <h2 style="margin-top:0;">가장 최신 실험</h2>
+      <div style="line-height:1.7; color:#cbd5e1;">
+        최신 실험의 목적은 성능 튜닝보다 <strong>원인 분리</strong>입니다.
+        공식 비교는 <strong>Exp11 58.6%</strong>와 <strong>Step 2 75.9%</strong>로 두고,
+        same-split direct compare, quick repro, 체크포인트 혼선 여부는 별도 검증 트랙으로 분리해 관리합니다.
+      </div>
+    </div>
+  </div>
+
+  <h2>핵심 판정</h2>
+  <div class="diag">
+    1. <strong>Step 0-B는 64.4%가 아니라 34.4%</strong>입니다. 초기 고득점은 BBox 없음 → default FORWARD로 잘못 매핑된 허수였습니다.<br>
+    2. <strong>Exp10 checkpoint는 free-form generation에서 patch_index가 0 또는 1023 근처로 붕괴</strong>합니다. teacher-forced score와 generation quality가 다릅니다.<br>
+    3. <strong>Step 1은 68.4%, Step 2는 75.9%</strong>로 모두 Exp11 58.6%를 넘었습니다. 현재 실용적인 baseline은 Step 2입니다.
+  </div>
+
+  <h2>Overall Comparison</h2>
+  <table>
+    <tr><th>실험</th><th>PM</th><th>설정</th><th>현재 해석</th></tr>
+    <tr><td>Step 0</td><td>31.11%</td><td>Pure HF grounding + fixed rule</td><td>학습 없는 최저 baseline</td></tr>
+    <tr><td>Step 0-B</td><td>34.44%</td><td>Exp10 grounding + fixed rule</td><td>generation degenerate, 미미한 개선</td></tr>
+    <tr><td>Step 0-C</td><td>64.44%</td><td>기존 summary에 남아 있는 old tuning artifact</td><td>현재는 신뢰하지 않음</td></tr>
+    <tr><td><strong>Step 1</strong></td><td><strong>68.35%</strong></td><td>BBox feature MLP</td><td>현재 최고 성능</td></tr>
+    <tr><td><strong>Step 2</strong></td><td><strong>75.95%</strong></td><td>BBox + low-res image feature MLP</td><td>현재 최강 baseline</td></tr>
+    <tr><td>Exp11</td><td>58.62%</td><td>학습형 action baseline</td><td>기존 기준점</td></tr>
+    <tr><td>Exp04</td><td>0%</td><td>Google-Robot policy ckpt inference</td><td>FWD+L/FWD+R collapse</td></tr>
+  </table>
+
+  <h2>Path-wise Comparison</h2>
+  <table>
+    <tr><th>Path Type</th><th>Step 0</th><th>Step 0-B</th><th>Step 1</th><th>Step 2</th><th>2 - 1</th></tr>
+    <tr><td>center_straight</td><td>60.0%</td><td>50.0%</td><td>100.0%</td><td>85.7%</td><td class="delta-flat">-14.3p</td></tr>
+    <tr><td>center_left</td><td>40.0%</td><td>20.0%</td><td>44.4%</td><td>66.7%</td><td class="delta-up">+22.3p</td></tr>
+    <tr><td>center_right</td><td>10.0%</td><td>40.0%</td><td>38.9%</td><td>44.4%</td><td class="delta-up">+5.5p</td></tr>
+    <tr><td>left_straight</td><td>40.0%</td><td>40.0%</td><td>77.8%</td><td>88.9%</td><td class="delta-up">+11.1p</td></tr>
+    <tr><td>left_left</td><td>30.0%</td><td>40.0%</td><td>73.7%</td><td>78.9%</td><td class="delta-up">+5.2p</td></tr>
+    <tr><td>left_right</td><td>0.0%</td><td>40.0%</td><td>68.4%</td><td>84.2%</td><td class="delta-up">+15.8p</td></tr>
+    <tr><td>right_straight</td><td>40.0%</td><td>20.0%</td><td>88.9%</td><td>88.9%</td><td class="delta-flat">0p</td></tr>
+    <tr><td>right_left</td><td>40.0%</td><td>30.0%</td><td>66.7%</td><td>83.3%</td><td class="delta-up">+16.6p</td></tr>
+    <tr><td>right_right</td><td>20.0%</td><td>30.0%</td><td>62.5%</td><td>62.5%</td><td class="delta-flat">0p</td></tr>
+  </table>
+
+  <div class="grid2">
+    <div class="box">
+      <h2 style="margin-top:0;">왜 Step 0-B가 무너졌나</h2>
+      <div style="line-height:1.7; color:#cbd5e1;">
+        Exp10의 <code>val_loss 0.012</code>와 <code>IoU 0.87</code>은 teacher-forced token scoring 성격이 강했습니다.
+        하지만 실제 free-form generation으로 patch index를 뽑으면 bbox 중심이 거의 항상 <code>0.02</code> 또는 <code>0.98</code>로 튀어,
+        rule 단계에서 의미 있는 spatial control이 안 됐습니다.
+      </div>
+    </div>
+    <div class="box">
+      <h2 style="margin-top:0;">왜 Step 2가 더 올라갔나</h2>
+      <div style="line-height:1.7; color:#cbd5e1;">
+        Step 1이 bbox history만 썼다면, Step 2는 여기에 <code>16x16 grayscale image feature</code>를 붙였습니다.
+        그 결과 특히 <code>center_left</code>, <code>left_right</code>, <code>right_left</code> 같은 애매한 케이스가 더 올라갔고,
+        시각 정보가 bbox만으로 부족한 구간을 보완하는 효과가 확인됐습니다.
+      </div>
+    </div>
+  </div>
+
+  <h2>샘플 확인 경로</h2>
+  <div class="sample-links">
+    Step 0 프레임별 예시: <a href="bbox_nav_step0/index.html">bbox_nav_step0/index.html</a><br>
+    Step 0-B 프레임별 예시: <a href="bbox_nav_step0b/index.html">bbox_nav_step0b/index.html</a><br>
+    Step 1 test summary: <a href="bbox_nav_step1/index.html">bbox_nav_step1/index.html</a><br>
+    Step 2 test summary: <a href="bbox_nav_step2/index.html">bbox_nav_step2/index.html</a><br>
+    Step 2 quick repro: <a href="bbox_nav_step2_repro/index.html">bbox_nav_step2_repro/index.html</a><br>
+    Exp11/Exp04 기존 실험 로그는 비교용 문서와 plan에 정리
+  </div>
+
+  <div class="note">
+    <strong>주의</strong><br>
+    Step 0 / 0-B는 동일한 90-frame 샘플 집합입니다. Step 1은 episode-level 80/20 split에서 나온 158-sample test set입니다.
+    따라서 Step 1이 가장 강하다는 방향성은 유효하지만, 완전 동일 split의 apples-to-apples 비교는 아닙니다.
+    현재 Pages의 공식 기준은 <strong>Exp11 58.6%</strong>와 <strong>Step 2 75.9%</strong> 비교이며,
+    same-split direct compare와 quick repro는 별도 보조 검증으로 취급합니다.
+    5분 컷 smoke check로 만든 <a href="bbox_nav_step2_repro/index.html">Step 2 Quick Repro</a>는 <strong>seed0 / 8 epoch</strong>만 돌린 값이라,
+    정식 재현성 지표가 아니라 "새 split에서 빠르게 다시 학습했을 때 민감도가 크다"는 경고로 읽어야 합니다.
+    또한 <strong>Step 0-C summary의 64.4%는 현재 비교 표준에서 제외</strong>하고, 재생성 전까지는 참고치로만 취급해야 합니다.
+  </div>
+
+  <h2>소스</h2>
+  <div class="source-list" style="line-height:1.8; color:#94a3b8;">
+    <a href="bbox_nav_step0/summary.json">Step 0 summary.json</a><br>
+    <a href="bbox_nav_step0b/summary.json">Step 0-B summary.json</a><br>
+    <a href="bbox_nav_step1/summary.json">Step 1 summary.json</a><br>
+    <a href="bbox_nav_step2/summary.json">Step 2 summary.json</a><br>
+    <a href="bbox_nav_step2_repro/summary.json">Step 2 quick repro summary.json</a><br>
+    <a href="bbox_nav_step1/bbox_dataset.json">Step 1 bbox_dataset.json</a><br>
+    <a href="https://github.com/minuum/MoNaVLA/blob/inference-integration/plan.md#L199">Exp11 PM 58.62 source</a>
+  </div>
+</body>
+</html>

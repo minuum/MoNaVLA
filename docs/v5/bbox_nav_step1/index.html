@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Exp14 Step 1: BBox Feature MLP</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin: 0; padding: 24px; background: #0f172a; color: #e2e8f0; }
+  h1 { font-size: 2rem; margin-bottom: 8px; }
+  .sub { color: #94a3b8; margin-bottom: 24px; max-width: 900px; line-height: 1.6; }
+  .back { color: #60a5fa; text-decoration: none; display: inline-block; margin-bottom: 16px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+  .box { background: #1e293b; padding: 16px 20px; border-radius: 10px; }
+  .num { font-size: 2.5rem; font-weight: 800; }
+  .good { color: #22c55e; } .warn { color: #fbbf24; }
+  table { border-collapse: collapse; background: #1e293b; border-radius: 8px; overflow: hidden; width: 100%; }
+  th, td { padding: 8px 14px; border-bottom: 1px solid #334155; text-align: left; }
+  th { background: #0b1220; }
+  .diag { background: #422006; border-left: 4px solid #fbbf24; padding: 14px 18px; border-radius: 6px; color: #fde68a; margin-top: 20px; }
+</style>
+</head>
+<body>
+  <a class="back" href="../../index.html">← Back to main</a>
+  <h1>Exp14 Step 1: BBox Feature MLP</h1>
+  <p class="sub">
+    Pure HF Kosmos-2 grounding에서 얻은 (cx, cy, area, has_bbox) × history=3 window 특징으로
+    8-class action을 예측하는 작은 MLP 학습.
+  </p>
+
+  <div class="grid2">
+    <div class="box">
+      <div style="color:#94a3b8; font-size:0.85rem; text-transform:uppercase;">Rule-based</div>
+      <div class="num warn">32.9%</div>
+      <div>(baseline)</div>
+    </div>
+    <div class="box">
+      <div style="color:#94a3b8; font-size:0.85rem; text-transform:uppercase;">MLP (learned)</div>
+      <div class="num good">68.4%</div>
+      <div>(108/158)</div>
+    </div>
+  </div>
+
+  <h2>PM per Path Type (test split)</h2>
+  <table>
+    <tr><th>Path Type</th><th>Correct/Total</th><th>PM</th></tr>
+    <tr><td>center_straight</td><td>14/14</td><td><strong>100.0%</strong></td></tr><tr><td>center_left</td><td>8/18</td><td><strong>44.4%</strong></td></tr><tr><td>center_right</td><td>7/18</td><td><strong>38.9%</strong></td></tr><tr><td>left_straight</td><td>14/18</td><td><strong>77.8%</strong></td></tr><tr><td>left_left</td><td>14/19</td><td><strong>73.7%</strong></td></tr><tr><td>left_right</td><td>13/19</td><td><strong>68.4%</strong></td></tr><tr><td>right_straight</td><td>16/18</td><td><strong>88.9%</strong></td></tr><tr><td>right_left</td><td>12/18</td><td><strong>66.7%</strong></td></tr><tr><td>right_right</td><td>10/16</td><td><strong>62.5%</strong></td></tr>
+  </table>
+
+  <div class="diag">
+    <strong>참고:</strong>
+    Train split은 episode-level stratified 80/20. MLP 입력은 최근 3프레임 BBox.
+    Rule-based보다 유의미하게 나은지 확인하여 Step 2(image feature 결합) 진행 여부 판정.
+  </div>
+</body>
+</html>

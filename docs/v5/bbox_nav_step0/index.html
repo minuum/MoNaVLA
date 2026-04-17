@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Exp14 Step 0: BBox-based Navigation</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin: 0; padding: 24px; background: #0f172a; color: #e2e8f0; }
+  h1 { font-size: 2rem; margin-bottom: 8px; }
+  .sub { color: #94a3b8; margin-bottom: 24px; max-width: 800px; line-height: 1.6; }
+  .back { display: inline-block; margin-bottom: 16px; color: #60a5fa; text-decoration: none; }
+  .overall { display: inline-block; padding: 12px 24px; background: #1e293b; border-radius: 8px; margin-bottom: 20px; font-size: 1.3rem; }
+  .overall strong { color: #22c55e; }
+  table { border-collapse: collapse; margin-bottom: 28px; background: #1e293b; border-radius: 8px; overflow: hidden; }
+  th, td { padding: 8px 16px; text-align: left; border-bottom: 1px solid #334155; }
+  th { background: #0b1220; }
+  .path-section { margin-bottom: 36px; }
+  .path-section h2 { font-size: 1.3rem; padding: 8px 12px; background: #1e293b; border-radius: 6px; }
+  .path-section h2 .pm { color: #facc15; font-size: 0.9rem; margin-left: 8px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; margin-top: 10px; }
+  .sample { background: #1e293b; border-radius: 8px; overflow: hidden; border: 2px solid transparent; }
+  .sample.ok { border-color: #22c55e; }
+  .sample.bad { border-color: #ef4444; }
+  .sample img { width: 100%; display: block; }
+  .meta { padding: 8px 10px; font-size: 0.85rem; }
+  .cap { color: #94a3b8; margin-top: 4px; font-size: 0.75rem; }
+  .src { color: #64748b; margin-top: 2px; font-size: 0.7rem; }
+</style>
+</head>
+<body>
+  <a class="back" href="../../index.html">← Back to main</a>
+  <h1>Exp14 Step 0: BBox-based Navigation</h1>
+  <p class="sub">
+    Pure HF Kosmos-2 grounding으로 basket 위치 추정 → rule-based로 action 예측.
+    학습 없이 foundation의 공간 인식만으로 얼마나 navigation 가능한가?
+  </p>
+  <div class="overall">Overall PM: <strong>31.1%</strong> (28/90)</div>
+
+  <h2>PM per Path Type</h2>
+  <table>
+    <tr><th>Path Type</th><th>Correct/Total</th><th>PM</th></tr>
+    <tr><td>center_straight</td><td>6/10</td><td><strong>60.0%</strong></td></tr><tr><td>center_left</td><td>4/10</td><td><strong>40.0%</strong></td></tr><tr><td>center_right</td><td>1/10</td><td><strong>10.0%</strong></td></tr><tr><td>left_straight</td><td>4/10</td><td><strong>40.0%</strong></td></tr><tr><td>left_left</td><td>3/10</td><td><strong>30.0%</strong></td></tr><tr><td>left_right</td><td>0/10</td><td><strong>0.0%</strong></td></tr><tr><td>right_straight</td><td>4/10</td><td><strong>40.0%</strong></td></tr><tr><td>right_left</td><td>4/10</td><td><strong>40.0%</strong></td></tr><tr><td>right_right</td><td>2/10</td><td><strong>20.0%</strong></td></tr>
+  </table>
+
+  
+          <div class="path-section">
+            <h2>center_straight <span class="pm">6/10 = 60.0%</span></h2>
+            <div class="grid">
+              <div class="sample ok">
+                <img src="images/center_straight__260408__f000.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the center of the image, with the white wall and the window in the background.</div>
+                  <div class="src">source: caption</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="images/center_straight__260408__f003.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the center of the image, with the white wall and the window in the background.</div>
+                  <div class="src">source: caption</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/center_straight__260408__f006.jpg" alt="">
+                <div class="meta">
+                  <div><strong>STOP</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the end of the room, and the white wall is behind it.</div>
+                  <div class="src">source: fallback</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/center_straight__260408__f009.jpg" alt="">
+                <div class="meta">
+                  <div><strong>STOP</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the end of a long hallway, with a white wall and a black floor in the background.</div>
+                  <div class="src">source: fallback</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/center_straight__260408__f013.jpg" alt="">
+                <div class="meta">
+                  <div><strong>STOP</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the end of a hallway, and the white wall is behind it.</div>
+                  <div class="src">source: fallback</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="images/center_straight__260408__f000.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the center of the image, with the white wall and the window in the background.</div>
+                  <div class="src">source: caption</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="images/center_straight__260408__f003.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the center of the image. The floor is tiled and the walls are white. A gray air conditioner is placed in the middle of t</div>
+                  <div class="src">source: entity_match</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="images/center_straight__260408__f006.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the bottom of the image. The white wall is behind it. A gray air conditioner is placed on the floor in front of the wall</div>
+                  <div class="src">source: entity_match</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="images/center_straight__260408__f009.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the center of the image. The floor is tiled and the walls are white. A power cord is plugged into the wall.</div>
+                  <div class="src">source: caption</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/center_straight__260408__f013.jpg" alt="">
+                <div class="meta">
+                  <div><strong>STOP</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the end of a hallway, with a white wall and a power outlet in the background.</div>
+                  <div class="src">source: fallback</div>
+                </div>
+              </div></div>
+          </div>
+          <div class="path-section">
+            <h2>center_left <span class="pm">4/10 = 40.0%</span></h2>
+            <div class="grid">
+              <div class="sample bad">
+                <img src="images/center_left__260408__f000.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>LEFT</strong></div>
+                  <div class="cap">the center of the image, with the gray air conditioner sitting on the floor in front of it.</div>
+                  <div class="src">source: entity_match</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/center_left__260408__f004.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FWD+L</strong></div>
+                  <div class="cap">the center of the image. It is a small, square, metal box with a handle on the side. The floor is tiled and the walls ar</div>
+                  <div class="src">source: caption</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="images/center_left__260408__f008.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the end of the room, and the air conditioner is on the floor.</div>
+                  <div class="src">source: fallback</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="images/center_left__260408__f012.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FWD+R</strong> vs GT <strong>FWD+R</strong></div>
+                  <div class="cap">the end of a long, white wall. The wall is white and there is a black line running along the right side of the wall.</div>
+                  <div class="src">source: caption</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/center_left__260408__f017.jpg" alt="">
+                <div class="meta">
+                  <div><strong>STOP</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the end of a hallway, and the wall is white.</div>
+                  <div class="src">source: fallback</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/center_left__260408__f000.jpg" alt="">
+                <div class="meta">
+                  <div><strong>STOP</strong> vs GT <strong>LEFT</strong></div>
+                  <div class="cap">the center of the image, with the gray wall and the white ceiling in the background.</div>
+                  <div class="src">source: entity_match</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/center_left__260408__f004.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FWD+R</strong> vs GT <strong>FWD+L</strong></div>
+                  <div class="cap">the center of the image. It is sitting on a tiled floor, with a white wall behind it. There is a window above the basket</div>
+                  <div class="src">source: caption</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/center_left__260408__f008.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FWD+R</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the center of the image. It is sitting on a tiled floor, with a white wall behind it. A TV is visible on the wall to the</div>
+                  <div class="src">source: caption</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="images/center_left__260408__f012.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FWD+R</strong> vs GT <strong>FWD+R</strong></div>
+                  <div class="cap">the center of the image, with the white wall behind it. A black electrical cord is visible on the right side of the bask</div>
+                  <div class="src">source: caption</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="images/center_left__260408__f017.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the top of the trash can, and the gray lid is on top of it.</div>
+                  <div class="src">source: entity_match</div>
+                </div>
+              </div></div>
+          </div>
+          <div class="path-section">
+            <h2>center_right <span class="pm">1/10 = 10.0%</span></h2>
+            <div class="grid">
+              <div class="sample bad">
+                <img src="images/center_right__260408__f000.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>RIGHT</strong></div>
+                  <div class="cap">the center of the image, with the white wall and the window in the background.</div>
+                  <div class="src">source: caption</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/center_right__260408__f004.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FWD+R</strong></div>
+                  <div class="cap">the center of the image, with the white wall and floor in the background.</div>
+                  <div class="src">source: caption</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/center_right__260408__f008.jpg" alt="">
+                <div class="meta">
+                  <div><strong>STOP</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the end of the hall, and the white wall is behind it.</div>
+                  <div class="src">source: fallback</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/center_right__260408__f012.jpg" alt="">
+                <div class="meta">
+                  <div><strong>STOP</strong> vs GT <strong>FWD+L</strong></div>
+                  <div class="cap">the end of a hallway, with a white wall and a black electrical cord running along the wall.</div>
+                  <div class="src">source: fallback</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/center_right__260408__f017.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FWD+R</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the corner of a white wall. The basket is a metal box with a mesh cover.</div>
+                  <div class="src">source: entity_match</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/center_right__260408__f000.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>RIGHT</strong></div>
+                  <div class="cap">the center of the image, with the white wall and the window in the background.</div>
+                  <div class="src">source: caption</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/center_right__260408__f004.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FWD+R</strong></div>
+                  <div class="cap">the center of the image, with the white wall and the black floor in the background.</div>
+                  <div class="src">source: caption</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="images/center_right__260408__f008.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the center of the image, with the white wall and floor in the background.</div>
+                  <div class="src">source: caption</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/center_right__260408__f012.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FWD+L</strong></div>
+                  <div class="cap">the bottom of the image. The basket is a large trash can.</div>
+                  <div class="src">source: entity_match</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/center_right__260408__f017.jpg" alt="">
+                <div class="meta">
+                  <div><strong>STOP</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the top of the image. The basket is a large gray box with a lid.</div>
+                  <div class="src">source: entity_match</div>
+                </div>
+              </div></div>
+          </div>
+          <div class="path-section">
+            <h2>left_straight <span class="pm">4/10 = 40.0%</span></h2>
+            <div class="grid">
+              <div class="sample bad">
+                <img src="images/left_straight__260409__f000.jpg" alt="">
+                <div class="meta">
+                  <div><strong>RIGHT</strong> vs GT <strong>ROT_R</strong></div>
+                  <div class="cap">the end of the room, and the chair is in the middle of the image.</div>
+                  <div class="src">source: fallback</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="images/left_straight__260409__f004.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the end of the room, and the trash can is in the middle of the floor.</div>
+                  <div class="src">source: fallback</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="images/left_straight__260409__f008.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the center of the image, with the white wall and floor in the background.</div>
+                  <div class="src">source: caption</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/left_straight__260409__f012.jpg" alt="">
+                <div class="meta">
+                  <div><strong>STOP</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the end of the hallway, and the white wall is behind it.</div>
+                  <div class="src">source: fallback</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/left_straight__260409__f017.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FWD+L</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the end of the hallway, and the trash can is on the left side of the image.</div>
+                  <div class="src">source: caption</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/left_straight__260409__f000.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FWD+L</strong> vs GT <strong>ROT_R</strong></div>
+                  <div class="cap">the bottom of the image, and the white trash can is at the top.</div>
+                  <div class="src">source: fallback</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="images/left_straight__260409__f004.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the end of the room, and the white trash can is in the middle of the image.</div>
+                  <div class="src">source: fallback</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/left_straight__260409__f008.jpg" alt="">
+                <div class="meta">
+                  <div><strong>STOP</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the end of the room, and the white wall is behind it.</div>
+                  <div class="src">source: fallback</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/left_straight__260409__f012.jpg" alt="">
+                <div class="meta">
+                  <div><strong>STOP</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the end of the hallway, and the white wall is behind it.</div>
+                  <div class="src">source: fallback</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="images/left_straight__260409__f017.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the top of the washer, and the silver basket is at the bottom</div>
+                  <div class="src">source: entity_match</div>
+                </div>
+              </div></div>
+          </div>
+          <div class="path-section">
+            <h2>left_left <span class="pm">3/10 = 30.0%</span></h2>
+            <div class="grid">
+              <div class="sample bad">
+                <img src="images/left_left__260409__f000.jpg" alt="">
+                <div class="meta">
+                  <div><strong>LEFT</strong> vs GT <strong>FWD+L</strong></div>
+                  <div class="cap">the far left of the image. The white wall is the background. A window is above the basket.</div>
+                  <div class="src">source: caption</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/left_left__260409__f004.jpg" alt="">
+                <div class="meta">
+                  <div><strong>LEFT</strong> vs GT <strong>FWD+L</strong></div>
+                  <div class="cap">the far left of the image. The floor is tiled and the walls are white. A window is visible above the white wall.</div>
+                  <div class="src">source: caption</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="images/left_left__260409__f009.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the end of the room, and the air conditioner is in the middle of the floor.</div>
+                  <div class="src">source: fallback</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/left_left__260409__f013.jpg" alt="">
+                <div class="meta">
+                  <div><strong>STOP</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the end of a long hallway, with a white wall and a black floor in the background.</div>
+                  <div class="src">source: fallback</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/left_left__260409__f018.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FWD+L</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the left side of the image, and the white wall is at right. The basket is positioned on the left, and the wall is on the</div>
+                  <div class="src">source: entity_match</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="images/left_left__260409__f000.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FWD+L</strong> vs GT <strong>FWD+L</strong></div>
+                  <div class="cap">the left side of the image, and the gray trash can is at its right side. The floor is tiled, and there is a window above</div>
+                  <div class="src">source: entity_match</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/left_left__260409__f004.jpg" alt="">
+                <div class="meta">
+                  <div><strong>STOP</strong> vs GT <strong>FWD+L</strong></div>
+                  <div class="cap">the bottom of the image. The floor is tiled and the walls are white. There is a window above the basket and a wooden cha</div>
+                  <div class="src">source: fallback</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="images/left_left__260409__f009.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the center of the image, with the white wall and the window in the background.</div>
+                  <div class="src">source: caption</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/left_left__260409__f013.jpg" alt="">
+                <div class="meta">
+                  <div><strong>STOP</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the end of a hallway, with a white wall and a tiled floor in the background.</div>
+                  <div class="src">source: fallback</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/left_left__260409__f018.jpg" alt="">
+                <div class="meta">
+                  <div><strong>STOP</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the entrance of the building. The basket is located on the floor.</div>
+                  <div class="src">source: entity_match</div>
+                </div>
+              </div></div>
+          </div>
+          <div class="path-section">
+            <h2>left_right <span class="pm">0/10 = 0.0%</span></h2>
+            <div class="grid">
+              <div class="sample bad">
+                <img src="images/left_right__260409__f000.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FWD+L</strong> vs GT <strong>FWD+R</strong></div>
+                  <div class="cap">the far end of the room, and the gray trash can is in the middle.</div>
+                  <div class="src">source: entity_match</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/left_right__260409__f004.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FWD+R</strong></div>
+                  <div class="cap">the left side of the image. The white air conditioner is on the right side of it.</div>
+                  <div class="src">source: fallback</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/left_right__260409__f009.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FWD+L</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the end of the room, and the black box is on the left side of the image.</div>
+                  <div class="src">source: caption</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/left_right__260409__f013.jpg" alt="">
+                <div class="meta">
+                  <div><strong>STOP</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the end of the hall, and the white wall is behind it.</div>
+                  <div class="src">source: fallback</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/left_right__260409__f018.jpg" alt="">
+                <div class="meta">
+                  <div><strong>STOP</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the end of the hallway, and the white trash can is in the middle of the room.</div>
+                  <div class="src">source: fallback</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/left_right__260409__f000.jpg" alt="">
+                <div class="meta">
+                  <div><strong>STOP</strong> vs GT <strong>FWD+R</strong></div>
+                  <div class="cap">the left side of the image, and the white wall is at right. The floor is tiled, and there is a metal trash can in the mi</div>
+                  <div class="src">source: fallback</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/left_right__260409__f004.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FWD+R</strong></div>
+                  <div class="cap">the end of the room, and the white trash can is in the middle of the floor.</div>
+                  <div class="src">source: fallback</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/left_right__260409__f009.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FWD+L</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the end of the hallway, and the air conditioner is on the left side of the room.</div>
+                  <div class="src">source: caption</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/left_right__260409__f013.jpg" alt="">
+                <div class="meta">
+                  <div><strong>STOP</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the end of the room, and the white wall is behind it.</div>
+                  <div class="src">source: fallback</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/left_right__260409__f018.jpg" alt="">
+                <div class="meta">
+                  <div><strong>STOP</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the end of the hallway, and the white wall is behind it.</div>
+                  <div class="src">source: fallback</div>
+                </div>
+              </div></div>
+          </div>
+          <div class="path-section">
+            <h2>right_straight <span class="pm">4/10 = 40.0%</span></h2>
+            <div class="grid">
+              <div class="sample bad">
+                <img src="images/right_straight__260409__f000.jpg" alt="">
+                <div class="meta">
+                  <div><strong>STOP</strong> vs GT <strong>ROT_L</strong></div>
+                  <div class="cap">the end of the room, and the white wall is behind it.</div>
+                  <div class="src">source: fallback</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="images/right_straight__260409__f004.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the center of the image, with a chair and a table in the background.</div>
+                  <div class="src">source: caption</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="images/right_straight__260409__f008.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the bottom of the image. The air conditioner is sitting on the floor, and there is a chair nearby.</div>
+                  <div class="src">source: fallback</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/right_straight__260409__f012.jpg" alt="">
+                <div class="meta">
+                  <div><strong>STOP</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the bottom of the image, with the white wall and floor in the background.</div>
+                  <div class="src">source: fallback</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/right_straight__260409__f017.jpg" alt="">
+                <div class="meta">
+                  <div><strong>STOP</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the bottom of the image. The white wall is visible in the background.</div>
+                  <div class="src">source: fallback</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/right_straight__260409__f000.jpg" alt="">
+                <div class="meta">
+                  <div><strong>STOP</strong> vs GT <strong>ROT_L</strong></div>
+                  <div class="cap">the end of the room, and the white wall is behind it.</div>
+                  <div class="src">source: fallback</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="images/right_straight__260409__f004.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the center of the image, with a white wall and a wooden chair in the background.</div>
+                  <div class="src">source: caption</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/right_straight__260409__f008.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FWD+R</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the center of the image. It is sitting on a tiled floor, with a white wall behind it. A wooden chair is placed to the ri</div>
+                  <div class="src">source: caption</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="images/right_straight__260409__f012.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the center of the image, with a white wall and a wooden chair in the background.</div>
+                  <div class="src">source: caption</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/right_straight__260409__f017.jpg" alt="">
+                <div class="meta">
+                  <div><strong>STOP</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the end of the room, with the white wall and the floor in the background</div>
+                  <div class="src">source: fallback</div>
+                </div>
+              </div></div>
+          </div>
+          <div class="path-section">
+            <h2>right_left <span class="pm">4/10 = 40.0%</span></h2>
+            <div class="grid">
+              <div class="sample bad">
+                <img src="images/right_left__260409__f000.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FWD+R</strong> vs GT <strong>FWD+L</strong></div>
+                  <div class="cap">the bottom of the image, and the gray trash can is at the top of the frame.</div>
+                  <div class="src">source: entity_match</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/right_left__260409__f004.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FWD+L</strong></div>
+                  <div class="cap">the bottom of the image. The room is empty except for the gray basket.</div>
+                  <div class="src">source: none</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="images/right_left__260409__f008.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the bottom of the image. The air conditioner is sitting on the floor, with the wires coming out of it.</div>
+                  <div class="src">source: fallback</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="images/right_left__260409__f012.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the center of the image, with a white wall and a wooden chair in the background.</div>
+                  <div class="src">source: caption</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/right_left__260409__f017.jpg" alt="">
+                <div class="meta">
+                  <div><strong>STOP</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the top of the stairs, and the white basket is at the bottom of the steps.</div>
+                  <div class="src">source: entity_match</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/right_left__260409__f000.jpg" alt="">
+                <div class="meta">
+                  <div><strong>STOP</strong> vs GT <strong>FWD+L</strong></div>
+                  <div class="cap">the bottom of the image, and the white wall is behind it. The floor is tiled, and there is a window above the wall.</div>
+                  <div class="src">source: fallback</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/right_left__260409__f004.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FWD+R</strong> vs GT <strong>FWD+L</strong></div>
+                  <div class="cap">the end of the room, and the chair is on the right side.</div>
+                  <div class="src">source: caption</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="images/right_left__260409__f008.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the bottom of the image. The air conditioner is sitting on the floor next to it.</div>
+                  <div class="src">source: fallback</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="images/right_left__260409__f012.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the center of the image. It is a large, square, plastic container. The container is sitting on a tiled floor, with a whi</div>
+                  <div class="src">source: entity_match</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/right_left__260409__f017.jpg" alt="">
+                <div class="meta">
+                  <div><strong>STOP</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the top of the stairs, and the white basket is at the bottom of the steps.</div>
+                  <div class="src">source: entity_match</div>
+                </div>
+              </div></div>
+          </div>
+          <div class="path-section">
+            <h2>right_right <span class="pm">2/10 = 20.0%</span></h2>
+            <div class="grid">
+              <div class="sample ok">
+                <img src="images/right_right__260409__f000.jpg" alt="">
+                <div class="meta">
+                  <div><strong>RIGHT</strong> vs GT <strong>RIGHT</strong></div>
+                  <div class="cap">the far right of the image. The white wall is the background.</div>
+                  <div class="src">source: caption</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/right_right__260409__f004.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FWD+R</strong></div>
+                  <div class="cap">the bottom of the image. The room is empty except for a chair and a table.</div>
+                  <div class="src">source: none</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/right_right__260409__f008.jpg" alt="">
+                <div class="meta">
+                  <div><strong>STOP</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the bottom of the image, and the white wall is behind it. A chair is placed to the right of the basket, and a table is p</div>
+                  <div class="src">source: fallback</div>
+                </div>
+              </div>
+              <div class="sample ok">
+                <img src="images/right_right__260409__f012.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FORWARD</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the bottom of the image. The air conditioner is located on the floor, and there is a chair nearby.</div>
+                  <div class="src">source: fallback</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/right_right__260409__f016.jpg" alt="">
+                <div class="meta">
+                  <div><strong>FWD+L</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the left side of the room. The white wall is the background.</div>
+                  <div class="src">source: caption</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/right_right__260409__f000.jpg" alt="">
+                <div class="meta">
+                  <div><strong>STOP</strong> vs GT <strong>FWD+R</strong></div>
+                  <div class="cap">the bottom of the image, and the white wall is behind it. The floor is tiled, and there is a trash can in the middle of </div>
+                  <div class="src">source: fallback</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/right_right__260409__f003.jpg" alt="">
+                <div class="meta">
+                  <div><strong>STOP</strong> vs GT <strong>FWD+R</strong></div>
+                  <div class="cap">the bottom of the image, with the white wall and the wooden chair in the background.</div>
+                  <div class="src">source: fallback</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/right_right__260409__f007.jpg" alt="">
+                <div class="meta">
+                  <div><strong>STOP</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the bottom of the image, and the white wall is behind it.</div>
+                  <div class="src">source: fallback</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/right_right__260409__f011.jpg" alt="">
+                <div class="meta">
+                  <div><strong>STOP</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the end of the hallway, with the white wall and floor in the background.</div>
+                  <div class="src">source: fallback</div>
+                </div>
+              </div>
+              <div class="sample bad">
+                <img src="images/right_right__260409__f015.jpg" alt="">
+                <div class="meta">
+                  <div><strong>STOP</strong> vs GT <strong>FORWARD</strong></div>
+                  <div class="cap">the end of the room, and the white wall is behind it.</div>
+                  <div class="src">source: fallback</div>
+                </div>
+              </div></div>
+          </div>
+</body>
+</html>

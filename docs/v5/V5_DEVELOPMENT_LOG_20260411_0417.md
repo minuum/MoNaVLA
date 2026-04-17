@@ -5,11 +5,12 @@
 
 ## 1. 현재 요약
 
-- **정책 baseline**: Exp04
+- **기존 학습형 baseline**: Exp11 (58.6%)
 - **8-class 통합 실패 사례**: Exp09
-- **최근 가장 빠르게 진전한 트랙**: Exp10
+- **최근 가장 빠르게 진전한 트랙**: Exp10 -> Exp14 Step 2
 - **재설계 흐름**: Exp11 -> Exp12 -> Exp13
 - **평가 체계 정리 시점**: 2026-04-16 ~ 2026-04-17
+- **현재 strongest practical baseline**: Exp14 Step 2 (75.9%)
 
 ## 2. Exp01~13 상태표
 
@@ -33,10 +34,10 @@
 
 ### 2026-04-11
 
-**Exp04가 정책 baseline으로 굳어짐**
+**Exp04가 당시 정책 baseline 후보로 굳어짐**
 
 - Google-Robot foundation이 V4 checkpoint보다 훨씬 낫다는 방향이 정리됨
-- 이후 V5 정책 계열의 기준점이 Exp04로 고정됨
+- 당시 문서 기준으로는 V5 정책 계열의 기준점이 Exp04로 정리됨
 
 근거:
 
@@ -166,15 +167,16 @@
 
 현재 V5는 다음 상태에 있다.
 
-- Exp04는 여전히 정책 baseline
+- Exp04는 foundation 전환의 분기점이었지만, 재평가 결과 PM 0% collapse
 - Exp09는 8-class 통합 실패 사례
-- Exp10은 grounding 성공 사례
-- Exp11은 left/right 붕괴가 드러난 최근 실패 사례
+- Exp10은 grounding 성공 사례지만 policy transfer는 34.4%로 약함
+- Exp11은 기존 학습형 baseline 58.6%
 - Exp12는 학습 전 폐기된 중간 가설
 - Exp13은 아직 학습 전이지만, instruction-conditioning을 action head에 명시적으로 넣는 첫 architecture 분기
+- Exp14 Step 1/2는 bbox feature 기반 우회 경로로 68.4% / 75.9%에 도달
 
 즉 V5의 최근 흐름은 단순한 실험 반복이 아니라:
 
-`foundation 정리 -> prompt/representation 최적화 -> 8-class 통합 -> grounding 검증 -> sanity benchmark 고정 -> architecture 수정`
+`foundation 정리 -> prompt/representation 최적화 -> 8-class 통합 -> grounding 검증 -> sanity benchmark 고정 -> small head 우회 -> architecture 수정`
 
 로 보는 것이 맞다.

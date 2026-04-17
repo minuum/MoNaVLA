@@ -1,0 +1,179 @@
+{
+  "device": "cpu",
+  "split_seeds": [
+    0,
+    1,
+    2
+  ],
+  "mean_pm": 0.7478969494501749,
+  "std_pm": 0.0007505791761810082,
+  "min_pm": 0.746835470199585,
+  "max_pm": 0.74842768907547,
+  "runs": [
+    {
+      "split_seed": 0,
+      "overall_pm_rule": 0.32075471698113206,
+      "overall_pm_step2": 0.74842768907547,
+      "total_test": 159,
+      "test_episodes": [
+        "episode_260408_124918_target_center_straight_path__core__fixed_center",
+        "episode_260408_175129_target_center_left_path__core__fixed_center",
+        "episode_260408_185014_target_center_right_path__core__fixed_center",
+        "episode_260409_072932_target_left_straight_path__core__fixed_center",
+        "episode_260409_195531_target_left_left_path__core__fixed_center",
+        "episode_260409_123501_target_left_right_path__core__fixed_center",
+        "episode_260409_163701_target_right_straight_path__core__fixed_center",
+        "episode_260409_194038_target_right_left_path__core__fixed_center",
+        "episode_260409_192131_target_right_right_path__core__fixed_center"
+      ],
+      "pm_by_path": {
+        "center_straight": {
+          "correct": 12,
+          "total": 14
+        },
+        "center_left": {
+          "correct": 8,
+          "total": 18
+        },
+        "center_right": {
+          "correct": 10,
+          "total": 18
+        },
+        "left_straight": {
+          "correct": 16,
+          "total": 18
+        },
+        "left_left": {
+          "correct": 15,
+          "total": 19
+        },
+        "left_right": {
+          "correct": 14,
+          "total": 19
+        },
+        "right_straight": {
+          "correct": 17,
+          "total": 18
+        },
+        "right_left": {
+          "correct": 15,
+          "total": 19
+        },
+        "right_right": {
+          "correct": 12,
+          "total": 16
+        }
+      }
+    },
+    {
+      "split_seed": 1,
+      "overall_pm_rule": 0.34177215189873417,
+      "overall_pm_step2": 0.746835470199585,
+      "total_test": 158,
+      "test_episodes": [
+        "episode_260408_130141_target_center_straight_path__core__fixed_center",
+        "episode_260408_175031_target_center_left_path__core__fixed_center",
+        "episode_260408_190853_target_center_right_path__core__fixed_center",
+        "episode_260409_072407_target_left_straight_path__core__fixed_center",
+        "episode_260409_195440_target_left_left_path__core__fixed_center",
+        "episode_260409_123235_target_left_right_path__core__fixed_center",
+        "episode_260409_164320_target_right_straight_path__core__fixed_center",
+        "episode_260409_131126_target_right_left_path__core__fixed_center",
+        "episode_260409_192014_target_right_right_path__core__fixed_center"
+      ],
+      "pm_by_path": {
+        "center_straight": {
+          "correct": 11,
+          "total": 14
+        },
+        "center_left": {
+          "correct": 12,
+          "total": 18
+        },
+        "center_right": {
+          "correct": 10,
+          "total": 18
+        },
+        "left_straight": {
+          "correct": 16,
+          "total": 18
+        },
+        "left_left": {
+          "correct": 14,
+          "total": 19
+        },
+        "left_right": {
+          "correct": 13,
+          "total": 19
+        },
+        "right_straight": {
+          "correct": 17,
+          "total": 18
+        },
+        "right_left": {
+          "correct": 14,
+          "total": 18
+        },
+        "right_right": {
+          "correct": 11,
+          "total": 16
+        }
+      }
+    },
+    {
+      "split_seed": 2,
+      "overall_pm_rule": 0.3710691823899371,
+      "overall_pm_step2": 0.74842768907547,
+      "total_test": 159,
+      "test_episodes": [
+        "episode_260408_124918_target_center_straight_path__core__fixed_center",
+        "episode_260408_174944_target_center_left_path__core__fixed_center",
+        "episode_260408_193251_target_center_right_path__core__fixed_center",
+        "episode_260409_114531_target_left_straight_path__core__fixed_center",
+        "episode_260409_195440_target_left_left_path__core__fixed_center",
+        "episode_260409_123322_target_left_right_path__core__fixed_center",
+        "episode_260409_163530_target_right_straight_path__core__fixed_center",
+        "episode_260409_131239_target_right_left_path__core__fixed_center",
+        "episode_260409_172906_target_right_right_path__core__fixed_center"
+      ],
+      "pm_by_path": {
+        "center_straight": {
+          "correct": 11,
+          "total": 14
+        },
+        "center_left": {
+          "correct": 12,
+          "total": 18
+        },
+        "center_right": {
+          "correct": 11,
+          "total": 18
+        },
+        "left_straight": {
+          "correct": 15,
+          "total": 18
+        },
+        "left_left": {
+          "correct": 13,
+          "total": 19
+        },
+        "left_right": {
+          "correct": 15,
+          "total": 19
+        },
+        "right_straight": {
+          "correct": 16,
+          "total": 18
+        },
+        "right_left": {
+          "correct": 15,
+          "total": 18
+        },
+        "right_right": {
+          "correct": 11,
+          "total": 17
+        }
+      }
+    }
+  ]
+}

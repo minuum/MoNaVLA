@@ -1,0 +1,173 @@
+[
+  {
+    "path_type": "center_straight",
+    "episode": "episode_260408_123008_target_center_straight_path__core__fixed_center.h5",
+    "image": "images/center_straight.jpg",
+    "prompts": {
+      "grounding": {
+        "prompt": "<grounding>The gray basket is at",
+        "generated": "the center of the image, with<phrase> the white wall</phrase><object><patch_index_0000><patch_index_0671></object> and<phrase> the window</phrase><object><patch_index_0007><patch_index_0183></object> in the background."
+      },
+      "side": {
+        "prompt": "<grounding>The basket is on the",
+        "generated": "floor of the church, with<phrase> the wall</phrase><object><patch_index_0000><patch_index_0671></object> and<phrase> the window</phrase><object><patch_index_0007><patch_index_0183></object> in the background"
+      },
+      "intent": {
+        "prompt": "<grounding>To reach the basket, the robot should",
+        "generated": "first move to the left of the image, then turn around and move to<phrase> the right wall</phrase><object><patch_index_0000><patch_index_0671></object>."
+      }
+    }
+  },
+  {
+    "path_type": "center_left",
+    "episode": "episode_260408_174654_target_center_left_path__core__fixed_center.h5",
+    "image": "images/center_left.jpg",
+    "prompts": {
+      "grounding": {
+        "prompt": "<grounding>The gray basket is at",
+        "generated": "the center of the image, with<phrase> the gray air conditioner</phrase><object><patch_index_0493><patch_index_0722></object> sitting on<phrase> the floor</phrase><object><patch_index_0608><patch_index_1023></object> in front of it."
+      },
+      "side": {
+        "prompt": "<grounding>The basket is on the",
+        "generated": "floor, and<phrase> the air conditioner</phrase><object><patch_index_0493><patch_index_0722></object> is on<phrase> the wall</phrase><object><patch_index_0000><patch_index_0671></object>."
+      },
+      "intent": {
+        "prompt": "<grounding>To reach the basket, the robot should",
+        "generated": "first move to the left of the wall, then turn around and move to<phrase> the right wall</phrase><object><patch_index_0000><patch_index_0671></object>."
+      }
+    }
+  },
+  {
+    "path_type": "center_right",
+    "episode": "episode_260408_185014_target_center_right_path__core__fixed_center.h5",
+    "image": "images/center_right.jpg",
+    "prompts": {
+      "grounding": {
+        "prompt": "<grounding>The gray basket is at",
+        "generated": "the center of the image, with<phrase> the white wall</phrase><object><patch_index_0000><patch_index_0671></object> and<phrase> the window</phrase><object><patch_index_0006><patch_index_0182></object> in the background."
+      },
+      "side": {
+        "prompt": "<grounding>The basket is on the",
+        "generated": "floor, and<phrase> the air conditioner</phrase><object><patch_index_0461><patch_index_0721></object> is in the corner of the room."
+      },
+      "intent": {
+        "prompt": "<grounding>To reach the basket, the robot should",
+        "generated": "first move<phrase> the trash can</phrase><object><patch_index_0461><patch_index_0721></object> to the left of the wall."
+      }
+    }
+  },
+  {
+    "path_type": "left_straight",
+    "episode": "episode_260409_072214_target_left_straight_path__core__fixed_center.h5",
+    "image": "images/left_straight.jpg",
+    "prompts": {
+      "grounding": {
+        "prompt": "<grounding>The gray basket is at",
+        "generated": "the end of the room, and<phrase> the chair</phrase><object><patch_index_0156><patch_index_0735></object> is in the middle of the image."
+      },
+      "side": {
+        "prompt": "<grounding>The basket is on the",
+        "generated": "floor, and<phrase> the chair</phrase><object><patch_index_0156><patch_index_0735></object> is on<phrase> the floor</phrase><object><patch_index_0608><patch_index_1023></object>, with<phrase> the power cord</phrase><object><patch_index_0435><patch_index_0696></object> running along the wall."
+      },
+      "intent": {
+        "prompt": "<grounding>To reach the basket, the robot should",
+        "generated": "first move<phrase> the trash can</phrase><object><patch_index_0485><patch_index_0713></object> to the left, then move<phrase> a chair</phrase><object><patch_index_0156><patch_index_0735></object> to its right, and finally, move<phrase> another chair</phrase></delimiter_of_multi_objects/><patch_index_0188><patch_index_0735>"
+      }
+    }
+  },
+  {
+    "path_type": "left_left",
+    "episode": "episode_260409_124157_target_left_left_path__core__fixed_center.h5",
+    "image": "images/left_left.jpg",
+    "prompts": {
+      "grounding": {
+        "prompt": "<grounding>The gray basket is at",
+        "generated": "the far left of the image.<phrase> The white wall</phrase><object><patch_index_0000><patch_index_0671></object> is the background.<phrase> A window</phrase><object><patch_index_0005><patch_index_0149></object> is above the basket."
+      },
+      "side": {
+        "prompt": "<grounding>The basket is on the",
+        "generated": "floor,<phrase> the trash can</phrase><object><patch_index_0486><patch_index_0714></object> is on<phrase> the floor</phrase><object><patch_index_0608><patch_index_1023></object>, and<phrase> the window</phrase><object><patch_index_0005><patch_index_0181></object> is open."
+      },
+      "intent": {
+        "prompt": "<grounding>To reach the basket, the robot should",
+        "generated": "first move to the left side of the room, then turn around and move to<phrase> the right side of a trash can</phrase><object><patch_index_0486><patch_index_0714></object>."
+      }
+    }
+  },
+  {
+    "path_type": "left_right",
+    "episode": "episode_260409_123044_target_left_right_path__core__fixed_center.h5",
+    "image": "images/left_right.jpg",
+    "prompts": {
+      "grounding": {
+        "prompt": "<grounding>The gray basket is at",
+        "generated": "the far end of the room, and<phrase> the gray trash can</phrase><object><patch_index_0486><patch_index_0715></object> is in the middle."
+      },
+      "side": {
+        "prompt": "<grounding>The basket is on the",
+        "generated": "floor,<phrase> the trash can</phrase><object><patch_index_0486><patch_index_0715></object> is on<phrase> the floor</phrase><object><patch_index_0608><patch_index_1023></object>, and<phrase> the window</phrase><object><patch_index_0006><patch_index_0150></object> is in the background."
+      },
+      "intent": {
+        "prompt": "<grounding>To reach the basket, the robot should",
+        "generated": "first move<phrase> the trash can</phrase><object><patch_index_0486><patch_index_0715></object> to the left of the wall."
+      }
+    }
+  },
+  {
+    "path_type": "right_straight",
+    "episode": "episode_260409_134030_target_right_straight_path__core__fixed_center.h5",
+    "image": "images/right_straight.jpg",
+    "prompts": {
+      "grounding": {
+        "prompt": "<grounding>The gray basket is at",
+        "generated": "the end of the room, and<phrase> the white wall</phrase><object><patch_index_0000><patch_index_0671></object> is behind it."
+      },
+      "side": {
+        "prompt": "<grounding>The basket is on the",
+        "generated": "floor,<phrase> the trash can</phrase><object><patch_index_0468><patch_index_0729></object> is on<phrase> the floor</phrase><object><patch_index_0608><patch_index_1023></object>, and<phrase> the window</phrase><object><patch_index_0006><patch_index_0151></object> is open."
+      },
+      "intent": {
+        "prompt": "<grounding>To reach the basket, the robot should",
+        "generated": "first climb up<phrase> the wall</phrase><object><patch_index_0000><patch_index_0671></object> and then use<phrase> the trash can</phrase><object><patch_index_0468><patch_index_0729></object> to reach the top."
+      }
+    }
+  },
+  {
+    "path_type": "right_left",
+    "episode": "episode_260409_131126_target_right_left_path__core__fixed_center.h5",
+    "image": "images/right_left.jpg",
+    "prompts": {
+      "grounding": {
+        "prompt": "<grounding>The gray basket is at",
+        "generated": "the bottom of the image, and<phrase> the gray trash can</phrase><object><patch_index_0468><patch_index_0729></object> is at<phrase> the top of the frame</phrase><object><patch_index_0006><patch_index_0151></object>."
+      },
+      "side": {
+        "prompt": "<grounding>The basket is on the",
+        "generated": "floor of the room, and<phrase> the trash can</phrase><object><patch_index_0468><patch_index_0729></object> is on<phrase> the floor</phrase><object><patch_index_0608><patch_index_1023></object>."
+      },
+      "intent": {
+        "prompt": "<grounding>To reach the basket, the robot should",
+        "generated": "first climb up<phrase> the wall</phrase><object><patch_index_0000><patch_index_0671></object> and then drop down to<phrase> the trash can</phrase><object><patch_index_0468><patch_index_0729></object>."
+      }
+    }
+  },
+  {
+    "path_type": "right_right",
+    "episode": "episode_260409_172906_target_right_right_path__core__fixed_center.h5",
+    "image": "images/right_right.jpg",
+    "prompts": {
+      "grounding": {
+        "prompt": "<grounding>The gray basket is at",
+        "generated": "the far right of the image.<phrase> The white wall</phrase><object><patch_index_0000><patch_index_0671></object> is the background."
+      },
+      "side": {
+        "prompt": "<grounding>The basket is on the",
+        "generated": "floor of the room, and<phrase> the trash can</phrase><object><patch_index_0468><patch_index_0729></object> is on<phrase> the floor</phrase><object><patch_index_0608><patch_index_1023></object>."
+      },
+      "intent": {
+        "prompt": "<grounding>To reach the basket, the robot should",
+        "generated": "first climb up<phrase> the wall</phrase><object><patch_index_0000><patch_index_0671></object> and then use<phrase> the trash can</phrase><object><patch_index_0468><patch_index_0729></object> to reach the top."
+      }
+    }
+  }
+]

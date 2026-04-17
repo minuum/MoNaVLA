@@ -5,19 +5,21 @@
 
 ## 1. 한 줄 요약
 
-- Exp04는 정책 baseline이지만 evaluation closure가 부족하다.
+- Exp04는 더 이상 baseline이 아니며, loss-good / inference-bad 사례로 정리해야 한다.
 - Exp09는 수치는 많지만 closed-loop 판정이 빠져 있다.
-- Exp10은 perception evidence가 가장 강하지만 policy transfer 증거가 없다.
-- Exp11은 설계는 준비됐지만 실행/평가가 비어 있다.
+- Exp10은 perception evidence가 가장 강하지만 free-form generation transfer가 약하다.
+- Exp11은 현재 학습형 기준점이지만 closed-loop와 failure taxonomy가 비어 있다.
+- Exp14 Step 2는 strongest지만 split 규모와 closed-loop 검증이 더 필요하다.
 
 ## 2. 현재 보유 지표 vs 누락 지표
 
 | Exp | 학습 Loss | PM/DM | Confusion | Perception | Closed-loop Sim | Real Robot | 현재 결론 상태 |
 |-----|-----------|-------|-----------|------------|-----------------|------------|----------------|
-| Exp04 | 있음 | 불완전 | 없음/미정리 | 없음 | 없음 | 없음 | baseline이지만 미완료 |
+| Exp04 | 있음 | 있음 (PM 0%) | collapse 수준 | 없음 | 없음 | 없음 | baseline 아님 |
 | Exp09 | 있음 | 있음 | 일부 있음 | 없음 | 없음 | 없음 | bias 지속까지는 확인 |
-| Exp10 | 있음 | 간접 | 없음 | 강함 | 없음 | 없음 | grounding 성공, transfer 미확정 |
-| Exp11 | 계획만 | 없음 | 없음 | 없음 | 없음 | 없음 | 아직 시작 전 |
+| Exp10 | 있음 | 있음 (34.4%) | generation degenerate | 강함 | 없음 | 없음 | perception strong, transfer 약함 |
+| Exp11 | 있음 | 있음 (58.6%) | 일부 sanity evidence | 없음 | 없음 | 없음 | 현재 학습형 기준점 |
+| Exp14 Step 2 | 없음 | 있음 (75.9%) | path breakdown 있음 | 간접 | 없음 | 없음 | 현재 strongest, 더 큰 검증 필요 |
 
 ## 3. 실험별 갭 분석
 
@@ -25,11 +27,10 @@
 
 현재 확보:
 - `val_loss 0.776`
+- 재평가 PM `0%`
 - Google-Robot backbone 전환의 효과
-- 문서상 현재 정책 baseline 지위
 
 빠진 것:
-- 공식 PM/DM 결과표
 - class confusion matrix
 - stop/turn breakdown
 - path type별 성능
@@ -37,13 +38,13 @@
 - 실기 주행 결과
 
 왜 중요한가:
-- 현재 baseline인데도 실제로 “곡선을 배웠는가”가 완전히 닫히지 않았다.
-- 교수님 Step 1 판단을 내리려면 Exp04의 rollout 결과가 필요하다.
+- 좋은 loss가 실제 inference를 보장하지 않는다는 반례라서 문서상 위치를 정정해야 한다.
+- 추가 평가는 baseline 확정보다 failure archetype 정리에 가깝다.
 
 권장 우선순위:
-1. `scripts/test_v5_pm_dm.py`를 Exp04 기준으로 고정 실행
-2. path type별 breakdown 추가
-3. closed-loop simulation 연결
+1. collapse failure note를 공식 문서에 반영
+2. confusion / path breakdown을 남겨 failure archetype 고정
+3. 이후 비교표에서 baseline 표기 제거
 
 ### Exp09
 
@@ -76,46 +77,66 @@
 - `val_loss 0.012`
 - `Grounding IoU 0.87`
 - `Tactical Match ~92%`
+- rule transfer `34.4%`
 - episode / batch / full viewer 산출물
 
 빠진 것:
 - 공식 metrics artifact (`metrics.json`, leaderboard row)
 - path type별 perception breakdown
 - bbox center error 추세
-- grounding -> action -> rollout transfer 검증
+- generation 안정화 후 grounding -> action -> rollout transfer 재검증
 - Exp10 기반 policy proxy와 expert trajectory 비교
 
 왜 중요한가:
-- 최근 가장 강한 성과지만, 이걸 navigation 근거로 쓰려면 한 단계 더 필요하다.
-- 현재는 “잘 본다”는 증거지, “잘 간다”는 증거는 아니다.
+- perception은 강하지만, 현 generation 경로로는 “잘 본다”와 “잘 간다” 사이가 끊겨 있다.
+- 따라서 지금 중요한 건 점수 재과시보다 generation failure를 줄이거나 small-head 우회와 비교하는 것이다.
 
 권장 우선순위:
 1. perception metrics 정식 고정
-2. bbox center 기반 action proxy rollout 만들기
-3. expert trajectory와 terminal error 비교
+2. generation failure taxonomy 정리
+3. bbox center 기반 action proxy와 Step 2를 같은 split에서 비교
 
 ### Exp11
 
 현재 확보:
-- 설계 문서
+- 학습 결과
+- PM `58.6%`
+- 일부 sanity evidence
 - config
-- 데이터 분포 근거
 
 빠진 것:
-- 학습 결과 전부
-- PM/DM
 - confusion
 - rollout
 - 실기
 
 왜 중요한가:
-- Exp11은 다음 후보라서 지금부터 평가 프로토콜을 미리 걸어야 한다.
-- 나중에 또 “loss는 좋았는데 실제론 애매함”이 반복되면 안 된다.
+- Exp11은 지금도 기존 학습형 기준점이라서, Step 2와의 차이를 어디서 만드는지 밝혀야 한다.
+- left/right 취약성이 실제 closed-loop failure로 이어지는지 닫아야 한다.
 
 권장 우선순위:
-1. 학습 전 leaderboard 템플릿 생성
+1. confusion / path breakdown 정식화
 2. Layer 2/3 필수화
-3. Exp04, Exp09와 같은 split에서 직접 비교
+3. Exp14 Step 2와 같은 split에서 직접 비교
+
+### Exp14 Step 2
+
+현재 확보:
+- held-out split PM `75.9%`
+- path type별 breakdown
+- Step 1 대비 개선 근거
+
+빠진 것:
+- 더 큰 split 재현
+- closed-loop rollout
+- real robot
+
+왜 중요한가:
+- 현재 strongest practical baseline이지만, 규모가 작은 split에서 얻은 수치라 재현성이 핵심이다.
+
+권장 우선순위:
+1. split seed를 바꾼 재평가
+2. closed-loop success / timeout / overshoot 측정
+3. Exp11과 failure taxonomy 비교
 
 ## 4. 공통 누락 항목
 
@@ -132,12 +153,13 @@
 ## 5. 바로 채워야 할 지표
 
 ### 우선순위 P0
-- Exp04 PM/DM 정식화
+- Exp11 confusion/path breakdown
 - Exp09 rollout success rate
 - Exp10 perception metrics artifact
+- Exp14 Step 2 재현성 확인
 
 ### 우선순위 P1
-- Exp04 / Exp09 / Exp11 공통 simulation harness
+- Exp09 / Exp11 / Exp14 공통 simulation harness
 - stop / turn failure taxonomy
 - path type별 leaderboard
 
@@ -158,7 +180,8 @@
 
 | Exp | 지금 믿어도 되는 결론 | 아직 못 믿는 결론 |
 |-----|------------------------|-------------------|
-| Exp04 | foundation이 좋고 baseline이다 | 실제 곡선 행동을 안정적으로 배웠다 |
+| Exp04 | foundation 전환 효과는 있었다 | 실제 곡선 행동을 안정적으로 배웠다 |
 | Exp09 | 8-class 형식 통합은 됐다 | 실제 navigation이 잘 된다 |
-| Exp10 | grounding은 강하다 | grounding이 policy 성공으로 이어진다 |
-| Exp11 | 설계가 논리적이다 | Exp04/09보다 낫다 |
+| Exp10 | grounding은 강하다 | 현재 generation 경로로 policy 성공으로 이어진다 |
+| Exp11 | 현재 학습형 기준점이다 | Step 2보다 실제로 낫다 |
+| Exp14 Step 2 | 현재 strongest practical baseline이다 | 더 큰 split과 closed-loop에서도 유지된다 |
