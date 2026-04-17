@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="MoNaVLA V5 LEFT/RIGHT sanity analysis page.">
+  <title>MoNaVLA V5 Sanity Analysis</title>
+  <link href="https://fonts.googleapis.com/css?family=Google+Sans|Noto+Sans|Castoro" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body{font-family:'Noto Sans',sans-serif;background:#f8fafc;color:#0f172a}
+    .title.is-1,.title.is-2,.title.is-3{font-family:'Google Sans',sans-serif;letter-spacing:-.03em}
+    .hero-shell{background:linear-gradient(135deg,#0f172a 0%,#1e40af 100%)}
+    .hero-shell .hero-body{padding:4rem 1.5rem 3.4rem}
+    .hero-links{display:flex;flex-wrap:wrap;gap:12px;margin-top:1.2rem}
+    .hero-links .button{border-radius:10px;font-weight:700}
+    .surface-card{background:#fff;border:1px solid #e2e8f0;border-radius:16px;box-shadow:0 10px 28px rgba(15,23,42,.06);padding:1.5rem}
+    .summary-card{background:#fff;border:1px solid #fee2e2;border-radius:16px;padding:1.15rem;height:100%;box-shadow:0 10px 24px rgba(239,68,68,.08)}
+    .summary-label{font-size:.78rem;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:.08em}
+    .summary-value{font-size:1.2rem;font-weight:800;margin-top:.45rem}
+    .summary-help{margin-top:.65rem;color:#475569;line-height:1.6}
+    .matrix-table th{background:#eff6ff !important;color:#1e3a8a !important;text-align:center !important}
+    .matrix-table td{vertical-align:middle !important}
+    .chip{display:inline-flex;align-items:center;gap:8px;border-radius:999px;padding:.35rem .7rem;font-size:.84rem;font-weight:700}
+    .chip-red{background:#fef2f2;color:#b91c1c}.chip-blue{background:#eff6ff;color:#1d4ed8}.chip-amber{background:#fffbeb;color:#b45309}
+    a{font-weight:700}.footer{background:#0f172a;color:#94a3b8}.footer a{color:#7dd3fc}
+  </style>
+</head>
+<body>
+<section class="hero hero-shell">
+  <div class="hero-body">
+    <div class="container is-max-desktop">
+      <h1 class="title is-1 has-text-white mb-4" style="font-size:3.1rem;">V5 LEFT/RIGHT Sanity Analysis</h1>
+      <p class="subtitle is-4 has-text-grey-lighter mb-0">Exp09와 Exp11의 8-class 정책이 실제로 좌우 계열을 어떻게 예측하는지 빠르게 점검한 sanity benchmark 정리.</p>
+      <div class="hero-links">
+        <a href="devlog.html" class="button is-warning"><span class="icon"><i class="fas fa-stream"></i></span><span>Dev Log</span></a>
+        <a href="analysis.html" class="button is-info"><span class="icon"><i class="fas fa-table"></i></span><span>Exp Analysis</span></a>
+        <a href="../index.html" class="button is-white is-outlined"><span class="icon"><i class="fas fa-home"></i></span><span>Main</span></a>
+      </div>
+    </div>
+  </div>
+</section>
+<section class="section">
+  <div class="container is-max-desktop">
+    <div class="columns">
+      <div class="column is-4"><div class="summary-card"><div class="summary-label">Exp11</div><div class="summary-value">left-family → right-family collapse</div><div class="summary-help">LEFT, FWD+L 모두 오른쪽 계열로 접히는 구조적 편향이 관찰됐습니다.</div></div></div>
+      <div class="column is-4"><div class="summary-card"><div class="summary-label">Exp09</div><div class="summary-value">right-family → FWD+R pressure</div><div class="summary-help">RIGHT조차 FWD+R로 눌리는 경향이 보여, 우측 전방 계열 수렴이 남아 있습니다.</div></div></div>
+      <div class="column is-4"><div class="summary-card"><div class="summary-label">Verdict</div><div class="summary-value">좌우 계열 분리 실패</div><div class="summary-help">두 실험 모두 좌우 계열을 안정적으로 분리했다고 보기 어렵습니다.</div></div></div>
+    </div>
+  </div>
+</section>
+<section class="section" style="background:#eef4ff;">
+  <div class="container is-max-desktop">
+    <h2 class="title is-3">실험 조건</h2>
+    <div class="surface-card">
+      <p>서버 환경은 2026-04-17 기준 CPU only였습니다. <code>nvidia-smi</code> 단계에서 드라이버를 못 잡았고, sanity 스크립트는 validation config 반영, 배치 추론, subset 집계를 지원하도록 확장된 상태였습니다.</p>
+      <p class="mt-3"><strong>Reference:</strong> <a href="../../scripts/test/check_v5_left_right_sanity.py">check_v5_left_right_sanity.py</a></p>
+    </div>
+  </div>
+</section>
+<section class="section">
+  <div class="container is-max-desktop">
+    <div class="columns is-variable is-5">
+      <div class="column is-6">
+        <div class="surface-card">
+          <h2 class="title is-4">Exp11 Result</h2>
+          <div class="table-container">
+            <table class="table is-fullwidth is-bordered is-striped matrix-table">
+              <thead><tr><th>Subset</th><th>GT</th><th>Prediction</th><th>Heuristic</th></tr></thead>
+              <tbody>
+                <tr><td><code>left_left</code></td><td>LEFT</td><td><span class="chip chip-red">RIGHT</span></td><td>right</td></tr>
+                <tr><td><code>left_left</code></td><td>FWD+L</td><td><span class="chip chip-red">RIGHT</span></td><td>left</td></tr>
+                <tr><td><code>right_right</code></td><td>RIGHT</td><td><span class="chip chip-blue">RIGHT</span></td><td>none</td></tr>
+                <tr><td><code>right_right</code></td><td>FWD+R</td><td><span class="chip chip-amber">RIGHT</span></td><td>right</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>Exp11의 문제는 단순 <code>LEFT=0%</code>가 아니라, <strong>left-side 계열을 right-side 계열로 접는 구조적 bias</strong>에 가깝습니다.</p>
+        </div>
+      </div>
+      <div class="column is-6">
+        <div class="surface-card">
+          <h2 class="title is-4">Exp09 Result</h2>
+          <div class="table-container">
+            <table class="table is-fullwidth is-bordered is-striped matrix-table">
+              <thead><tr><th>Subset</th><th>GT</th><th>Prediction</th><th>Heuristic</th></tr></thead>
+              <tbody>
+                <tr><td><code>right_right</code></td><td>RIGHT</td><td><span class="chip chip-amber">FWD+R</span></td><td>none</td></tr>
+                <tr><td><code>right_right</code></td><td>FWD+R</td><td><span class="chip chip-blue">FWD+R</span></td><td>right</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>Exp09는 Exp11처럼 우측 모든 계열을 <code>RIGHT</code>로 접지는 않지만, <strong>FWD+R로 수렴하는 경향</strong>이 남아 있습니다.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+<section class="section" style="background:#eef4ff;">
+  <div class="container is-max-desktop">
+    <div class="surface-card">
+      <h2 class="title is-3">한계와 다음 조치</h2>
+      <p>현재 validation split 자체가 고정 benchmark가 아니라 실험마다 남는 샘플 분포가 다릅니다. heuristic basket detector도 <code>none</code> 비율이 높아서 판정용으로는 약합니다. 그래서 이 페이지의 sanity 결과는 발견용이고, 실제 채택 기준은 고정 benchmark split으로 넘어가야 합니다.</p>
+      <div class="mt-4">
+        <a href="../../benchmarks/definitions/sanity_lr_4way_manifest.yaml" class="button is-link is-light">LR 4-way Manifest</a>
+        <a href="../../benchmarks/definitions/splits/v5_lr_4way_sanity.yaml" class="button is-warning is-light">LR 4-way Split</a>
+      </div>
+    </div>
+  </div>
+</section>
+<footer class="footer"><div class="content has-text-centered"><p><strong>MoNaVLA V5 Sanity Analysis</strong><br><a href="devlog.html">Development Log</a> · <a href="analysis.html">Exp Analysis</a> · <a href="../index.html">Main</a></p></div></footer>
+</body>
+</html>
