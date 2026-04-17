@@ -109,6 +109,20 @@ git reset 또는 git revert → 범위를 좁혀서 재시작
 
 ---
 
+## GitHub Pages 공개 문서 규칙
+
+공개용 문서나 주요 진행 로그를 새로 만들면, **`docs/index.html` 첫 화면 Hero 버튼 영역**에도 반드시 진입 링크를 추가한다.
+
+기본 위치:
+- [docs/index.html](/home/billy/25-1kp/MoNaVLA/docs/index.html:137)
+
+의도:
+- GitHub Pages 첫 화면에서 바로 찾을 수 있어야 함
+- 새 문서가 `docs/` 아래에만 묻히지 않도록 함
+- 앞으로 공개 문서 추가는 “문서 생성 + 메인 Hero 링크 추가”를 한 세트로 취급
+
+---
+
 ## Menemory 연동
 
 세션 시작 시 `.menemory/core/master_memory.md`를 반드시 읽어라. 이 파일이 프로젝트의 장기 핵심 메모리다.
