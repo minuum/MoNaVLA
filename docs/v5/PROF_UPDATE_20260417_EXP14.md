@@ -241,22 +241,39 @@ instruction embedding을 후단에 추가해도 **LM 단계에서 이미 text가
 | Exp11 (학습 후) | 91.7% | **0.000%** |
 | Exp13 (학습 후) | 85.8% | **0.000%** |
 
-Pure Kosmos-2는 instruction text에 **정상적으로 22% attend**하나, 우리의 학습 절차(LoRA + action head 학습, FORWARD class imbalance 등)를 거친 후에는 **0%로 완전히 소멸**합니다. 즉 "텍스트 무시"는 Kosmos foundation의 한계가 아니라 **우리의 학습 과정이 기존에 있던 text attention 경로를 파괴한 결과**입니다.
+Pure Kosmos-2는 instruction text에 **정상적으로 22% attend**하나, 우리의 학습 절차를 거친 후에는 **0%로 완전히 소멸**합니다.
 
-**결론**: "텍스트 무시"는 downstream 처리 단계가 아니라 **Transformer 내부 attention 분포** 수준에서 발생하며, **학습이 이 경로를 능동적으로 죽입니다**. 이는 논문에서 "learned collapse of instruction attention path in frozen-backbone VLA fine-tuning" 이라는 명제로 제시될 수 있습니다.
+**Exp15 (Head-only ablation, 2026-04-18 추가) — 인과 수정**
 
-데이터: [attention_analysis/summary.json](./attention_analysis/summary.json) (학습 후), [attention_analysis/pure_kosmos.json](./attention_analysis/pure_kosmos.json) (학습 전)
+| 모델 | Image ratio | Text ratio | PM |
+|:---|:---:|:---:|:---:|
+| Pure HF Kosmos-2 (학습 전) | 77.3% | **22.7%** | — |
+| Exp15 (head-only, VLM frozen) | 94.4% | **0.000%** | **37.5%** |
+| Exp11 (LoRA 학습 후) | 91.7% | **0.000%** | **58.6%** |
+| Exp13 (LoRA + instr_proj) | 85.8% | **0.000%** | 15% |
+
+Exp15는 VLM(Kosmos 전체)이 완전히 frozen된 상태 — LoRA 없음, mm_projector 없음, text_embedding 없음 — 에서 action head만 학습한 실험입니다. 결과는 text=0.000%.
+
+이는 **text attention collapse가 우리의 LoRA/projector 학습이 아니라 Google-Robot post-training 단계에서 이미 발생했음**을 의미합니다. VLM 가중치를 일절 건드리지 않아도 Google-Robot backbone은 이미 text=0%입니다.
+
+수정된 해석:
+- Pure HF Kosmos-2 → 22.7% text attention (건강한 foundation)
+- Google-Robot post-training → text 0% (post-training이 text path 붕괴, 우리 탓 아님)
+- 우리의 LoRA → PM 37.5%(head-only) → 58.6%(LoRA) 향상, 그러나 text attention 복구 불가
+- **"텍스트 무시"는 Google-Robot post-training에서 상속된 특성이며, 우리 fine-tuning이 만든 것이 아닙니다**
+
+**결론 (수정)**: text collapse는 backbone 선택(Google-Robot)에서 기인하며, Pure HF Kosmos-2 기반이었다면 text attention이 보존됐을 가능성이 있습니다. LoRA는 PM을 높이는 역할을 하지만 text path를 죽이는 역할은 하지 않습니다.
+
+데이터: [attention_analysis/summary.json](./attention_analysis/summary.json)
 
 **Per-layer × per-head collapse 분석 (2026-04-18)**
 
-24 layer × 32 head 전체를 비교한 결과, 학습이 text attention을 "어떻게" 죽이는지에 대해 다음 패턴이 관찰됩니다.
+24 layer × 32 head 전체를 비교한 결과:
 
-- **전역 동시 붕괴**: Pure Kosmos는 layer별로 text ratio 22~72%의 분포(layer 2에서 peak 72%). Exp11/13은 **layer 0 ~ 23 전체에서 text = 0.0%** — 특정 layer만의 국소 문제가 아니라 전 stack이 동시에 무너짐.
-- **100% head mortality**: Pure Kosmos의 32 head 중 21~32개가 "text head"(text region 합계 > 0.05)였으나, 학습 후 **모든 layer에서 0 heads**. 단 하나의 text head도 살아남지 못함.
-- **Peak text layer 2 현상**: Foundation은 shallow layer(특히 layer 2)에서 instruction grounding을 형성 → 학습 후 이 shallow grounding이 먼저 파괴됨.
-- **Deep layer image 극단화**: Exp11의 layer 21에서 image ratio 99.6%. 학습은 "text 무시" 뿐 아니라 **image에 과집중** 쪽으로 동시에 드라이브함.
-
-이 패턴은 LoRA가 특정 layer만 변형한 결과가 아니라, **FORWARD 과다 데이터로 학습하면서 gradient 전반이 "image→action" 경로만 강화하고 "text→action" 경로를 soft-kill" 했기 때문으로 추정됩니다 (mechanism validation은 추가 ablation 실험으로 확인 필요).
+- **전역 동시 붕괴**: Pure Kosmos는 layer별로 text ratio 22~72%의 분포(layer 2에서 peak 72%). Exp11/13/15는 **layer 0 ~ 23 전체에서 text = 0.0%** — 특정 layer만의 국소 문제가 아니라 전 stack이 동시에 무너짐.
+- **100% head mortality**: Pure Kosmos의 32 head 중 21~32개가 "text head"(text region 합계 > 0.05)였으나, Google-Robot 기반 모델은 **모든 layer에서 0 heads**.
+- **Peak text layer 2 현상**: Foundation은 shallow layer(특히 layer 2)에서 instruction grounding 형성. Google-Robot post-training 후 이 shallow grounding이 제거됨.
+- **Exp15(frozen) ≈ Exp11(LoRA)**: attention distribution이 거의 동일(94.4% vs 91.7%) — LoRA가 attention을 추가로 변형하는 효과는 작음.
 
 데이터: [attention_analysis/mechanism.json](./attention_analysis/mechanism.json) / [mechanism.html](./attention_analysis/mechanism.html)
 

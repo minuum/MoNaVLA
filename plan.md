@@ -506,6 +506,38 @@ def bbox_to_action(cx, cy, w, h):
 
 ---
 
+# Exp15: Head-Only Ablation (VLM Frozen)
+작성일: 2026-04-18
+
+## 목표
+LoRA/projector 학습 없이 action head만 학습 → text attention이 보존되는지 확인.
+"text collapse가 우리 LoRA 때문인지, backbone(Google-Robot) 때문인지" 인과 분리.
+
+## 설정
+- Parent: Exp11 config (Google-Robot backbone, 8-class)
+- LoRA 비활성화, mm_projector frozen, text_embedding frozen, backbone frozen
+- Action head(LSTM)만 학습
+- lr=5e-5, 20 epochs
+
+## 승인 상태
+- [x] 학습 완료 (epoch=14, val_loss=1.553, 2026-04-18)
+- [x] Attention 측정 완료 (summary.json에 exp15_head_only 포함)
+- [x] PM eval 완료 (2026-04-18)
+
+## 결과
+
+| | Exp11 (LoRA) | Exp15 (head-only) | Pure HF Kosmos |
+|---|---|---|---|
+| text attention | 0.000% | **0.000%** | 22.7% |
+| image attention | 91.7% | 94.4% | 77.3% |
+| PM | 58.6% | 37.5% | — |
+
+**핵심 발견**: VLM frozen에도 text=0% → **collapse는 Google-Robot post-training이 원인**. 우리 LoRA 탓이 아님.
+LoRA는 PM 개선(37.5%→58.6%)에 기여하지만 text attention은 회복 불가.
+PROF_UPDATE §7-1 인과 주장 수정 완료.
+
+---
+
 # Exp14 Step 2: Feature Ablation (BBox vs Image 기여도)
 작성일: 2026-04-18
 
