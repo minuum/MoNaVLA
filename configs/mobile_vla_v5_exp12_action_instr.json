@@ -1,0 +1,13 @@
+{
+    "_comment": "V5 Exp12: Exp11 기반 + per-frame action-aware instruction. target_t=0 수정으로 t=0 GT와 instruction 정렬. LEFT/RIGHT=0% 해결 시도.",
+    "parent": "configs/mobile_vla_v5_exp11_google_robot_8cls.json",
+    "exp_name": "v5-exp12-action-instr",
+    "task_name": "mobile_vla_v5_exp12",
+
+    "train_dataset": {
+        "instruction_preset": "action_aware_train"
+    },
+    "val_dataset": {
+        "instruction_preset": "path_type_aware"
+    }
+}

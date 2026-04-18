@@ -56,10 +56,12 @@ setattr(robovlms.model.policy_head, "MobileVLAClassificationDecoder", NavClassif
 setattr(robovlms.model.policy_head, "MobileVLALSTMDecoder", NavLSTMDecoder)
 setattr(robovlms.model.policy_head, "HybridActionHead", HybridActionHead)
 
-# Backbone — 'RoboVLM-Nav' → RoboKosMos 주입
-# base_trainer.py L26: self.model_fn = getattr(RoboVLM_Backbone, configs["robovlm_name"])
+# Backbone — 'RoboVLM-Nav' / 'RoboKosMos' → NavRoboKosMos 주입
+# NavRoboKosMos는 RoboKosMos의 subclass로 instruction conditioning 지원
 from robovlms.model.backbone.robokosmos import RoboKosMos
-setattr(robovlms.model.backbone, "RoboVLM-Nav", RoboKosMos)
+from robovlm_nav.models.nav_robokosmos import NavRoboKosMos
+setattr(robovlms.model.backbone, "RoboVLM-Nav", NavRoboKosMos)
+setattr(robovlms.model.backbone, "RoboKosMos", NavRoboKosMos)
 
 # Trainer
 import robovlms.train.base_trainer as base_trainer_mod

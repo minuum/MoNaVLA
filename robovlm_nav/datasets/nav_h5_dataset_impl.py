@@ -207,11 +207,16 @@ class MobileVLAH5Dataset(Dataset):
     def __len__(self):
         return len(self.frame_indices)
 
-    def _get_action_aware_instruction(self, actions):
-        """Build a training-only instruction variant from the next predicted action.
+    def _get_action_aware_instruction(self, actions, target_t=None):
+        """Build a training-only instruction variant from the action at target_t.
         100% Strict Action-Aware Prompting. No generic variations to prevent shortcut learning.
+        target_t=None → legacy behaviour (window_size position)
+        target_t=0    → t=0 action, aligned with parse_gt(ac[0,0,0]) evaluation
         """
-        target_idx = min(self.window_size, len(actions) - 1)
+        if target_t is not None:
+            target_idx = min(target_t, len(actions) - 1)
+        else:
+            target_idx = min(self.window_size, len(actions) - 1)
         # actions shape handling — V5: [lx, ly, az], V4: [lx, az] (2D)
         if len(actions.shape) == 3:
             a = actions[target_idx][0]
@@ -449,7 +454,7 @@ class MobileVLAH5Dataset(Dataset):
                 use_path_type_aware = (self.instruction_preset == "path_type_aware")
                 
                 if use_action_aware_train:
-                    language_base = self._get_action_aware_instruction(actions)
+                    language_base = self._get_action_aware_instruction(actions, target_t=0)
                 elif self.instruction_override is not None:
                     # BugFix: config의 instruction_override 로직 적용
                     # TODO: 이 부분은 path_type 기반 override. 추후 action 단위 override 원할 시 수정

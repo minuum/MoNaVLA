@@ -30,8 +30,9 @@ import robovlms.train.base_trainer as base_trainer_mod
 import robovlms.train as train_mod
 
 from robovlms.model.backbone.robokosmos import RoboKosMos
-setattr(backbone_mod, "RoboKosMos", RoboKosMos)
-setattr(backbone_mod, "RoboVLM-Nav", RoboKosMos)
+from robovlm_nav.models.nav_robokosmos import NavRoboKosMos
+setattr(backbone_mod, "RoboKosMos", NavRoboKosMos)
+setattr(backbone_mod, "RoboVLM-Nav", NavRoboKosMos)
 
 from robovlm_nav.models.policy_head.nav_policy_impl import (
     MobileVLAClassificationDecoder,
@@ -62,6 +63,8 @@ _ap.add_argument("--num_classes", type=int, default=None)
 _ap.add_argument("--train_split", type=float, default=None)
 _ap.add_argument("--window_size", type=int, default=None)
 _ap.add_argument("--instruction_preset", default=None)
+_ap.add_argument("--exclude_path_types", default=None)  # 예: "center_straight"
+_ap.add_argument("--eval_t", type=int, default=0)      # 0: 첫 프레임, -1: 마지막(히스토리 풀 활용)
 _cli, _ = _ap.parse_known_args()
 
 # ── 설정 (CLI 우선, fallback으로 기본값)
@@ -122,22 +125,27 @@ def load_model():
     return model_wrapper
 
 # ── logit 파싱 (V4 스크립트와 동일 로직)
-def parse_logits(outputs):
+def parse_logits(outputs, t=0):
+    """
+    t=0  : 첫 번째 window 위치 (parse_gt의 ac[0,0,0]과 정렬)
+    t=-1 : 마지막 window 위치 (inference 시점과 정렬, ROT는 여기선 절대 안 나옴)
+    """
     if isinstance(outputs, (tuple, list)):
         outputs = outputs[0]
     if outputs is None or not isinstance(outputs, torch.Tensor):
         return None
     arr = outputs.detach().cpu().float().numpy()
-    if arr.ndim == 4:   logits = arr[0, -1, 0, :]
-    elif arr.ndim == 3: logits = arr[0, -1, :]
+    if arr.ndim == 4:   logits = arr[0, t, 0, :]
+    elif arr.ndim == 3: logits = arr[0, t, :]
     elif arr.ndim == 2: logits = arr[0, :]
     else:               logits = arr
     return int(np.argmax(logits)), logits
 
-def parse_gt(batch):
+def parse_gt(batch, t=0):
     if "action_chunck" in batch:
         ac = batch["action_chunck"].cpu().numpy()
-        return int(ac[0, -1, 0])
+        # ac shape: [batch, window_size, fwd_pred_next_n]
+        return int(ac[0, t, 0])
     if "action" in batch:
         return int(batch["action"].cpu().numpy()[0, -1])
     return None
@@ -149,14 +157,16 @@ def load_val_dataset():
         data_dir=V5_DATA,
         episode_pattern="episode_*.h5",
         model_name="kosmos",
-        window_size=6,
+        window_size=_VAL_WINDOW_SIZE,
         fwd_pred_next_n=3,
         discrete_action=True,
         num_classes=NUM_CLASSES,
-        instruction_preset="default",
+        instruction_preset=_VAL_INSTRUCTION_PRESET,
         grounding_prefix=True,
         is_validation=True,
-        train_split=0.85,
+        train_split=_VAL_TRAIN_SPLIT,
+        stratified_split=True,
+        exclude_path_types=_cli.exclude_path_types.split(",") if getattr(_cli, "exclude_path_types", None) else [],
         min_episode_frames=8,
     )
     return ds
@@ -187,7 +197,7 @@ def evaluate():
                        else (v.cuda() if isinstance(v, torch.Tensor) else v)
                        for k, v in batch.items()}
 
-                gt = parse_gt(gpu)
+                gt = parse_gt(gpu, t=_cli.eval_t)
                 if gt is None: continue
                 gt = min(gt, NUM_CLASSES - 1)
 
@@ -202,7 +212,7 @@ def evaluate():
                     mode="test",
                 )
 
-                result = parse_logits(outputs)
+                result = parse_logits(outputs, t=_cli.eval_t)  # parse_gt와 동일 t
                 if result is None: errors += 1; continue
 
                 pred, logits = result

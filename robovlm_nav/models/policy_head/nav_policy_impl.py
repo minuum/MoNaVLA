@@ -298,7 +298,14 @@ class MobileVLAClassificationDecoder(BasePolicyHead):
             self.register_buffer("class_weights_tensor", torch.tensor(class_weights, dtype=torch.float))
         else:
             self.class_weights_tensor = None
-            
+
+        # Instruction conditioning (Exp13)
+        instr_in_features = kwargs.get("instr_in_features", None)
+        if instr_in_features is not None:
+            self.instr_proj = nn.Linear(instr_in_features, in_features * latent)
+        else:
+            self.instr_proj = None
+
         initialize_param(self)
 
     def reset(self):
@@ -310,7 +317,7 @@ class MobileVLAClassificationDecoder(BasePolicyHead):
         torch.set_grad_enabled(True)
         if not tok_seq.requires_grad:
             tok_seq.requires_grad_(True)
-            
+
         self.debug_tok_seq_grad = tok_seq.requires_grad
         if len(tok_seq.shape) == 4:
             if self.down_sample == "pooling":
@@ -320,7 +327,15 @@ class MobileVLAClassificationDecoder(BasePolicyHead):
                 tok_seq = rearrange(tok_seq, "(b l) d n -> b l (n d)", b=bs, l=seq_len)
             elif self.down_sample == "none":
                 tok_seq = rearrange(tok_seq, "b l n d-> b l (n d)")
-        
+
+        # Instruction conditioning (Exp13): additive bias on LSTM input
+        instruction_emb = kwargs.get("instruction_emb", None)
+        if instruction_emb is not None and self.instr_proj is not None:
+            # instruction_emb: (bs, embed_dim)  tok_seq: (bs, ws, in_features)
+            instr_feat = self.instr_proj(instruction_emb.to(tok_seq.dtype))  # (bs, in_features)
+            instr_feat = instr_feat.unsqueeze(1).expand_as(tok_seq)           # (bs, ws, in_features)
+            tok_seq = tok_seq + instr_feat
+
         if tok_seq.shape[1] == 1:
             self.history_memory.append(tok_seq)
             if len(self.history_memory) <= self.history_len:

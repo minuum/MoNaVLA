@@ -1,0 +1,17 @@
+{
+    "_comment": "V5 Exp13: Exp12 기반 + Instruction-Conditioned Action Head. NavRoboKosMos가 word embedding mean을 추출해 instr_proj (Linear 2048→2048)로 LSTM input에 additive conditioning. LEFT=0% architecture 수정 시도.",
+    "parent": "configs/mobile_vla_v5_exp12_action_instr.json",
+    "exp_name": "v5-exp13-instr-cond",
+    "task_name": "mobile_vla_v5_exp13",
+
+    "max_epochs": 5,
+
+    "act_head": {
+        "type": "MobileVLAClassificationDecoder",
+        "num_classes": 8,
+        "action_dim": 8,
+        "hidden_size": 1024,
+        "class_weights": [1.0, 0.5, 10.0, 10.0, 4.0, 4.0, 50.0, 50.0],
+        "instr_in_features": 2048
+    }
+}
