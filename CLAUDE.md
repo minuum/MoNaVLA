@@ -145,69 +145,96 @@ menemory show
 
 ## 프로젝트 컨텍스트
 
-> **마지막 업데이트: 2026-04-12**
+> **마지막 업데이트: 2026-04-18**
 
 ### 모델 현황
 
 - **Backbone:** Kosmos-2 (frozen) + LoRA — `third_party/RoboVLMs/`는 수정하지 마라
-- **현재 최선 모델:** V5 Exp04 — Google-robot pretrained 기반, 6-class discrete
-  - 체크포인트: `runs/v5_nav/kosmos/mobile_vla_v5_exp04/2026-04-11/v5-exp04-google-robot/epoch_epoch=epoch=14-val_loss=val_loss=0.776.ckpt`
-  - config: `configs/mobile_vla_v5_exp04_google_robot.json`
-  - val_loss 0.776 (Exp01~03 대비 압도적, Google-robot 기반이 핵심)
-- **이전 참고 모델:** V4 Weighted Huber Regression (`runs/v4_nav/kosmos/mobile_vla_v4_regression_v2`) — 현재는 Exp04 기반으로 대체됨
+- **현재 최선 end-to-end 모델:** V5 Exp11 — Google-robot pretrained + 8-class
+  - 체크포인트: `runs/v5_nav/kosmos/mobile_vla_v5_exp11/2026-04-16/v5-exp11-google-robot-8cls/epoch_epoch=epoch=14-val_loss=val_loss=1.010.ckpt`
+  - config: `configs/mobile_vla_v5_exp11_google_robot_8cls.json`
+  - PM 58.6%, val_loss 1.010. closed-loop: **0% success** (FPE 1.45m 누적 오류)
+- **현재 최선 decomposition 모델:** Exp14 Step 2 — BBox+Image MLP
+  - PM 75.9% (5 seeds 76.6±1.6%). closed-loop: **66.7% success** (FPE 0.55m)
+  - bbox_dataset.json: `docs/v5/bbox_nav_step1/bbox_dataset.json` (45 ep, 794 frames)
+- **진행 중:** Exp16 — 전체 150 ep (center_straight 포함) 8-class 학습 중
 
 ### 실험 이력 (V5)
 
-| 실험 | config | val_loss | 특이사항 |
-|------|--------|----------|---------|
-| Exp01 | `mobile_vla_v5_exp01_discrete.json` | 2.270 | 전체 데이터, V4 기반, FORWARD 100% |
-| Exp02 | `mobile_vla_v5_exp02_no_straight.json` | 2.210 | 직선 제거, stratified split |
-| Exp03 | `mobile_vla_v5_exp02_clip_norm.json` | 1.784 | CLIP Norm Loss 추가 |
-| **Exp04** | `mobile_vla_v5_exp04_google_robot.json` | **0.776** | **Google-robot 기반, 현재 최선** |
+| 실험 | config | val_loss | PM | 특이사항 |
+|------|--------|----------|----|---------|
+| Exp01~03 | `exp01~03` | 1.784~2.270 | — | V4 기반, FORWARD collapse |
+| Exp04 | `exp04_google_robot` | 0.776 | 0% | Google-robot backbone 첫 도입. val_loss 좋지만 PM 0% collapse |
+| Exp09 | `exp09` | — | — | 8-class 시도, bias 잔존 |
+| Exp10 | `exp10` | 0.012 | — | BBox grounding 학습 (IoU 0.87), free-gen transfer 34.4% |
+| **Exp11** | `exp11_google_robot_8cls` | **1.010** | **58.6%** | **현재 end-to-end baseline. 8-class, Google-robot** |
+| Exp12 | `exp12_action_instr` | — | — | instruction conditioning 시도, 폐기 (text 완전 무시 확인) |
+| Exp13 | `exp13_instr_cond` | — | — | 설계 후 폐기 |
+| Exp14 Step2 | MLP (bbox+image) | — | **75.9%** | **현재 best. decomposition 접근** |
+| Exp15 | `exp15_head_only` | 1.553 | 37.5% | VLM 완전 frozen, head만 학습. text attention 0% 재확인 |
+| Exp16 | `exp16_all_paths` | 학습 중 | — | 교수 프로토콜 Step 2 — center_straight 포함 150 ep |
+
+### 핵심 발견 (2026-04-18 기준)
+
+1. **Text attention = 0%**: Google-robot post-training이 이미 text 경로 붕괴시킴. 우리 LoRA 학습과 무관.
+   - Exp15 head-only에서도 text=0% 재확인 → 모델 구조 기인
+   - 측정 스크립트: `scripts/measure_attention.py`
+
+2. **Image가 핵심, BBox는 보조**: feature ablation 결과
+   - bbox_only: 67.4%±9.8% / image_only: 75.6%±0.8% / bbox+image: 76.7%±1.3%
+   - BBox grounding(Pure Kosmos-2)의 cx,cy,area는 16×16 image 대비 정보량 낮음
+
+3. **Closed-loop에서 decomposition 압도**: Step 2 66.7% vs Exp11 0%
+   - TLD는 동일(1.03)이지만 Exp11은 방향 오류 누적 → FPE 2.6배
+   - 스크립트: `scripts/sim/evaluate_closed_loop_v5.py`
 
 ### 데이터
 
 - **V5 (현재):** `ROS_action/mobile_vla_dataset_v5/` — 150개 H5 에피소드
-  - 구성: straight 3종 × 20 = 60개, non-straight 6종 × 15 = 90개 (center/left/right × left/right path)
+  - 구성: straight 3종 × 20 = 60개, non-straight 6종 × 15 = 90개
   - 포맷: `f['observations']['images']` (V4와 다름 — V4는 `f['images']`)
-  - 액션: 6-class discrete (STOP/FORWARD/LEFT/RIGHT/FWD+L/FWD+R)
-- **V4 (구):** `ROS_action/basket_dataset_v2/` (528 H5 에피소드) — 현재 학습에 미사용
+  - 액션 분포 (8-class 기준): FORWARD 71.4% (center_straight 제외시), 74.4% (전체)
+- **V4 (구):** `ROS_action/basket_dataset_v2/` (528 H5 에피소드) — 현재 학습 미사용
 
-### 액션 공간 (V5 6-class)
+### 액션 공간 (V5 8-class, Exp11+)
 
-| Index | 이름 | 키 | 비고 |
-|-------|------|-----|------|
-| 0 | STOP | — | |
-| 1 | FORWARD | W | 데이터 44~75% 차지, FORWARD bias 주원인 |
-| 2 | LEFT | A (strafe) | |
-| 3 | RIGHT | D (strafe) | |
-| 4 | FWD+LEFT | — | 대각선 |
-| 5 | FWD+RIGHT | — | 대각선 |
+| Index | 이름 | 비고 |
+|-------|------|------|
+| 0 | STOP | 데이터 없음 — 에피소드 끝 프레임에 합성 |
+| 1 | FORWARD | 71~74% 차지, FORWARD bias 주원인 |
+| 2 | LEFT | strafe |
+| 3 | RIGHT | strafe |
+| 4 | FWD+LEFT | 대각선 |
+| 5 | FWD+RIGHT | 대각선 |
+| 6 | ROT_L | 제자리 회전 좌, ~0.8% |
+| 7 | ROT_R | 제자리 회전 우, ~0.8% |
 
-> ⚠️ 9-class 설정(inference_server.py)과 혼동 주의. V5 학습은 6-class. 서버의 2번(ROTATE_LEFT/T키), 8번(ROTATE_RIGHT/R키)은 별개.
-
-### VLM 텍스트 생성 능력 (2026-04-11 검증)
-
-- **Pure HF Kosmos-2** (`.vlms/kosmos-2-patch14-224`): 텍스트 생성 정상, BBox grounding 가능
-- **Google-robot** (`.vlms/google_robot_pretrain/kosmos_ph_google-robot-post-train.pt`): `image_to_text_projection` 오염 → `generate()` 완전 망가짐 ("Tin Tin Tin Roof..." 반복)
-- **V4 LoRA** (`runs/v4_nav/.../last.ckpt`): base_layer 추출 시 텍스트 생성 부분 유지, 내용 부정확
+> ⚠️ 9-class 설정(inference_server.py)과 혼동 주의. V5 학습은 8-class. 서버의 class 매핑은 별개.
+> ⚠️ Google-robot backbone으로 `generate()` 절대 호출 금지 — "Tin Tin Tin Roof..." 무한 반복.
 
 ### 교수님 지시 테스트 프로토콜 (3/27 미팅)
 
 ```
-Step 1: 곡선만 학습 → 직선 이미지를 줘도 곡선으로 가는가?  ← 현재 여기
-Step 2: 50/50 비율 → 동작하는가?
+Step 1: 곡선만 학습 → 직선 이미지를 줘도 곡선으로 가는가?  ← Exp11 완료 (PM 58.6%)
+Step 2: 50/50 비율 → 동작하는가?                           ← Exp16 학습 중
 Step 3: 33/33/33 (left/straight/right) → 완전 동작?
 실패 시: TICVLA / MobilityVLA 대안 검토
 ```
 
-**현재 상태:** Exp04가 Step 1 조건(곡선만, Google 기반)을 충족하나 PM/DM 오프라인 테스트 미실행.
+### VLM 텍스트 생성 능력
+
+- **Pure HF Kosmos-2** (`.vlms/kosmos-2-patch14-224`): 텍스트 생성 정상, BBox grounding 가능
+- **Google-robot** (`.vlms/google_robot_pretrain/kosmos_ph_google-robot-post-train.pt`): `generate()` 완전 망가짐 — 사용 금지
+- Exp11/Exp15 모두 text attention = 0.000% (per-layer 측정 완료)
 
 ### 핵심 파일
 
-- **학습:** `robovlm_nav/train.py`, `robovlm_nav/trainer/nav_trainer.py`
-- **데이터셋:** `robovlm_nav/datasets/nav_h5_dataset_impl.py` — V4/V5 포맷 자동 감지, stratified_split, exclude_path_types 지원
-- **추론 서버:** `robovlm_nav/serve/inference_server.py` — 3DOF (lx, ly, az), 9-class 매핑 수정됨
-- **설정:** `configs/mobile_vla_v5_exp*.json`
-- **분석 스크립트:** `scripts/test_v5_pm_dm.py`, `scripts/test_three_vlm_text_gen.py`, `scripts/run_v5_grounding.py`
-- **문서:** `docs/situation_analysis_20260411.md` — 현황 분석 + TODO, `docs/vlm_text_gen_comparison.html` — VLM 3종 비교
+- **학습:** `robovlm_nav/train.py` (positional arg: `python3 robovlm_nav/train.py configs/xxx.json`)
+- **데이터셋:** `robovlm_nav/datasets/nav_h5_dataset_impl.py`
+- **추론 서버:** `robovlm_nav/serve/inference_server.py`
+- **PM 평가:** `scripts/test_v5_pm_dm.py`
+- **Closed-loop 평가:** `scripts/sim/evaluate_closed_loop_v5.py` (--model exp11|step2)
+- **Attention 분석:** `scripts/measure_attention.py`
+- **Feature ablation:** `scripts/ablate_bbox_image_features.py`
+- **문서:** `docs/v5/PROF_UPDATE_20260417_EXP14.md` — 교수님 업데이트 (전체 이력)
+- **Pages:** `docs/index.html` — GitHub Pages 진입점 (Hero 버튼 있음)

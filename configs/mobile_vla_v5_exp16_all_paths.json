@@ -1,0 +1,27 @@
+{
+    "_comment": "V5 Exp16: 교수 프로토콜 Step 2 — center_straight 포함 전체 150ep. FORWARD weight 0.4로 소폭 하향.",
+    "parent": "configs/mobile_vla_v5_exp11_google_robot_8cls.json",
+    "exp_name": "v5-exp16-all-paths",
+    "task_name": "mobile_vla_v5_exp16",
+
+    "act_head": {
+        "type": "MobileVLAClassificationDecoder",
+        "num_classes": 8,
+        "action_dim": 8,
+        "hidden_size": 1024,
+        "class_weights": [1.0, 0.4, 10.0, 10.0, 4.0, 4.0, 50.0, 50.0]
+    },
+
+    "train_dataset": {
+        "data_dir": "/home/billy/25-1kp/MoNaVLA/ROS_action/mobile_vla_dataset_v5",
+        "num_classes": 8,
+        "window_size": 8,
+        "exclude_path_types": []
+    },
+    "val_dataset": {
+        "data_dir": "/home/billy/25-1kp/MoNaVLA/ROS_action/mobile_vla_dataset_v5",
+        "num_classes": 8,
+        "window_size": 8,
+        "exclude_path_types": []
+    }
+}

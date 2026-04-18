@@ -756,3 +756,79 @@ episode H5 → expert rollout (expert actions) + policy rollout (predicted actio
 | Exp11 (end-to-end policy) | 0.0% (0/9) | 1.45m | 1.03 |
 
 → Step 2가 closed-loop에서 Exp11을 압도. 이동 거리(TLD≈1.03)는 같지만 방향 오류 누적으로 Exp11 FPE 2.6배 높음.
+
+---
+
+# Exp16: 교수 프로토콜 Step 2 — All Paths (직선 포함)
+작성일: 2026-04-18
+
+## 1. 목표
+- 교수 프로토콜 Step 2 검증: "직선 포함(50/50)해도 동작하는가?"
+- Exp11은 `center_straight` 제외 (130 ep). Exp16은 전체 150 ep 사용.
+- 성공 기준: PM이 Exp11(58.6%)보다 크게 떨어지지 않으면서 직선 경로도 처리 가능
+
+## 2. 배경
+- Exp11: `exclude_path_types: ["center_straight"]` → 130 ep 학습
+- center_straight(20 ep)는 거의 순수 FORWARD 프레임 → FORWARD bias 심화 우려
+- 실측 action 분포:
+  - Exp11 기준 (130 ep): FORWARD 71.4%
+  - All 150 ep 포함 시: FORWARD 74.4% (차이 3%p — 미미)
+- center_straight 추가는 FORWARD bias 거의 안 올림 → class_weight 소폭 조정으로 충분
+
+## 3. 변경 내용 (Exp11 대비 최소 변경)
+
+| 항목 | Exp11 | Exp16 |
+|---|---|---|
+| 학습 데이터 | 130 ep (center_straight 제외) | 150 ep (전체) |
+| exclude_path_types | ["center_straight"] | [] (없음) |
+| num_classes | 8 | 8 |
+| FORWARD class_weight | 0.5 | **0.4** (74.4% bias 보정) |
+| lr / max_epochs | 5e-5 / 20 | 5e-5 / 20 |
+| backbone | Google-Robot | Google-Robot |
+
+### 변경 config: `configs/mobile_vla_v5_exp16_all_paths.json`
+```json
+{
+    "_comment": "V5 Exp16: 교수 프로토콜 Step 2 — center_straight 포함 전체 150ep. FORWARD weight 0.4로 소폭 하향.",
+    "parent": "configs/mobile_vla_v5_exp11_google_robot_8cls.json",
+    "exp_name": "v5-exp16-all-paths",
+    "task_name": "mobile_vla_v5_exp16",
+
+    "act_head": {
+        "type": "MobileVLAClassificationDecoder",
+        "num_classes": 8,
+        "action_dim": 8,
+        "hidden_size": 1024,
+        "class_weights": [1.0, 0.4, 10.0, 10.0, 4.0, 4.0, 50.0, 50.0]
+    },
+
+    "train_dataset": {
+        "data_dir": "/home/billy/25-1kp/MoNaVLA/ROS_action/mobile_vla_dataset_v5",
+        "num_classes": 8,
+        "window_size": 8,
+        "exclude_path_types": []
+    },
+    "val_dataset": {
+        "data_dir": "/home/billy/25-1kp/MoNaVLA/ROS_action/mobile_vla_dataset_v5",
+        "num_classes": 8,
+        "window_size": 8,
+        "exclude_path_types": []
+    }
+}
+```
+
+## 4. 예상 결과 및 해석 가이드
+| 시나리오 | 해석 |
+|---|---|
+| PM ≈ Exp11 (55~65%) | Step 2 통과 — 직선 추가가 곡선 성능을 해치지 않음 |
+| PM > Exp11 | 직선이 FORWARD 표현 강화 → 오히려 도움 |
+| PM 크게 하락 (<45%) | FORWARD collapse 재발 — class weight 재조정 필요 |
+
+## 5. 리스크
+| 리스크 | 대응 |
+|---|---|
+| center_straight가 FORWARD collapse 유발 | class_weight [0.4]으로 보정. 실패 시 0.3으로 재시도 |
+| val_loss는 좋아도 PM 낮을 수 있음 (Exp04 선례) | 반드시 PM 측정 |
+
+## 6. 승인 상태
+- [x] 승인 (2026-04-18)
