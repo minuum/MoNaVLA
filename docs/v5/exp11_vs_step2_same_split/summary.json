@@ -1,0 +1,99 @@
+{
+  "common_total": 50,
+  "test_episodes": [
+    "episode_260408_130141_target_center_straight_path__core__fixed_center",
+    "episode_260408_175031_target_center_left_path__core__fixed_center",
+    "episode_260408_190853_target_center_right_path__core__fixed_center",
+    "episode_260409_072507_target_left_straight_path__core__fixed_center",
+    "episode_260409_124157_target_left_left_path__core__fixed_center",
+    "episode_260409_123501_target_left_right_path__core__fixed_center",
+    "episode_260409_134030_target_right_straight_path__core__fixed_center",
+    "episode_260409_131239_target_right_left_path__core__fixed_center",
+    "episode_260409_173030_target_right_right_path__core__fixed_center"
+  ],
+  "exp11": {
+    "correct": 25,
+    "overall_pm": 0.5,
+    "pm_by_path": {
+      "center_straight": {
+        "correct": 0,
+        "total": 2
+      },
+      "center_left": {
+        "correct": 0,
+        "total": 6
+      },
+      "center_right": {
+        "correct": 6,
+        "total": 6
+      },
+      "left_straight": {
+        "correct": 5,
+        "total": 6
+      },
+      "left_left": {
+        "correct": 2,
+        "total": 7
+      },
+      "left_right": {
+        "correct": 4,
+        "total": 7
+      },
+      "right_straight": {
+        "correct": 5,
+        "total": 6
+      },
+      "right_left": {
+        "correct": 1,
+        "total": 6
+      },
+      "right_right": {
+        "correct": 2,
+        "total": 4
+      }
+    }
+  },
+  "step2": {
+    "correct": 17,
+    "overall_pm": 0.3400000035762787,
+    "pm_by_path": {
+      "center_straight": {
+        "correct": 0,
+        "total": 2
+      },
+      "center_left": {
+        "correct": 0,
+        "total": 6
+      },
+      "center_right": {
+        "correct": 4,
+        "total": 6
+      },
+      "left_straight": {
+        "correct": 5,
+        "total": 6
+      },
+      "left_left": {
+        "correct": 1,
+        "total": 7
+      },
+      "left_right": {
+        "correct": 3,
+        "total": 7
+      },
+      "right_straight": {
+        "correct": 4,
+        "total": 6
+      },
+      "right_left": {
+        "correct": 0,
+        "total": 6
+      },
+      "right_right": {
+        "correct": 0,
+        "total": 4
+      }
+    }
+  },
+  "delta_vs_exp11": -0.1599999964237213
+}
