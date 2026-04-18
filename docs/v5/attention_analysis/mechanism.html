@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Attention Collapse Mechanism (Per Layer)</title>
+<style>
+ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background:#0f172a; color:#e2e8f0; margin:0; padding:24px; }
+ h1, h2 { color:#fff; }
+ .note { background:#172554; border-left:4px solid #60a5fa; padding:14px 18px; border-radius:6px; margin-bottom:18px; line-height:1.6; }
+ table { width:100%; border-collapse:collapse; background:#1e293b; border-radius:8px; overflow:hidden; margin-bottom:20px; }
+ th, td { padding:8px 12px; border-bottom:1px solid #334155; text-align:center; font-size:0.9rem; }
+ th { background:#0b1220; }
+ .back { color:#60a5fa; text-decoration:none; display:inline-block; margin-bottom:14px; }
+</style>
+</head>
+<body>
+  <a class="back" href="../../index.html">← Back to MoNaVLA</a>
+  <h1>Attention Collapse Mechanism</h1>
+  <div class="note">
+    각 Kosmos LM layer에서 <b>마지막 real token의 attention</b>을 측정.
+    Pure Kosmos-2(학습 전)와 Exp11/Exp13(학습 후)의 layer별 image/text ratio, 그리고 &lsquo;text-head alive&rsquo;(text region 합 &gt; 0.05) 개수를 비교합니다.
+    <br>→ <b>학습 후 text-heads alive가 layer 어디에서 0이 되는가</b>가 collapse mechanism의 layer-level signature.
+  </div>
+
+  <h2>Per Layer Summary</h2>
+  <table>
+    <thead>
+      <tr><th>Layer</th><th colspan=3>pure_kosmos</th><th colspan=3>exp11</th><th colspan=3>exp13</th></tr>
+      <tr><th></th><th>Img%</th><th>Text%</th><th>text-heads alive / 32</th><th>Img%</th><th>Text%</th><th>text-heads alive / 32</th><th>Img%</th><th>Text%</th><th>text-heads alive / 32</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>0</td><td>74.0%</td><td>26.0%</td><td>30.7</td><td>55.1%</td><td>0.0%</td><td>0.0</td><td>50.3%</td><td>0.0%</td><td>0.0</td></tr><tr><td>1</td><td>42.6%</td><td>57.4%</td><td>31.3</td><td>80.9%</td><td>0.0%</td><td>0.0</td><td>43.2%</td><td>0.0%</td><td>0.0</td></tr><tr><td>2</td><td>27.7%</td><td>72.3%</td><td>28.0</td><td>69.1%</td><td>0.0%</td><td>0.0</td><td>27.9%</td><td>0.0%</td><td>0.0</td></tr><tr><td>3</td><td>47.5%</td><td>52.5%</td><td>29.0</td><td>73.9%</td><td>0.0%</td><td>0.0</td><td>44.3%</td><td>0.0%</td><td>0.0</td></tr><tr><td>4</td><td>57.9%</td><td>42.1%</td><td>27.7</td><td>79.6%</td><td>0.0%</td><td>0.0</td><td>55.2%</td><td>0.0%</td><td>0.0</td></tr><tr><td>5</td><td>55.9%</td><td>44.1%</td><td>26.7</td><td>73.1%</td><td>0.0%</td><td>0.0</td><td>45.0%</td><td>0.0%</td><td>0.0</td></tr><tr><td>6</td><td>66.0%</td><td>34.0%</td><td>30.7</td><td>78.0%</td><td>0.0%</td><td>0.0</td><td>58.9%</td><td>0.0%</td><td>0.0</td></tr><tr><td>7</td><td>61.0%</td><td>39.0%</td><td>32.0</td><td>75.9%</td><td>0.0%</td><td>0.0</td><td>64.5%</td><td>0.0%</td><td>0.0</td></tr><tr><td>8</td><td>57.1%</td><td>42.9%</td><td>31.0</td><td>82.8%</td><td>0.0%</td><td>0.0</td><td>65.7%</td><td>0.0%</td><td>0.0</td></tr><tr><td>9</td><td>59.9%</td><td>40.1%</td><td>31.0</td><td>88.4%</td><td>0.0%</td><td>0.0</td><td>78.9%</td><td>0.0%</td><td>0.0</td></tr><tr><td>10</td><td>56.9%</td><td>43.1%</td><td>32.0</td><td>88.6%</td><td>0.0%</td><td>0.0</td><td>79.2%</td><td>0.0%</td><td>0.0</td></tr><tr><td>11</td><td>59.3%</td><td>40.7%</td><td>32.0</td><td>94.1%</td><td>0.0%</td><td>0.0</td><td>81.4%</td><td>0.0%</td><td>0.0</td></tr><tr><td>12</td><td>50.7%</td><td>49.3%</td><td>32.0</td><td>92.7%</td><td>0.0%</td><td>0.0</td><td>81.5%</td><td>0.0%</td><td>0.0</td></tr><tr><td>13</td><td>59.3%</td><td>40.7%</td><td>31.7</td><td>92.8%</td><td>0.0%</td><td>0.0</td><td>87.6%</td><td>0.0%</td><td>0.0</td></tr><tr><td>14</td><td>62.9%</td><td>37.1%</td><td>32.0</td><td>97.1%</td><td>0.0%</td><td>0.0</td><td>94.0%</td><td>0.0%</td><td>0.0</td></tr><tr><td>15</td><td>65.2%</td><td>34.8%</td><td>32.0</td><td>96.8%</td><td>0.0%</td><td>0.0</td><td>94.1%</td><td>0.0%</td><td>0.0</td></tr><tr><td>16</td><td>62.1%</td><td>37.9%</td><td>31.0</td><td>97.8%</td><td>0.0%</td><td>0.0</td><td>93.5%</td><td>0.0%</td><td>0.0</td></tr><tr><td>17</td><td>63.4%</td><td>36.6%</td><td>32.0</td><td>97.3%</td><td>0.0%</td><td>0.0</td><td>90.7%</td><td>0.0%</td><td>0.0</td></tr><tr><td>18</td><td>76.3%</td><td>23.7%</td><td>27.7</td><td>96.9%</td><td>0.0%</td><td>0.0</td><td>82.7%</td><td>0.0%</td><td>0.0</td></tr><tr><td>19</td><td>76.3%</td><td>23.7%</td><td>27.0</td><td>98.4%</td><td>0.0%</td><td>0.0</td><td>94.2%</td><td>0.0%</td><td>0.0</td></tr><tr><td>20</td><td>73.9%</td><td>26.1%</td><td>21.3</td><td>98.1%</td><td>0.0%</td><td>0.0</td><td>91.2%</td><td>0.0%</td><td>0.0</td></tr><tr><td>21</td><td>76.0%</td><td>24.0%</td><td>23.0</td><td>99.6%</td><td>0.0%</td><td>0.0</td><td>86.3%</td><td>0.0%</td><td>0.0</td></tr><tr><td>22</td><td>73.5%</td><td>26.5%</td><td>23.3</td><td>98.9%</td><td>0.0%</td><td>0.0</td><td>88.9%</td><td>0.0%</td><td>0.0</td></tr><tr><td>23</td><td>77.4%</td><td>22.6%</td><td>27.3</td><td>91.8%</td><td>0.0%</td><td>0.0</td><td>85.3%</td><td>0.0%</td><td>0.0</td></tr>
+    </tbody>
+  </table>
+</body>
+</html>
