@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Exp14 Feature Ablation: BBox vs Image</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin: 0; padding: 24px; background: #0f172a; color: #e2e8f0; }
+  h1 { font-size: 2rem; margin-bottom: 8px; }
+  .sub { color: #94a3b8; margin-bottom: 24px; max-width: 900px; line-height: 1.6; }
+  .back { color: #60a5fa; text-decoration: none; display: inline-block; margin-bottom: 16px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px; }
+  .box { background: #1e293b; padding: 16px 20px; border-radius: 10px; }
+  .num { font-size: 2.5rem; font-weight: 800; }
+  table { border-collapse: collapse; background: #1e293b; border-radius: 8px; overflow: hidden; width: 100%; margin-top: 16px; }
+  th, td { padding: 8px 14px; border-bottom: 1px solid #334155; text-align: left; }
+  th { background: #0b1220; }
+  .diag { background: #172554; border-left: 4px solid #60a5fa; padding: 14px 18px; border-radius: 6px; color: #dbeafe; margin-top: 20px; line-height: 1.7; }
+</style>
+</head>
+<body>
+  <a class="back" href="../../index.html">← Back to main</a>
+  <h1>Exp14 Feature Ablation: BBox vs Image</h1>
+  <p class="sub">
+    동일 MLP 용량(256→128→64)에서 input feature 조합만 바꿔 Step 1→Step 2의
+    +7.5%p 향상이 image feature 덕분인지 아키텍처 용량 증가 덕분인지 분리한다.
+    각 조건 5 split seed로 mean ± std 보고.
+  </p>
+
+  <div class="grid3">
+    <div class="box">
+      <div style="color:#94a3b8; font-size:0.85rem; text-transform:uppercase;">BBox-only</div>
+      <div class="num" style="color:#60a5fa;">67.4%</div>
+      <div style="color:#64748b;">± 9.8% (5 seeds)</div>
+    </div>
+    <div class="box">
+      <div style="color:#94a3b8; font-size:0.85rem; text-transform:uppercase;">Image-only</div>
+      <div class="num" style="color:#fbbf24;">75.6%</div>
+      <div style="color:#64748b;">± 0.8% (5 seeds)</div>
+    </div>
+    <div class="box">
+      <div style="color:#94a3b8; font-size:0.85rem; text-transform:uppercase;">BBox+Image</div>
+      <div class="num" style="color:#22c55e;">76.7%</div>
+      <div style="color:#64748b;">± 1.3% (5 seeds)</div>
+    </div>
+  </div>
+
+  <h2>PM per Path Type (seed-averaged)</h2>
+  <table>
+    <tr><th>Path Type</th><th style='color:#60a5fa'>BBox-only</th><th style='color:#fbbf24'>Image-only</th><th style='color:#22c55e'>BBox+Image</th></tr>
+    <tr><td>center_straight</td><td>90.0%</td><td>78.6%</td><td>81.4%</td></tr><tr><td>center_left</td><td>45.6%</td><td>64.4%</td><td>71.1%</td></tr><tr><td>center_right</td><td>43.3%</td><td>57.8%</td><td>47.8%</td></tr><tr><td>left_straight</td><td>83.3%</td><td>90.0%</td><td>91.1%</td></tr><tr><td>left_left</td><td>70.5%</td><td>69.5%</td><td>74.7%</td></tr><tr><td>left_right</td><td>67.4%</td><td>83.2%</td><td>82.1%</td></tr><tr><td>right_straight</td><td>83.3%</td><td>85.6%</td><td>88.9%</td></tr><tr><td>right_left</td><td>65.5%</td><td>77.5%</td><td>80.5%</td></tr><tr><td>right_right</td><td>62.1%</td><td>74.1%</td><td>72.7%</td></tr>
+  </table>
+
+  <div class="diag">
+    <strong>설정</strong><br>
+    MLP backbone: Linear(d, 256)→ReLU→Dropout(0.25)→Linear(256,128)→ReLU→Dropout(0.2)→Linear(128,64)→ReLU→Linear(64,8)<br>
+    lr=2e-3, epochs=220, batch=128, AdamW, inverse-frequency class weights.<br>
+    Dataset: bbox_dataset.json (45 eps, 794 frames, Pure HF Kosmos-2 grounding).
+    Split: episode-level stratified 80/20, 5 seeds.
+  </div>
+</body>
+</html>

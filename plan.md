@@ -503,3 +503,123 @@ def bbox_to_action(cx, cy, w, h):
 - [x] Phase 2: Exp11/Exp13 × 좌/우/전진 metric
 - [x] Phase 3: per-layer + top-K + text-region per-position + **Pure Kosmos-2 대조** (before/after 22.7% → 0%)
 - [x] Phase 4: TEXT_IGNORE_ROOTCAUSE §1/§4.1/§6/§7/§8/§9, PROF_UPDATE §7-1, index.html hero 반영
+
+---
+
+# Exp14 Step 2: Feature Ablation (BBox vs Image 기여도)
+작성일: 2026-04-18
+
+## 1. 목표
+- 해결하려는 문제: Step 2(75.9%)와 Step 1(68.4%)의 **+7.5%p 향상이 16×16 image feature 때문인지 / MLP 용량 때문인지** 구분하지 못함. 현재 두 실험은 아키텍처와 하이퍼파라미터까지 같이 다르게 두었기 때문에 feature-level ablation이 아니다.
+- 기대 결과: **동일 MLP backbone · 동일 하이퍼파라미터** 위에서 input feature 조합만 바꿔서 세 조건을 공정 비교. PROF_UPDATE §7 항목 3 "어떤 feature가 성능을 만드는지"에 정량 답을 확보.
+- 이번 문서 단계:
+  - [x] 리서치 완료
+  - [ ] 구현 전 승인 대기
+  - [ ] 승인 후 구현 예정
+
+## 2. 배경 / 현재 상태
+- Step 1 (bbox_nav_step1.py): 12-dim bbox feature, MLP 64-64, lr 3e-3, 200 epoch → 68.4%
+- Step 2 (bbox_nav_step2.py): 268-dim(bbox+image), MLP 256-128-64, lr 2e-3, 220 epoch → 75.9%
+- `docs/v5/bbox_nav_step1/bbox_dataset.json`: 45 episodes × ~18 frames = 794 frames (Pure HF Kosmos-2로 grounding 완료, 재추론 불필요)
+- `scripts/recheck_v5_bbox_nav_step2_seeds.py`: 5-seed repro 패턴 이미 검증 (76.6 ± 1.6%)
+
+## 3. 리서치 요약
+### 3.1 확인한 코드
+- `scripts/test_v5_bbox_nav_step1.py`: bbox-only MLP, lr=3e-3, d=64
+- `scripts/test_v5_bbox_nav_step2.py`: bbox+image MLP, lr=2e-3, d=256→128→64
+- `scripts/recheck_v5_bbox_nav_step2_seeds.py`: episode-level split × 5 seeds, 재학습 루프
+
+### 3.2 핵심 관찰
+- 두 Step은 input 차원에 비례해 MLP 용량까지 같이 키웠기 때문에 **feature 효과와 용량 효과가 섞여있음**.
+- 15 epoch 이내면 5-seed 5회 재학습이 수분 내 완료 (pure MLP, GPU 1개).
+- bbox_dataset.json만 재사용하면 Pure Kosmos-2 grounding 재실행 불필요 (전체 scope 중 가장 비싼 단계 생략).
+
+### 3.3 Feature 후보 3조건
+- **A. BBox-only** (12-dim)
+- **B. Image-only** (256-dim, 16×16 grayscale)
+- **C. BBox+Image** (268-dim, 현재 Step 2와 동일 feature)
+
+## 4. 제안 변경 사항
+### 4.1 변경 개요
+- 신규 스크립트 1개. 기존 Step 1/2 스크립트는 건드리지 않음.
+- MLP backbone은 Step 2와 동일 `Linear(d_in, 256) → ReLU → Dropout(0.25) → Linear(256, 128) → ReLU → Dropout(0.2) → Linear(128, 64) → ReLU → Linear(64, 8)` 고정.
+- 세 조건 모두 같은 lr(2e-3), epochs(220), batch(128), optimizer, class weight, split 사용.
+- 각 조건 × 5 seeds (0~4) → mean ± std 보고.
+
+### 4.2 변경 파일
+1. `scripts/ablate_bbox_image_features.py` (신규)
+   - `bbox_dataset.json` 재사용
+   - 3개 feature spec × 5 seed × 220 epoch 학습
+   - 조건별 PM mean/std + per-path breakdown 저장
+   - HTML 리포트 생성
+2. `docs/v5/bbox_nav_feature_ablation/` (신규)
+   - `summary.json`, `index.html`
+3. `docs/index.html` Hero 버튼 추가 (CLAUDE.md 규칙)
+4. 코드 수정 없음 — `third_party/RoboVLMs/` 안 건드림
+
+### 4.3 구현 스케치
+```python
+FEATURE_SPECS = {
+    "bbox_only":   {"use_bbox": True,  "use_image": False, "d_in": 12},
+    "image_only":  {"use_bbox": False, "use_image": True,  "d_in": 256},
+    "bbox_image":  {"use_bbox": True,  "use_image": True,  "d_in": 268},
+}
+SEEDS = [0, 1, 2, 3, 4]
+
+def build_windows(dataset, spec, window=3):
+    # bbox part: 12-dim, image part: 256-dim
+    # spec에 따라 concat
+
+results = {}
+for name, spec in FEATURE_SPECS.items():
+    seed_accs = []
+    for seed in SEEDS:
+        train, test = make_episode_split(dataset, seed=seed)
+        X_tr, y_tr, _ = build_windows(train, spec)
+        X_te, y_te, meta = build_windows(test, spec)
+        acc, preds = train_eval(X_tr, y_tr, X_te, y_te, d_in=spec["d_in"], seed=seed)
+        seed_accs.append(acc)
+    results[name] = {"mean": np.mean(seed_accs), "std": np.std(seed_accs)}
+```
+
+### 4.4 예상 결과표
+| Feature | PM (mean ± std) | 해석 후보 |
+|---|---|---|
+| BBox-only | ? | 용량 통일 시 Step 1 보다 높을 수 있음 |
+| Image-only | ? | 공간 정보 직접 학습 가능? |
+| BBox+Image | ? | Step 2 76.6 ± 1.6%와 정합 기대 |
+
+## 5. 검증 계획
+- 재현성: 5 seed mean ± std
+- 성공 기준: 세 조건 간 gap이 noise(±1.6%) 밖이면 의미 있는 구분
+- 수동 확인: per-path PM에서 조건별 어떤 path가 강화되는지
+
+## 6. 리스크 / 트레이드오프
+| 리스크 | 대응 |
+|---|---|
+| Image-only가 예상보다 높으면 bbox 기여도 의심 | 그 자체가 유의미한 발견, 그대로 보고 |
+| 같은 seed에서도 MLP noise 큼 | 5 seed 평균 + std 명시 |
+| 45 ep은 여전히 작은 데이터 | 이번 ablation 범위 밖, 후속으로 ep 확장 고려 |
+
+## 7. 작업 순서
+1. `scripts/ablate_bbox_image_features.py` 작성
+2. 실행 (3 conditions × 5 seeds × ~220 ep, 총 15 runs — MLP라 수분 내 완료 예상)
+3. `summary.json` + HTML 생성
+4. `docs/index.html` Hero 버튼 추가
+5. PROF_UPDATE §7 항목 3 결과 반영
+
+## 8. 승인 상태
+- [x] 방향 승인 (사용자: "이어서 ㄱㄱ", 2026-04-18)
+- [x] 구현 완료
+- [x] 검증 완료 (2026-04-18)
+
+## 9. 결과
+
+| Feature | PM mean | PM std | 해석 |
+|---|---|---|---|
+| BBox-only | 67.4% | ±9.8% | 기존 Step 1(68.4%)은 운 좋은 seed였음 |
+| Image-only | 75.6% | ±0.8% | **image가 핵심 feature** |
+| BBox+Image | 76.7% | ±1.3% | bbox 추가 기여 +1.1%p (노이즈 수준) |
+
+**핵심 발견**: Step 1→Step 2 +7.5%p 향상은 image feature 효과이며, architecture 용량 증가는 무관.
+bbox grounding(Pure Kosmos-2)이 제공하는 spatial cue(cx,cy,area)는 raw image pixel 대비 정보량이 낮다.
