@@ -2,8 +2,8 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="MoNaVLA V5 Development Log from 2026-04-11 to 2026-04-17.">
-  <meta name="keywords" content="MoNaVLA, V5, Development Log, Experiment Timeline, Exp01, Exp13">
+  <meta name="description" content="MoNaVLA V5 Development Log from 2026-04-11 to 2026-04-18.">
+  <meta name="keywords" content="MoNaVLA, V5, Development Log, Experiment Timeline, Exp01, Exp16, Closed-Loop, Feature Ablation, Attention Analysis">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>MoNaVLA V5 Development Log</title>
 
@@ -483,11 +483,53 @@
           <div class="timeline-item">
             <span class="timeline-date">2026-04-17 Latest</span>
             <h3>재현성 실험과 최신 실험을 분리</h3>
-            <p>재현성 실험은 Step 2를 seed 0 / 8 epoch로 축소해 빠르게 다시 보는 진단 트랙으로 정리했고, 최신 실험은 Exp11 same-split direct compare와 체크포인트 혼선 여부를 원인 분리 관점에서 따로 관리하기로 했습니다. LogVLM 자체 문제로 단정하지 않고, 서버에 RoboVLMs 계열 체크포인트가 잘못 올라갔을 가능성도 점검 대상으로 남겨 둡니다.</p>
+            <p>재현성 실험은 Step 2를 seed 0 / 8 epoch로 축소해 빠르게 다시 보는 진단 트랙으로 정리했고, 최신 실험은 Exp11 same-split direct compare와 체크포인트 혼선 여부를 원인 분리 관점에서 따로 관리하기로 했습니다.</p>
             <ul>
               <li>공식 비교: Exp11 58.6% vs Exp14 Step 2 75.9%</li>
               <li>보조 진단: Step 2 quick repro, same-split direct compare</li>
-              <li>추가 확인: LogVLM checkpoint / RoboVLMs 혼선 여부</li>
+            </ul>
+          </div>
+
+          <div class="timeline-item">
+            <span class="timeline-date">2026-04-18</span>
+            <h3>Text Attention 붕괴의 인과 증거 확보 — Google-robot pretrain 기인</h3>
+            <p>Exp11·Exp13의 self-attention weight를 24 레이어 × 16 헤드 전체에서 실측한 결과, <strong>text token region attention = 0.000%</strong>로 완전히 붕괴한 것이 확인됐습니다. 결정적으로 Exp15 (VLM 완전 frozen, head만 학습)에서도 동일하게 0%가 측정되면서, 붕괴 원인이 우리 LoRA 학습이 아니라 <strong>Google-robot post-training 단계에서 이미 image_to_text_projection이 오염</strong>된 것임이 증명됐습니다. Pure HF Kosmos-2는 동일 측정에서 22.7%를 기록해 대조군 역할을 완료했습니다.</p>
+            <ul>
+              <li><a href="attention_analysis/index.html">Attention Analysis (Text=0%)</a></li>
+              <li><a href="attention_analysis/mechanism.html">Attention Collapse Mechanism (24-Layer)</a></li>
+              <li>Exp15 head-only: PM 37.5%, text attention 0% 재확인 (인과 확정)</li>
+            </ul>
+          </div>
+
+          <div class="timeline-item">
+            <span class="timeline-date">2026-04-18</span>
+            <h3>Feature Ablation — Image가 핵심 driver, BBox는 노이즈 수준</h3>
+            <p>Step 1→Step 2의 +7.5%p 향상이 image feature 때문인지 MLP 용량 증가 때문인지를 분리하기 위해, 동일한 MLP 구조에서 bbox_only / image_only / bbox+image 세 조건을 각 5 seed × 220 epoch으로 평가했습니다. image_only가 75.6%±0.8%로 bbox+image(76.7%±1.3%)와 동등한 수준이며, BBox 추가 기여는 +1.1%p(노이즈 범위)에 불과합니다. Pure Kosmos-2가 제공하는 grounding(cx,cy,area)은 16×16 raw image 픽셀 대비 정보량이 낮다는 결론.</p>
+            <ul>
+              <li><a href="bbox_nav_feature_ablation/index.html">Feature Ablation: BBox vs Image</a></li>
+              <li>bbox_only 67.4%±9.8% / image_only 75.6%±0.8% / bbox+image 76.7%±1.3%</li>
+            </ul>
+          </div>
+
+          <div class="timeline-item">
+            <span class="timeline-date">2026-04-18</span>
+            <h3>Closed-Loop Simulation (Phase 1) — Step 2 66.7% vs Exp11 0%</h3>
+            <p>frame-level PM을 넘어 episode-level trajectory 성공률을 측정하기 위해 kinematic simulation을 구현했습니다. 각 프레임 예측을 body-frame pose update로 누적해 expert trajectory와 비교(FPE / TLD 지표). 9개 에피소드에서 Step 2는 6/9 성공(66.7%), Exp11은 0/9(0%)를 기록했습니다. TLD는 둘 다 1.03으로 이동 거리는 동일하지만, Exp11은 방향 오류가 누적되어 FPE가 2.6배 높습니다. Decomposition 접근(Step 2)이 closed-loop 궤적 안정성에서 end-to-end policy를 압도한다는 결론.</p>
+            <ul>
+              <li><a href="closed_loop_eval/index.html">Closed-Loop 평가 결과</a></li>
+              <li>Step 2: FPE 0.55m / Exp11: FPE 1.45m</li>
+              <li>성공 기준: FPE &lt; 0.5m AND TLD ∈ [0.7, 1.5]</li>
+            </ul>
+          </div>
+
+          <div class="timeline-item">
+            <span class="timeline-date">2026-04-18 Latest</span>
+            <h3>Exp16 학습 시작 — 교수 프로토콜 Step 2 (직선 포함)</h3>
+            <p>교수님 테스트 프로토콜 Step 2 "50/50 비율 → 동작하는가?"를 검증하기 위해 Exp16 학습을 시작했습니다. Exp11에서 제외했던 center_straight 20 에피소드를 포함해 전체 150 ep를 사용합니다. 8-class, Google-robot backbone, FORWARD class weight 0.5→0.4 소폭 조정 외 Exp11과 동일한 설정. 현재 학습 진행 중(2026-04-18 기준 Epoch 3).</p>
+            <ul>
+              <li>config: <code>configs/mobile_vla_v5_exp16_all_paths.json</code></li>
+              <li>데이터: 150 ep 전체 (center_straight 포함), FORWARD 74.4%</li>
+              <li>학습 중 — 결과 업데이트 예정</li>
             </ul>
           </div>
         </div>
@@ -500,23 +542,24 @@
         </p>
         <div class="surface-card link-list">
           <p><strong>1.</strong> <a href="index.html">V5 Dashboard</a></p>
-          <p><strong>2.</strong> <a href="bbox_nav_comparison.html">Exp14 Comparison</a></p>
-          <p><strong>3.</strong> <a href="bbox_nav_step2/index.html">Exp14 Step 2</a></p>
-          <p><strong>4.</strong> <a href="sanity.html">V5 Sanity Analysis</a></p>
-          <p><strong>5.</strong> <a href="../reports/viewer.html?file=../AGENT_ENTRYPOINT.md">Agent Entrypoint</a></p>
+          <p><strong>2.</strong> <a href="bbox_nav_step2/index.html">Exp14 Step 2 (75.9%)</a></p>
+          <p><strong>3.</strong> <a href="closed_loop_eval/index.html">Closed-Loop Sim</a></p>
+          <p><strong>4.</strong> <a href="attention_analysis/index.html">Attention Analysis</a></p>
+          <p><strong>5.</strong> <a href="bbox_nav_feature_ablation/index.html">Feature Ablation</a></p>
+          <p><strong>6.</strong> <a href="PROF_UPDATE_20260417_EXP14.md">교수님 업데이트</a></p>
+          <p><strong>7.</strong> <a href="../reports/viewer.html?file=../AGENT_ENTRYPOINT.md">Agent Entrypoint</a></p>
         </div>
 
         <div class="surface-card mt-5">
-          <h3 class="title is-5 mb-3">Current Position</h3>
+          <h3 class="title is-5 mb-3">Current Position <small style="color:#94a3b8;font-size:0.8rem;">2026-04-18</small></h3>
           <div class="content" style="color:#475569; line-height:1.75;">
-            <p><strong>Exp04</strong>는 val_loss와 달리 실제 PM은 0% collapse로 재평가됐습니다.</p>
-            <p><strong>Exp10</strong>은 teacher-forced grounding score는 좋았지만 free-form generation은 붕괴했습니다.</p>
-            <p><strong>Exp11</strong>은 현재 남아 있는 학습형 기준점 58.6%입니다.</p>
-            <p><strong>Exp14 Step 2</strong>는 75.9%로 현재 가장 강한 경량 baseline입니다.</p>
-            <p><strong>현재 Pages 공식 비교</strong>는 Exp11 58.6% vs Exp14 Step 2 75.9%입니다.</p>
-            <p><strong>Quick Repro</strong>는 <a href="bbox_nav_step2_repro/index.html">seed0 / 8 epoch smoke check</a>만 추가돼 있으며, 정식 재현성 지표는 아닙니다.</p>
-            <p><strong>최신 실험</strong>은 same-split 비교와 LogVLM checkpoint 혼선 분리입니다.</p>
-            <p><strong>Exp12/13</strong>은 여전히 구조 실험 분기로 남아 있습니다.</p>
+            <p><strong>Text attention = 0%</strong>: Google-robot post-training 기인. Exp15(head-only)에서 인과 확정.</p>
+            <p><strong>Image가 핵심</strong>: feature ablation — bbox_only 67% / image_only 76% / bbox+image 77%. BBox 기여 노이즈 수준.</p>
+            <p><strong>Closed-loop</strong>: Step 2 66.7% vs Exp11 0%. Decomposition이 end-to-end를 압도.</p>
+            <p><strong>Best PM</strong>: Exp14 Step 2 75.9% (5 seeds 76.6±1.6%).</p>
+            <p><strong>End-to-end baseline</strong>: Exp11 58.6% (closed-loop 0%).</p>
+            <p><strong>진행 중</strong>: Exp16 학습 중 — 교수 프로토콜 Step 2 (직선 포함 150 ep).</p>
+            <p><strong>교수 프로토콜</strong>: Step 1 ✅ / Step 2 🔄 Exp16 / Step 3 ⬜</p>
           </div>
         </div>
       </div>
