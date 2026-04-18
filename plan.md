@@ -832,3 +832,10 @@ episode H5 → expert rollout (expert actions) + policy rollout (predicted actio
 
 ## 6. 승인 상태
 - [x] 승인 (2026-04-18)
+
+## 7. 결과
+- 학습 완료 (epoch=9 early stop, val_loss=1.898)
+- **PM = 0.00% — 완전 collapse**
+- 혼동 행렬: FORWARD·LEFT·RIGHT 전부 FWD+L/FWD+R로 몰림
+- 원인: center_straight(74% FORWARD) 추가 → FWD+L/FWD+R 과예측 수렴
+- 결론: Step 2 프로토콜 실패. center_straight가 직접적 붕괴 원인.

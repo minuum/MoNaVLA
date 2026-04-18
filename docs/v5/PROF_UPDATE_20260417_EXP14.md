@@ -316,9 +316,145 @@ Exp15는 VLM(Kosmos 전체)이 완전히 frozen된 상태 — LoRA 없음, mm_pr
 
 ---
 
+---
+
+## 8. 교수님 프로토콜 반박 — 실험 데이터 기반 (2026-04-19)
+
+> **배경:** 교수님 지시 프로토콜 (3/27 미팅)
+> ```
+> Step 1: 곡선만 학습 → Step 2: 50/50 비율 → Step 3: 33/33/33
+> ```
+> 이 프로토콜은 "데이터 분포를 점진적으로 넓히면 end-to-end VLA가 완전 자율 내비게이션에 도달한다"는 가정 위에 서 있습니다.  
+> 아래는 이 가정에 대한 실험 기반 반박 5가지입니다.
+
+---
+
+### 8-1. 대본 형식 (구두 보고용)
+
+---
+
+**"교수님, 저희가 Step 2까지 직접 실험해봤는데 예상치 못한 결과가 나왔습니다."**
+
+---
+
+**반박 1. VLM이 instruction을 구조적으로 무시합니다**
+
+저희가 학습에 사용한 Google-robot 사전학습 백본의 self-attention weight를 24개 레이어, 16개 헤드 전체에서 실측해봤습니다.
+
+결과는 **text token region attention = 0.000%** 였습니다.
+
+단순히 낮은 게 아니라 수치상 0입니다. 순수 HF Kosmos-2는 동일 측정에서 22.7%가 나옵니다. 즉 우리 백본은 이미지 입력만 보고 action을 결정하고 있습니다.
+
+Step 1 → Step 2 → Step 3으로 데이터 분포를 바꿔도, **instruction을 읽지 않는 모델은 instruction으로 방향을 바꿀 수 없습니다.**
+
+---
+
+**반박 2. Step 2를 직접 해봤더니 오히려 더 나빠졌습니다 (PM 0%)**
+
+프로토콜대로 Step 2를 시도했습니다. center_straight를 포함한 전체 150 에피소드로 학습한 Exp16입니다.
+
+결과: **PM 0%. 완전 붕괴.**
+
+혼동 행렬을 보면, FORWARD·LEFT·RIGHT 모든 프레임이 FWD+L 또는 FWD+R로 수렴합니다. 반면 center_straight를 제외한 Exp11은 PM 58.6%였습니다.
+
+center_straight가 74%의 순수 FORWARD 프레임을 더하자 모델이 중간 클래스로 몰리는 방향으로 학습됐습니다. 데이터 분포를 넓혔더니 성능이 올라간 게 아니라 무너진 겁니다.
+
+---
+
+**반박 3. Closed-loop에서 end-to-end 모델은 실제로 작동하지 않습니다**
+
+프레임 단위 정확도(PM)를 넘어서, 예측된 action을 실제로 누적해서 궤적을 만들어봤습니다.
+
+| 모델 | 성공률 (9 ep) | 평균 FPE |
+|---|---|---|
+| Exp11 (end-to-end) | **0%** | 1.45m |
+| Decomposition (Step 2) | **66.7%** | 0.55m |
+
+Exp11은 PM이 58.6%임에도 closed-loop 성공률은 0%입니다. 이동 거리(TLD~1.03)는 비슷한데 방향 오류가 누적되어 최종 위치가 1.45m나 벗어납니다. PM이 높아도 실제 궤적에서는 작동하지 않는다는 뜻입니다.
+
+---
+
+**반박 4. 분해 접근(Decomposition)이 일관되게 더 강합니다**
+
+Step 1 → Step 2 → Step 3이라는 데이터 관리 전략을 쓰는 대신, 문제 자체를 decompose했습니다.
+
+| 지표 | End-to-end (Exp11) | Decomposition (Exp14 Step 2) |
+|---|---|---|
+| PM | 58.6% | **75.9%** (5 seeds ±1.6%) |
+| Closed-loop 성공률 | 0% | **66.7%** |
+| 재현성 | 불안정 | ±1.6% |
+| 데이터 요구량 | 전체 150 ep | 45 ep |
+
+더 적은 데이터로, 더 안정적으로, 실제 궤적에서도 작동합니다.
+
+---
+
+**반박 5. VLM의 grounding 능력이 지금 방식으로는 제대로 쓰이지 않습니다**
+
+어떤 feature가 성능을 만드는지 ablation했습니다.
+
+| Feature | PM |
+|---|---|
+| BBox-only (grounding 좌표) | 67.4% |
+| **Image-only** | **75.6%** |
+| BBox + Image | 76.7% |
+
+BBox grounding 결과(cx, cy, area)를 추가해도 +1.1%p, 노이즈 수준입니다. **Raw 16×16 이미지 픽셀이 VLM grounding 좌표보다 더 많은 정보를 담고 있습니다.**
+
+VLM을 end-to-end로 쓰는 현재 방식은 VLM의 grounding 능력을 활용하지 못하고, 그렇다고 image만 보는 것도 아닌 어중간한 구조입니다.
+
+---
+
+**"정리하면, Step 2가 실패한 건 학습량이나 데이터 비율의 문제가 아닙니다. 지금 백본이 instruction을 읽지 않고, end-to-end 구조가 closed-loop에서 작동하지 않는 구조적 문제입니다. 저희는 Decomposition 트랙이 현재 주어진 백본에서 가장 현실적인 방향이라고 판단하고 있습니다."**
+
+---
+
+### 8-2. 분석 형식 (기술 문서용)
+
+#### 가정 검증 결과 요약
+
+교수님 프로토콜의 내재 가정과 실험 결과를 대조합니다.
+
+| 가정 | 실험 | 결과 |
+|---|---|---|
+| VLM이 instruction으로 방향을 판단한다 | Exp11/13/15 attention 실측 | **기각** — text attention 0.000% (24 layer × 16 head) |
+| 데이터 분포를 넓히면 성능이 오른다 | Exp16 (150 ep, Step 2 조건) | **기각** — PM 0% collapse |
+| PM이 높으면 실제 구동에서도 작동한다 | Exp11 closed-loop simulation | **기각** — PM 58.6% → closed-loop 0% |
+| End-to-end가 Decomposition보다 확장성이 있다 | Exp11 vs Exp14 Step 2 비교 | **기각** — PM +17.3%p, closed-loop +66.7%p |
+| VLM grounding이 action에 기여한다 | Feature ablation (5 seeds) | **기각** — bbox 기여 +1.1%p (노이즈 범위) |
+
+#### 근본 원인 분석
+
+```
+Google-robot post-training
+        ↓
+image_to_text_projection 오염
+        ↓
+text attention = 0% (구조적, 되돌릴 수 없음)
+        ↓
+모든 end-to-end 실험이 instruction을 무시한 채 image-only로 동작
+        ↓
+데이터 분포 조정(Step 2/3)이 instruction conditioning 개선에 기여할 수 없음
+```
+
+#### 현실적 경로 분기
+
+| 경로 | 내용 | 예상 비용 |
+|---|---|---|
+| **A. Decomposition 강화** | Exp14 Step 2 트랙 고도화. 지금 당장 작동하는 유일한 경로. | 낮음 |
+| B. Backbone 교체 | Text attention이 살아있는 VLM으로 교체 (TICVLA, MobilityVLA 등) | 높음 (재학습 전체) |
+| C. Grounding fine-tune | Pure HF Kosmos-2 grounding 능력 유지하면서 재학습 | 중간 |
+
+현재 데이터와 컴퓨팅 자원 제약 하에서 **A가 가장 빠르게 Step 3까지 도달할 수 있는 경로**입니다.
+
+---
+
 ## 7. 참고 문서
 
 - [Exp14 Comparison](./bbox_nav_comparison.html)
 - [Exp14 Step 2](./bbox_nav_step2/index.html)
 - [Exp14 Step 2 Quick Repro](./bbox_nav_step2_repro/index.html)
+- [Closed-Loop 평가](./closed_loop_eval/index.html)
+- [Attention Analysis](./attention_analysis/index.html)
+- [Feature Ablation](./bbox_nav_feature_ablation/index.html)
 - [V5 Dev Log](./devlog.html)
