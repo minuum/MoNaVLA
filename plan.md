@@ -655,3 +655,104 @@ for name, spec in FEATURE_SPECS.items():
 
 **핵심 발견**: Step 1→Step 2 +7.5%p 향상은 image feature 효과이며, architecture 용량 증가는 무관.
 bbox grounding(Pure Kosmos-2)이 제공하는 spatial cue(cx,cy,area)는 raw image pixel 대비 정보량이 낮다.
+
+---
+
+# Closed-Loop Simulation Eval (Phase 1)
+작성일: 2026-04-18
+
+## 1. 목표
+- frame-level PM이 아니라 **episode-level 궤적 성공률**로 Exp11과 Step 2를 비교
+- `V5_CLOSED_LOOP_SIM_PLAN.md` Phase 1(Offline replay) 구현
+- 누적 오차 관점에서 두 모델의 차이 정량화
+
+## 2. 배경
+- 현재 PM은 각 frame을 독립적으로 평가 → 누적 효과 미반영
+- 예: turn을 2프레임 늦게 예측해도 PM은 0점 차이지만 trajectory는 완전히 무너질 수 있음
+- V5_CLOSED_LOOP_SIM_PLAN.md의 Phase 1 설계 완료, 구현만 남음
+
+## 3. 리서치 요약
+### 3.1 속도 매핑 (데이터 실측)
+```
+lx=1.15 m/s (고정), ly=±1.15, az=±0.25 rad/s
+```
+| 클래스 | lx | ly | az |
+|---|---|---|---|
+| 0 STOP | 0 | 0 | 0 |
+| 1 FORWARD | 1.15 | 0 | 0 |
+| 2 LEFT | 0 | 1.15 | 0 |
+| 3 RIGHT | 0 | -1.15 | 0 |
+| 4 FWD+L | 1.15 | 1.15 | 0 |
+| 5 FWD+R | 1.15 | -1.15 | 0 |
+| 6 ROT_L | 0 | 0 | 0.25 |
+| 7 ROT_R | 0 | 0 | -0.25 |
+
+dt는 파라미터로 두고 기본값 0.1s 사용. 상대 비교이므로 절대값보다 비율이 중요.
+
+### 3.2 평가 대상 및 데이터 범위
+| 모델 | 에피소드 범위 |
+|---|---|
+| Exp11 | val split (Exp11 train_split=0.85, ~23 ep / 9 path) |
+| Step 2 (bbox+image MLP) | Step 2 test split (45 ep × 20% = ~9 ep) |
+| Step 2 grounding rerun 없음 | bbox_dataset.json 45 ep 활용 |
+
+### 3.3 핵심 지표
+- **FPE (Final Position Error)**: expert final position과의 2D 거리
+- **TLD (Trajectory Length Deviation)**: predicted / expert 이동 거리 비율
+- **Success**: FPE < 0.5m AND TLD ∈ [0.7, 1.5] 정의 (첫 버전)
+- **per-path-type breakdown**
+
+## 4. 구현 계획
+### 4.1 변경 파일
+1. `scripts/sim/rollout_core.py` (신규)
+   - `ActionVelocityMap`: discrete class → [lx, ly, az]
+   - `pose_step(pose, vel, dt)`: body frame 기준 pose update
+   - `run_expert_rollout(ep)`: expert trajectory 계산
+   - `run_policy_rollout(ep, model, config)`: policy 모델 closed-loop
+   - `run_step2_rollout(ep, mlp, bbox_cache)`: Step 2 decomposition closed-loop
+
+2. `scripts/sim/evaluate_closed_loop_v5.py` (신규)
+   - argparse로 `--model exp11|step2`, `--ckpt`, `--config` 등 받음
+   - rollout_core 호출 → per-episode metrics 계산
+   - `rollout_metrics.json` 저장
+   - HTML 리포트 생성 (`trajectory_overlay.html`)
+
+3. `docs/v5/closed_loop_eval/index.html` (신규 → 자동 생성)
+4. `docs/index.html` Hero 버튼 추가
+
+### 4.2 Pose update (body frame → world frame)
+```python
+def pose_step(x, y, theta, lx, ly, az, dt=0.1):
+    dx = (lx * cos(theta) - ly * sin(theta)) * dt
+    dy = (lx * sin(theta) + ly * cos(theta)) * dt
+    return x + dx, y + dy, theta + az * dt
+```
+
+### 4.3 전체 흐름
+```
+episode H5 → expert rollout (expert actions) + policy rollout (predicted actions)
+→ 두 trajectory 비교 → FPE, TLD 계산 → per-path 집계 → HTML 생성
+```
+
+## 5. 성공 기준
+- FPE < 0.5m: 최종 위치 오차 50cm 이내
+- TLD ∈ [0.7, 1.5]: 이동 거리가 expert의 70~150%
+- success rate > 30%: Phase 1 최소 목표
+
+## 6. 리스크
+| 리스크 | 대응 |
+|---|---|
+| dt 가정이 틀리면 FPE 왜곡 | 상대 비교(Exp11 vs Step2)는 동일 dt → 공정 |
+| Step 2는 test split 9 ep뿐 | 소규모이지만 1차 signal로 충분 |
+| 정책 모델이 FORWARD collapse면 궤적 수렴 | 그 자체가 failure taxonomy 데이터 |
+
+## 7. 승인 상태
+- [x] 방향 승인 → 구현 완료 (2026-04-18)
+
+## 8. 결과
+| 모델 | 성공률 (9 ep) | mean FPE | mean TLD |
+|---|---:|---:|---:|
+| **Step 2 (BBox+Image MLP)** | **66.7%** (6/9) | 0.55m | 1.03 |
+| Exp11 (end-to-end policy) | 0.0% (0/9) | 1.45m | 1.03 |
+
+→ Step 2가 closed-loop에서 Exp11을 압도. 이동 거리(TLD≈1.03)는 같지만 방향 오류 누적으로 Exp11 FPE 2.6배 높음.

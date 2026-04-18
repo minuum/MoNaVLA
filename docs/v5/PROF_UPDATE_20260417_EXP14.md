@@ -303,7 +303,16 @@ Exp15는 VLM(Kosmos 전체)이 완전히 frozen된 상태 — LoRA 없음, mm_pr
 4. ~~텍스트 instruction이 모델 예측에 실제로 기여하는지에 대한 **causal evidence 확보**~~
    - Exp11/Exp13 재실행으로 instruction 변경 시 logit/attention 차이 측정
    - Oracle test 정량 재현 (Exp12 LEFT% 수치)
-5. 가능하면 closed-loop 평가로 연결
+5. ~~가능하면 closed-loop 평가로 연결~~ → **완료 (2026-04-18, Phase 1 offline replay)**
+
+   | 모델 | 성공률 (9 ep) | mean FPE | mean TLD |
+   |---|---:|---:|---:|
+   | **Step 2 (BBox+Image MLP)** | **66.7%** (6/9) | 0.55m | 1.03 |
+   | Exp11 (end-to-end policy) | 0.0% (0/9) | 1.45m | 1.03 |
+
+   - Step 2가 closed-loop에서 Exp11을 압도. TLD는 둘 다 1.03으로 이동 거리는 유사하지만, Exp11은 방향 오류 누적으로 FPE가 2.6배 높음.
+   - Phase 1 설계: FPE < 0.5m AND TLD ∈ [0.7, 1.5] 성공 기준. offline replay (원본 H5 이미지 기반).
+   - 참고: [Closed-Loop 평가 결과](./closed_loop_eval/index.html)
 
 ---
 

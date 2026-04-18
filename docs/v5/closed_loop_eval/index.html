@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>V5 Closed-Loop Simulation (Phase 1)</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin: 0; padding: 24px; background: #0f172a; color: #e2e8f0; }
+  h1 { font-size: 2rem; margin-bottom: 8px; }
+  .sub { color: #94a3b8; margin-bottom: 24px; max-width: 900px; line-height: 1.6; }
+  .back { color: #60a5fa; text-decoration: none; display: inline-block; margin-bottom: 16px; }
+  .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 20px; }
+  .box { background: #1e293b; padding: 16px 20px; border-radius: 10px; }
+  .num { font-size: 2.5rem; font-weight: 800; }
+  table { border-collapse: collapse; background: #1e293b; border-radius: 8px; overflow: hidden; width: 100%; margin-top: 16px; }
+  th, td { padding: 8px 14px; border-bottom: 1px solid #334155; text-align: left; font-size: 0.9rem; }
+  th { background: #0b1220; }
+  .diag { background: #172554; border-left: 4px solid #60a5fa; padding: 14px 18px; border-radius: 6px; color: #dbeafe; margin-top: 20px; line-height: 1.7; }
+</style>
+</head>
+<body>
+  <a class="back" href="../../index.html">← Back to main</a>
+  <h1>V5 Closed-Loop Simulation (Phase 1: Offline Replay)</h1>
+  <p class="sub">
+    각 프레임의 예측 action을 누적해 kinematic trajectory를 생성하고 expert trajectory와 비교.
+    성공 기준: FPE &lt; 0.5m AND TLD ∈ [0.7, 1.5].
+  </p>
+
+  <div class="grid">
+    <div class="box">
+      <div style="color:#94a3b8; font-size:0.85rem; text-transform:uppercase;">step2</div>
+      <div class="num" style="color:#22c55e;">66.7%</div>
+      <div style="color:#64748b;">success rate</div>
+      <div style="margin-top:8px; font-size:0.85rem;">
+        FPE: 0.55m &nbsp; TLD: 1.03
+      </div>
+    </div>
+    <div class="box">
+      <div style="color:#94a3b8; font-size:0.85rem; text-transform:uppercase;">exp11</div>
+      <div class="num" style="color:#60a5fa;">0.0%</div>
+      <div style="color:#64748b;">success rate</div>
+      <div style="margin-top:8px; font-size:0.85rem;">
+        FPE: 1.45m &nbsp; TLD: 1.03
+      </div>
+    </div>
+  </div>
+
+  <h2>Per Path Type</h2>
+  <table>
+    <tr><th>Path Type</th><th style='color:#22c55e'>step2 success</th><th style='color:#22c55e'>step2 FPE</th><th style='color:#60a5fa'>exp11 success</th><th style='color:#60a5fa'>exp11 FPE</th></tr>
+    <tr><td>center_straight</td><td style='color:#ef4444'>0% (0/1)</td><td>0.95m</td><td style='color:#ef4444'>0% (0/1)</td><td>1.72m</td></tr><tr><td>center_left</td><td style='color:#22c55e'>100% (1/1)</td><td>0.36m</td><td style='color:#ef4444'>0% (0/1)</td><td>1.85m</td></tr><tr><td>center_right</td><td style='color:#22c55e'>100% (1/1)</td><td>0.23m</td><td style='color:#ef4444'>0% (0/1)</td><td>1.14m</td></tr><tr><td>left_straight</td><td style='color:#22c55e'>100% (1/1)</td><td>0.23m</td><td style='color:#ef4444'>0% (0/1)</td><td>1.19m</td></tr><tr><td>left_left</td><td style='color:#22c55e'>100% (1/1)</td><td>0.21m</td><td style='color:#ef4444'>0% (0/1)</td><td>1.80m</td></tr><tr><td>left_right</td><td style='color:#22c55e'>100% (1/1)</td><td>0.38m</td><td style='color:#ef4444'>0% (0/1)</td><td>1.18m</td></tr><tr><td>right_straight</td><td style='color:#22c55e'>100% (1/1)</td><td>0.34m</td><td style='color:#ef4444'>0% (0/1)</td><td>1.26m</td></tr><tr><td>right_left</td><td style='color:#ef4444'>0% (0/1)</td><td>0.52m</td><td style='color:#ef4444'>0% (0/1)</td><td>1.91m</td></tr><tr><td>right_right</td><td style='color:#ef4444'>0% (0/1)</td><td>1.77m</td><td style='color:#ef4444'>0% (0/1)</td><td>1.03m</td></tr>
+  </table>
+
+  <div class="diag">
+    <strong>설정</strong><br>
+    Phase 1: offline replay — 원본 H5 이미지로 예측, 예측 action을 kinematic model에 적분.<br>
+    속도 매핑: lx/ly=1.15 m/s, az=±0.25 rad/s (데이터 실측). dt=0.1s.<br>
+    성공 기준: FPE &lt; 0.5m AND TLD ∈ [0.7, 1.5].
+  </div>
+</body>
+</html>
