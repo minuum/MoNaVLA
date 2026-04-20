@@ -17,6 +17,7 @@
 
 ### Step 2. 장기 메모리
 - `.menemory/core/master_memory.md` — 장기 목표, 아키텍처 원칙, 금지 규칙
+- [MEMORY_SYNC_MAP.md](/home/billy/25-1kp/MoNaVLA/docs/MEMORY_SYNC_MAP.md:1) — Claude/Codex/Antigravity/Menemory 기억 위치와 공유 규칙
 
 ### Step 3. 현재 진행 계획
 - [plan.md](/home/billy/25-1kp/MoNaVLA/plan.md:1) — 진행 중/완료 실험의 상세 계획

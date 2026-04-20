@@ -8,7 +8,7 @@
   h1 { font-size: 2rem; margin-bottom: 8px; }
   .sub { color: #94a3b8; margin-bottom: 24px; max-width: 900px; line-height: 1.6; }
   .back { color: #60a5fa; text-decoration: none; display: inline-block; margin-bottom: 16px; }
-  .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 20px; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px; }
   .box { background: #1e293b; padding: 16px 20px; border-radius: 10px; }
   .num { font-size: 2.5rem; font-weight: 800; }
   table { border-collapse: collapse; background: #1e293b; border-radius: 8px; overflow: hidden; width: 100%; margin-top: 16px; }
@@ -42,12 +42,20 @@
         FPE: 1.45m &nbsp; TLD: 1.03
       </div>
     </div>
+    <div class="box">
+      <div style="color:#94a3b8; font-size:0.85rem; text-transform:uppercase;">step3</div>
+      <div class="num" style="color:#94a3b8;">60.0%</div>
+      <div style="color:#64748b;">success rate</div>
+      <div style="margin-top:8px; font-size:0.85rem;">
+        FPE: 0.48m &nbsp; TLD: 0.97
+      </div>
+    </div>
   </div>
 
   <h2>Per Path Type</h2>
   <table>
-    <tr><th>Path Type</th><th style='color:#22c55e'>step2 success</th><th style='color:#22c55e'>step2 FPE</th><th style='color:#60a5fa'>exp11 success</th><th style='color:#60a5fa'>exp11 FPE</th></tr>
-    <tr><td>center_straight</td><td style='color:#ef4444'>0% (0/1)</td><td>0.95m</td><td style='color:#ef4444'>0% (0/1)</td><td>1.72m</td></tr><tr><td>center_left</td><td style='color:#22c55e'>100% (1/1)</td><td>0.36m</td><td style='color:#ef4444'>0% (0/1)</td><td>1.85m</td></tr><tr><td>center_right</td><td style='color:#22c55e'>100% (1/1)</td><td>0.23m</td><td style='color:#ef4444'>0% (0/1)</td><td>1.14m</td></tr><tr><td>left_straight</td><td style='color:#22c55e'>100% (1/1)</td><td>0.23m</td><td style='color:#ef4444'>0% (0/1)</td><td>1.19m</td></tr><tr><td>left_left</td><td style='color:#22c55e'>100% (1/1)</td><td>0.21m</td><td style='color:#ef4444'>0% (0/1)</td><td>1.80m</td></tr><tr><td>left_right</td><td style='color:#22c55e'>100% (1/1)</td><td>0.38m</td><td style='color:#ef4444'>0% (0/1)</td><td>1.18m</td></tr><tr><td>right_straight</td><td style='color:#22c55e'>100% (1/1)</td><td>0.34m</td><td style='color:#ef4444'>0% (0/1)</td><td>1.26m</td></tr><tr><td>right_left</td><td style='color:#ef4444'>0% (0/1)</td><td>0.52m</td><td style='color:#ef4444'>0% (0/1)</td><td>1.91m</td></tr><tr><td>right_right</td><td style='color:#ef4444'>0% (0/1)</td><td>1.77m</td><td style='color:#ef4444'>0% (0/1)</td><td>1.03m</td></tr>
+    <tr><th>Path Type</th><th style='color:#22c55e'>step2 success</th><th style='color:#22c55e'>step2 FPE</th><th style='color:#60a5fa'>exp11 success</th><th style='color:#60a5fa'>exp11 FPE</th><th style='color:#fff'>step3 success</th><th style='color:#fff'>step3 FPE</th></tr>
+    <tr><td>center_straight</td><td style='color:#ef4444'>0% (0/1)</td><td>0.95m</td><td style='color:#ef4444'>0% (0/1)</td><td>1.72m</td><td style='color:#22c55e'>100% (4/4)</td><td>0.29m</td></tr><tr><td>center_left</td><td style='color:#22c55e'>100% (1/1)</td><td>0.36m</td><td style='color:#ef4444'>0% (0/1)</td><td>1.85m</td><td style='color:#ef4444'>0% (0/3)</td><td>0.74m</td></tr><tr><td>center_right</td><td style='color:#22c55e'>100% (1/1)</td><td>0.23m</td><td style='color:#ef4444'>0% (0/1)</td><td>1.14m</td><td style='color:#22c55e'>67% (2/3)</td><td>0.52m</td></tr><tr><td>left_straight</td><td style='color:#22c55e'>100% (1/1)</td><td>0.23m</td><td style='color:#ef4444'>0% (0/1)</td><td>1.19m</td><td style='color:#22c55e'>100% (4/4)</td><td>0.21m</td></tr><tr><td>left_left</td><td style='color:#22c55e'>100% (1/1)</td><td>0.21m</td><td style='color:#ef4444'>0% (0/1)</td><td>1.80m</td><td style='color:#22c55e'>33% (1/3)</td><td>0.53m</td></tr><tr><td>left_right</td><td style='color:#22c55e'>100% (1/1)</td><td>0.38m</td><td style='color:#ef4444'>0% (0/1)</td><td>1.18m</td><td style='color:#22c55e'>67% (2/3)</td><td>0.50m</td></tr><tr><td>right_straight</td><td style='color:#22c55e'>100% (1/1)</td><td>0.34m</td><td style='color:#ef4444'>0% (0/1)</td><td>1.26m</td><td style='color:#22c55e'>100% (4/4)</td><td>0.25m</td></tr><tr><td>right_left</td><td style='color:#ef4444'>0% (0/1)</td><td>0.52m</td><td style='color:#ef4444'>0% (0/1)</td><td>1.91m</td><td style='color:#ef4444'>0% (0/3)</td><td>0.85m</td></tr><tr><td>right_right</td><td style='color:#ef4444'>0% (0/1)</td><td>1.77m</td><td style='color:#ef4444'>0% (0/1)</td><td>1.03m</td><td style='color:#ef4444'>0% (0/3)</td><td>0.79m</td></tr>
   </table>
 
   <div class="diag">

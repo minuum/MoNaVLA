@@ -131,6 +131,46 @@ class MobileVLAH5Dataset(Dataset):
                 if not any(pt in f.stem for pt in self.exclude_path_types)
             ]
 
+        # path_type_weights를 사용해서 각 그룹별 에피소드 비율 조정 (Step 3: 33/33/33)
+        path_type_weights = kwargs.get('path_type_weights', None)
+        if path_type_weights:
+            from collections import defaultdict
+
+            # 그룹화
+            groups = defaultdict(list)
+            for f in self.episode_files:
+                stem = f.stem
+                if 'straight' in stem:
+                    key = 'straight'
+                elif 'left' in stem:
+                    key = 'left'
+                elif 'right' in stem:
+                    key = 'right'
+                else:
+                    key = 'other'
+                groups[key].append(f)
+
+            # 가중치에 따라 에피소드 샘플링 (replacement 허용으로 정확한 비율 유지)
+            total_episodes = len(self.episode_files)
+            resampled_files = []
+
+            for key in sorted(groups.keys()):
+                weight = path_type_weights.get(key, 0)
+                target_count = int(total_episodes * weight)
+                group_files = groups[key]
+
+                if target_count > 0 and len(group_files) > 0:
+                    if len(group_files) >= target_count:
+                        # 충분하면 비복원 샘플
+                        sampled = random.sample(group_files, target_count)
+                    else:
+                        # 부족하면 복원 샘플 (정확한 비율 유지)
+                        sampled = [random.choice(group_files) for _ in range(target_count)]
+                    resampled_files.extend(sampled)
+
+            self.episode_files = resampled_files
+            random.shuffle(self.episode_files)
+
         # Split
         if self.stratified_split:
             # path 타입별로 그룹화 → 각 그룹에서 독립적으로 train/val split

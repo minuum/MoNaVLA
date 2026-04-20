@@ -42,7 +42,7 @@ PATH_TYPES = [
 CLASS_NAMES = ["STOP", "FORWARD", "LEFT", "RIGHT", "FWD+L", "FWD+R", "ROT_L", "ROT_R"]
 NUM_CLASSES = 8
 
-EPS_PER_PATH = 5  # 9 path × 5 ep = 45 episodes
+EPS_PER_PATH = 5  # 9 path × 5 ep = 45 episodes (--full 시 전체 사용)
 GROUNDING_PROMPT = "<grounding>The gray basket is at"
 MAX_NEW_TOKENS = 48
 WINDOW = 3  # history length
@@ -97,7 +97,7 @@ def parse_basket_bbox(caption, entities):
     return None
 
 
-def extract_bbox_dataset():
+def extract_bbox_dataset(full=False):
     print(f"Loading Pure HF Kosmos-2 from {HF_KOSMOS_PATH}")
     processor = AutoProcessor.from_pretrained(str(HF_KOSMOS_PATH))
     model = AutoModelForVision2Seq.from_pretrained(
@@ -106,7 +106,8 @@ def extract_bbox_dataset():
 
     dataset = []
     for pt in PATH_TYPES:
-        eps = sorted(DATA_DIR.glob(f"episode_*target_{pt}_path*.h5"))[:EPS_PER_PATH]
+        all_eps = sorted(DATA_DIR.glob(f"episode_*target_{pt}_path*.h5"))
+        eps = all_eps if full else all_eps[:EPS_PER_PATH]
         print(f"\n=== {pt}: {len(eps)} episodes ===")
         for ep in eps:
             with h5py.File(ep, "r") as f:
@@ -147,10 +148,12 @@ def extract_bbox_dataset():
             })
             print(f"  {ep.stem[:60]}: {len(frames_data)} frames")
 
-    CACHE_FILE.write_text(json.dumps(dataset, indent=2))
+    cache_file = OUT_DIR / ("bbox_dataset_full.json" if full else "bbox_dataset.json")
+    cache_file.write_text(json.dumps(dataset, indent=2))
+    print(f"Saved: {cache_file}")
     del model
     torch.cuda.empty_cache()
-    return dataset
+    return dataset, cache_file
 
 
 def build_windows(dataset, window=WINDOW):
@@ -219,13 +222,16 @@ def train_eval(X_tr, y_tr, X_te, y_te, epochs=200):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--skip_extract", action="store_true")
+    ap.add_argument("--full", action="store_true", help="Use all available episodes (→ bbox_dataset_full.json)")
     args = ap.parse_args()
 
-    if args.skip_extract and CACHE_FILE.exists():
-        dataset = json.loads(CACHE_FILE.read_text())
-        print(f"Loaded cached dataset: {len(dataset)} episodes")
+    cache_file = OUT_DIR / ("bbox_dataset_full.json" if args.full else "bbox_dataset.json")
+
+    if args.skip_extract and cache_file.exists():
+        dataset = json.loads(cache_file.read_text())
+        print(f"Loaded cached dataset: {len(dataset)} episodes from {cache_file.name}")
     else:
-        dataset = extract_bbox_dataset()
+        dataset, cache_file = extract_bbox_dataset(full=args.full)
 
     # Episode-level split 80/20 (stratified by path_type)
     rng = np.random.default_rng(42)

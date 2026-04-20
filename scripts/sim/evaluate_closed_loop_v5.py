@@ -47,6 +47,8 @@ PATH_TYPES = [
 NUM_CLASSES = 8
 IMG_SIZE = 16
 WINDOW = 3
+IMG_SIZE_STEP3 = 32
+WINDOW_STEP3 = 8
 
 
 # ── Exp11: policy model inference ───────────────────────────────────────────
@@ -275,6 +277,117 @@ def eval_step2_episode(ep_entry, mlp, device, window=WINDOW):
     return pred_classes, expert_actions[:len(frames)]
 
 
+# ── Step 3: Full dataset MLP (WINDOW=8, IMG=32x32) ──────────────────────────
+
+NUM_CLASSES_STEP3 = 7   # STOP 제거: 1=FWD...7=ROT_R → 0-6
+STEP3_OFFSET = 1        # train label = orig-1, pred → pred+1
+
+def train_step3_mlp(bbox_dataset, train_eps, window=WINDOW_STEP3, img_size=IMG_SIZE_STEP3,
+                    epochs=300, seed=0):
+    from PIL import Image
+    DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+
+    def get_img_feat(ep_stem, frame_idx):
+        path = next(DATA_DIR.glob(f"{ep_stem}.h5"))
+        with h5py.File(path, "r") as f:
+            imgs = f["observations"]["images"][:] if ("observations" in f and "images" in f["observations"]) else f["images"][:]
+        img = Image.fromarray(imgs[frame_idx].astype(np.uint8)).convert("L").resize((img_size, img_size))
+        return np.asarray(img, dtype=np.float32).reshape(-1) / 255.0
+
+    X, y = [], []
+    for ep in train_eps:
+        frames = ep["frames"]
+        img_feats = [get_img_feat(ep["episode"], f["frame_idx"]) for f in frames]
+        for t in range(len(frames)):
+            feat = []
+            for k in range(window):
+                idx = max(0, t - (window - 1 - k))
+                f = frames[idx]
+                feat.extend([f["cx"], f["cy"], f["area"], float(f["has_bbox"])])
+            feat.extend(img_feats[t])
+            X.append(feat)
+            y.append(frames[t]["gt_class"])
+
+    # STOP(0) 제거, label remapping: orig-1
+    X_list, y_list = [], []
+    for xi, yi in zip(X, y):
+        if yi == 0: continue
+        X_list.append(xi); y_list.append(yi - STEP3_OFFSET)
+    X = np.asarray(X_list, dtype=np.float32)
+    y = np.asarray(y_list, dtype=np.int64)
+
+    d_in = X.shape[1]
+    model = torch.nn.Sequential(
+        torch.nn.Linear(d_in, 512), torch.nn.ReLU(), torch.nn.Dropout(0.25),
+        torch.nn.Linear(512, 256), torch.nn.ReLU(), torch.nn.Dropout(0.2),
+        torch.nn.Linear(256, 128), torch.nn.ReLU(),
+        torch.nn.Linear(128, NUM_CLASSES_STEP3),
+    ).to(DEVICE)
+
+    cls_counts = np.bincount(y, minlength=NUM_CLASSES_STEP3).astype(np.float32)
+    cls_counts = np.where(cls_counts == 0, 1.0, cls_counts)
+    weights = torch.tensor(1.0 / cls_counts, device=DEVICE)
+    weights = weights / weights.sum() * NUM_CLASSES_STEP3
+    loss_fn = torch.nn.CrossEntropyLoss(weight=weights)
+    opt = torch.optim.AdamW(model.parameters(), lr=2e-3, weight_decay=1e-4)
+
+    X_t = torch.tensor(X, device=DEVICE)
+    y_t = torch.tensor(y, device=DEVICE)
+
+    best_acc, best_state = 0.0, None
+    for ep_i in range(epochs):
+        model.train()
+        idx = torch.randperm(len(X_t))
+        for i in range(0, len(idx), 128):
+            b = idx[i:i+128]
+            loss = loss_fn(model(X_t[b]), y_t[b])
+            opt.zero_grad(); loss.backward(); opt.step()
+        if ep_i % 50 == 0 or ep_i == epochs - 1:
+            model.eval()
+            with torch.no_grad():
+                acc = (model(X_t).argmax(1) == y_t).float().mean().item()
+            if acc > best_acc:
+                best_acc = acc
+                best_state = {k: v.clone() for k, v in model.state_dict().items()}
+            print(f"  MLP ep{ep_i:3d}: loss={loss.item():.3f} train_acc={acc:.3f} best={best_acc:.3f}")
+
+    if best_state:
+        model.load_state_dict(best_state)
+    model.eval()
+    return model, DEVICE, STEP3_OFFSET
+
+
+def eval_step3_episode(ep_entry, mlp, device, offset=STEP3_OFFSET, window=WINDOW_STEP3, img_size=IMG_SIZE_STEP3):
+    from PIL import Image
+    frames = ep_entry["frames"]
+
+    path = next(DATA_DIR.glob(f"{ep_entry['episode']}.h5"))
+    with h5py.File(path, "r") as f:
+        imgs = f["observations"]["images"][:] if ("observations" in f and "images" in f["observations"]) else f["images"][:]
+        expert_actions = f["actions"][:]
+
+    img_feats = []
+    for fr in frames:
+        img = Image.fromarray(imgs[fr["frame_idx"]].astype(np.uint8)).convert("L").resize((img_size, img_size))
+        img_feats.append(np.asarray(img, dtype=np.float32).reshape(-1) / 255.0)
+
+    pred_classes = []
+    for t in range(len(frames)):
+        feat = []
+        for k in range(window):
+            idx = max(0, t - (window - 1 - k))
+            f = frames[idx]
+            feat.extend([f["cx"], f["cy"], f["area"], float(f["has_bbox"])])
+        feat.extend(img_feats[t])
+        x = torch.tensor([feat], dtype=torch.float32, device=device)
+        with torch.no_grad():
+            pred_classes.append(int(mlp(x).argmax(1).item()) + offset)  # 0-6 → 1-7
+
+    return pred_classes, expert_actions[:len(frames)]
+
+
 # ── HTML builder ─────────────────────────────────────────────────────────────
 
 def build_html(results_by_model, summary_by_model):
@@ -374,15 +487,18 @@ def build_html(results_by_model, summary_by_model):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--model", choices=["exp11", "step2", "both"], default="step2")
+    ap.add_argument("--model", choices=["exp11", "step2", "step3", "both"], default="step2")
     ap.add_argument("--config", default="configs/mobile_vla_v5_exp11_google_robot_8cls.json")
     ap.add_argument("--ckpt", default=None)
     ap.add_argument("--dt", type=float, default=DT_DEFAULT)
     ap.add_argument("--success_fpe", type=float, default=0.5)
+    ap.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2, 3, 4],
+                    help="Seeds for multi-run evaluation (step2/step3 only)")
     args = ap.parse_args()
 
     run_exp11 = args.model in ("exp11", "both")
     run_step2 = args.model in ("step2", "both")
+    run_step3 = args.model == "step3"
 
     # Load existing results so partial runs merge rather than overwrite
     existing_json_path = OUT_DIR / "rollout_metrics.json"
@@ -514,6 +630,86 @@ def main():
         print(f"\n  Exp11 success: {summary_by_model['exp11']['success_rate']:.1%}"
               f"  FPE: {summary_by_model['exp11']['mean_fpe']:.2f}m"
               f"  TLD: {summary_by_model['exp11']['mean_tld']:.2f}")
+
+    # ── Step 3 multi-seed evaluation ─────────────────────────────────────────
+    if run_step3:
+        print("\n=== Step 3 (Full Dataset BBox+Image MLP, WINDOW=8, 32x32) ===")
+        full_ds_path = STEP1_DIR / "bbox_dataset_full.json"
+        if not full_ds_path.exists():
+            print(f"  ERROR: {full_ds_path} not found. Run step1 --full first.")
+        else:
+            bbox_ds = json.loads(full_ds_path.read_text())
+            print(f"  Dataset: {len(bbox_ds)} episodes")
+
+            seeds = args.seeds
+            print(f"  Seeds: {seeds}  ({len(seeds)} runs)")
+
+            # Collect per-seed results
+            seed_results = []  # list of ep_results dicts per seed
+            for seed in seeds:
+                print(f"\n  --- seed={seed} ---")
+                rng = np.random.default_rng(seed)
+                by_path = defaultdict(list)
+                for i, ep in enumerate(bbox_ds):
+                    by_path[ep["path_type"]].append(i)
+                train_idx, test_idx = [], []
+                for _, idxs in by_path.items():
+                    rng.shuffle(idxs)
+                    k = max(1, int(len(idxs) * 0.2))
+                    test_idx.extend(idxs[:k])
+                    train_idx.extend(idxs[k:])
+                train_eps = [bbox_ds[i] for i in train_idx]
+                test_eps  = [bbox_ds[i] for i in test_idx]
+                print(f"  train={len(train_eps)} test={len(test_eps)} episodes")
+
+                mlp, device, offset = train_step3_mlp(bbox_ds, train_eps, seed=seed)
+
+                ep_results = defaultdict(list)
+                for ep_entry in test_eps:
+                    pred_classes, expert_actions = eval_step3_episode(ep_entry, mlp, device, offset=offset)
+                    expert_cls = [continuous_to_class(*a[:3]) for a in expert_actions]
+                    expert_traj = build_trajectory(expert_cls, args.dt)
+                    pred_traj   = build_trajectory(pred_classes, args.dt)
+                    m = compute_metrics(expert_traj, pred_traj, args.success_fpe)
+                    m["episode"] = ep_entry["episode"]
+                    m["path_type"] = ep_entry["path_type"]
+                    ep_results[ep_entry["path_type"]].append(m)
+                    print(f"    {ep_entry['path_type']:20s} FPE={m['fpe']:.2f}m TLD={m['tld']:.2f} {'✅' if m['success'] else '❌'}")
+
+                all_m = [m for ms in ep_results.values() for m in ms]
+                sr = sum(m["success"] for m in all_m) / max(len(all_m), 1)
+                fpe = float(np.mean([m["fpe"] for m in all_m]))
+                tld = float(np.mean([m["tld"] for m in all_m]))
+                print(f"  seed={seed}: success={sr:.1%}  FPE={fpe:.2f}m  TLD={tld:.2f}")
+                seed_results.append({"seed": seed, "success_rate": sr, "mean_fpe": fpe,
+                                     "mean_tld": tld, "ep_results": dict(ep_results)})
+
+            # Aggregate across seeds
+            srs  = [r["success_rate"] for r in seed_results]
+            fpes = [r["mean_fpe"] for r in seed_results]
+            tlds = [r["mean_tld"] for r in seed_results]
+            print(f"\n  === Step 3 Multi-seed Summary ({len(seeds)} seeds) ===")
+            print(f"  Success:  {np.mean(srs):.1%} ± {np.std(srs):.1%}  {[f'{s:.1%}' for s in srs]}")
+            print(f"  FPE:      {np.mean(fpes):.3f} ± {np.std(fpes):.3f}m")
+            print(f"  TLD:      {np.mean(tlds):.3f} ± {np.std(tlds):.3f}")
+
+            summary_by_model["step3"] = {
+                "n_seeds": len(seeds),
+                "success_rate": float(np.mean(srs)),
+                "success_rate_std": float(np.std(srs)),
+                "mean_fpe": float(np.mean(fpes)),
+                "mean_fpe_std": float(np.std(fpes)),
+                "mean_tld": float(np.mean(tlds)),
+                "per_seed": seed_results,
+            }
+            # Use last seed's ep_results for HTML per-path table
+            results_by_model["step3"] = seed_results[-1]["ep_results"]
+
+            # Save step3-specific results
+            step3_out = OUT_DIR / "step3_multiseed.json"
+            step3_out.write_text(json.dumps({"summary": summary_by_model["step3"],
+                                             "seeds": seed_results}, indent=2))
+            print(f"  Saved: {step3_out}")
 
     # ── Save & HTML ──────────────────────────────────────────────────────────
     out_json = {
