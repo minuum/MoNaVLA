@@ -2,8 +2,8 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8">
-  <meta name="description" content="MoNaVLA V5 Development Log from 2026-04-11 to 2026-04-18.">
-  <meta name="keywords" content="MoNaVLA, V5, Development Log, Experiment Timeline, Exp01, Exp16, Closed-Loop, Feature Ablation, Attention Analysis">
+  <meta name="description" content="MoNaVLA V5 Development Log from 2026-04-11 to 2026-04-21.">
+  <meta name="keywords" content="MoNaVLA, V5, Development Log, Experiment Timeline, Exp01, Exp17, Closed-Loop, Feature Ablation, Attention Analysis">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>MoNaVLA V5 Development Log</title>
 
@@ -218,8 +218,8 @@
         <span class="has-text-info-light">Development Timeline</span>
       </h1>
       <p class="hero-subtext">
-        2026년 4월 11일부터 4월 17일까지의 V5 실험 흐름을 한 페이지에 정리한 로그입니다.
-        학습 완료 여부와 별개로, Exp01부터 Exp13까지 실제로 시도된 변경, 문서화, 평가, 설계 분기들을
+        2026년 4월 11일부터 4월 21일까지의 V5 실험 흐름을 한 페이지에 정리한 로그입니다.
+        학습 완료 여부와 별개로, Exp01부터 Exp17까지 실제로 시도된 변경, 문서화, 평가, 설계 분기들을
         GitHub Pages에서 바로 읽을 수 있도록 시간축으로 묶었습니다.
       </p>
       <div class="hero-links">
@@ -402,9 +402,9 @@
   <div class="container is-max-desktop">
     <div class="columns is-variable is-6">
       <div class="column is-8">
-        <h2 class="title is-3 section-title">2026-04-11 to 2026-04-17 Timeline</h2>
+        <h2 class="title is-3 section-title">2026-04-11 to 2026-04-21 Timeline</h2>
         <p class="section-subtitle mb-5">
-          V5 문서화, 시각화, 평가 체계 정리, Exp11 실패 분석, Exp12 폐기, Exp13 설계까지의 실제 흔적을 날짜 기준으로 재배열했습니다.
+          V5 문서화, 시각화, 평가 체계 정리, Exp11 실패 분석, Exp14 decomposition 정리, Exp16/17 교수 프로토콜 트랙까지의 실제 흔적을 날짜 기준으로 재배열했습니다.
         </p>
         <div class="surface-card">
           <div class="timeline-item">
@@ -532,6 +532,26 @@
               <li>학습 중 — 결과 업데이트 예정</li>
             </ul>
           </div>
+          <div class="timeline-item">
+            <span class="timeline-date">2026-04-20</span>
+            <h3>Exp17 시작 — 교수 프로토콜 Step 3 (33/33/34 균등 비율)</h3>
+            <p>Exp16에서 드러난 FORWARD bias가 데이터 비율 문제인지 구조 문제인지 분리하기 위해, Step 3 균등비율 샘플링 실험 Exp17을 시작했습니다. 동일한 150 episode를 사용하되 path type sampling을 left/straight/right = 0.33/0.33/0.34로 맞췄습니다.</p>
+            <ul>
+              <li>config: <code>configs/mobile_vla_v5_exp17_step3_balanced.json</code></li>
+              <li>목표: Step 2의 비율 문제와 architecture 한계를 분리</li>
+              <li>run dir: <code>runs/v5_nav/kosmos/mobile_vla_v5_exp17/2026-04-20/v5-exp17-step3-balanced/</code></li>
+            </ul>
+          </div>
+          <div class="timeline-item">
+            <span class="timeline-date">2026-04-21</span>
+            <h3>Exp17 학습 종료 — best ckpt 확보, full eval 보류</h3>
+            <p>Exp17은 early stopping으로 종료됐고, 확인된 best validation checkpoint는 <strong>epoch 03 / val_loss 2.270</strong>입니다. 다만 현재 환경에서는 full PM / closed-loop 평가를 바로 돌리면 GPU OOM 위험이 있어, 공개 기준 상태는 "trained, evaluation pending"으로 유지합니다.</p>
+            <ul>
+              <li>best val trace: epoch0 3.715 → epoch3 2.270 → epoch10 2.370 stop</li>
+              <li>현재 strongest practical baseline은 여전히 Exp14 Step 2</li>
+              <li><a href="STATUS_20260421_EXP17.md">Exp17 Status Report</a></li>
+            </ul>
+          </div>
         </div>
       </div>
 
@@ -551,15 +571,15 @@
         </div>
 
         <div class="surface-card mt-5">
-          <h3 class="title is-5 mb-3">Current Position <small style="color:#94a3b8;font-size:0.8rem;">2026-04-18</small></h3>
+          <h3 class="title is-5 mb-3">Current Position <small style="color:#94a3b8;font-size:0.8rem;">2026-04-21</small></h3>
           <div class="content" style="color:#475569; line-height:1.75;">
             <p><strong>Text attention = 0%</strong>: Google-robot post-training 기인. Exp15(head-only)에서 인과 확정.</p>
             <p><strong>Image가 핵심</strong>: feature ablation — bbox_only 67% / image_only 76% / bbox+image 77%. BBox 기여 노이즈 수준.</p>
             <p><strong>Closed-loop</strong>: Step 2 66.7% vs Exp11 0%. Decomposition이 end-to-end를 압도.</p>
             <p><strong>Best PM</strong>: Exp14 Step 2 75.9% (5 seeds 76.6±1.6%).</p>
             <p><strong>End-to-end baseline</strong>: Exp11 58.6% (closed-loop 0%).</p>
-            <p><strong>진행 중</strong>: Exp16 학습 중 — 교수 프로토콜 Step 2 (직선 포함 150 ep).</p>
-            <p><strong>교수 프로토콜</strong>: Step 1 ✅ / Step 2 🔄 Exp16 / Step 3 ⬜</p>
+            <p><strong>Exp17</strong>: 학습 종료, best ckpt 확보, full evaluation 대기.</p>
+            <p><strong>교수 프로토콜</strong>: Step 1 ✅ / Step 2 결과 정리 필요 / Step 3 학습 완료, 평가 대기.</p>
           </div>
         </div>
       </div>
