@@ -30,3 +30,16 @@
 
 - **Shortcut learning**: 모든 instruction에 동일 action 출력 (텍스트 신호 완전 무시). val_loss가 낮아도 실제론 이미지 패턴만 학습 중. 해결 방향: Counterfactual instruction 학습
 - **STOP 데이터 없음**: 실로봇 정지 명령 불가. 임시 해결: 에피소드 마지막 프레임에 STOP 레이블 합성
+
+---
+
+## 메모리 시스템 통합 조회
+
+**참조**: `.menemory/core/memory_systems_integration.md`
+
+세 개의 메모리 시스템 (Claude Code, Codex IDE, AntiGravity-Server)을 통합 관리하는 맵.
+- Claude memory: 프로젝트 격리, MEMORY.md 인덱스
+- Codex memory: 로컬 IDE, SQLite 로그, history
+- AntiGravity: 시스템 런타임, 서버 로그
+
+세션 시작 시 MEMORY.md → memory_systems_integration.md 순으로 읽기.
