@@ -5,6 +5,7 @@ V5 Closed-Loop Simulation Evaluator (Phase 1: Offline Replay)
 두 모델 비교:
   --model exp11   : Kosmos-2 policy model (LSTM action head)
   --model step2   : BBox+Image MLP (decomposition approach)
+  --model exp17   : Exp17 (33/33/34 balanced, end-to-end)
 
 Usage:
   # Exp11
@@ -487,7 +488,7 @@ def build_html(results_by_model, summary_by_model):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--model", choices=["exp11", "step2", "step3", "both"], default="step2")
+    ap.add_argument("--model", choices=["exp11", "step2", "step3", "step3_ablated", "exp17", "both"], default="step2")
     ap.add_argument("--config", default="configs/mobile_vla_v5_exp11_google_robot_8cls.json")
     ap.add_argument("--ckpt", default=None)
     ap.add_argument("--dt", type=float, default=DT_DEFAULT)
@@ -496,7 +497,7 @@ def main():
                     help="Seeds for multi-run evaluation (step2/step3 only)")
     args = ap.parse_args()
 
-    run_exp11 = args.model in ("exp11", "both")
+    run_exp11 = args.model in ("exp11", "exp17", "both")
     run_step2 = args.model in ("step2", "both")
     run_step3 = args.model == "step3"
 
@@ -557,15 +558,19 @@ def main():
               f"  FPE: {summary_by_model['step2']['mean_fpe']:.2f}m"
               f"  TLD: {summary_by_model['step2']['mean_tld']:.2f}")
 
-    # ── Exp11 evaluation ─────────────────────────────────────────────────────
+    # ── Exp11/Exp17 evaluation ──────────────────────────────────────────────────
     if run_exp11:
-        print("\n=== Exp11 (policy model) ===")
+        model_name = args.model.upper() if args.model in ("exp11", "exp17") else "Exp11"
+        print(f"\n=== {model_name} (policy model) ===")
         if not args.ckpt:
             # Try to find best ckpt automatically
-            ckpt_dir = ROOT / "runs/v5_nav/kosmos/mobile_vla_v5_exp11/2026-04-16/v5-exp11-google-robot-8cls"
+            if args.model == "exp17":
+                ckpt_dir = ROOT / "runs/v5_nav/kosmos/mobile_vla_v5_exp17/2026-04-20/v5-exp17-step3-balanced"
+            else:
+                ckpt_dir = ROOT / "runs/v5_nav/kosmos/mobile_vla_v5_exp11/2026-04-16/v5-exp11-google-robot-8cls"
             ckpts = sorted(ckpt_dir.glob("epoch_epoch*.ckpt"))
             if not ckpts:
-                print("  No Exp11 checkpoint found, skipping.")
+                print(f"  No {model_name} checkpoint found, skipping.")
                 run_exp11 = False
             else:
                 args.ckpt = str(ckpts[-1])
@@ -620,16 +625,17 @@ def main():
                     print(f"  ERROR on {ep_path.name}: {e}")
 
         all_m = [m for ms in ep_results.values() for m in ms]
-        summary_by_model["exp11"] = {
+        model_key = args.model if args.model in ("exp11", "exp17") else "exp11"
+        summary_by_model[model_key] = {
             "n_episodes": len(all_m),
             "success_rate": sum(m["success"] for m in all_m) / max(len(all_m), 1),
             "mean_fpe": float(np.mean([m["fpe"] for m in all_m])),
             "mean_tld": float(np.mean([m["tld"] for m in all_m])),
         }
-        results_by_model["exp11"] = dict(ep_results)
-        print(f"\n  Exp11 success: {summary_by_model['exp11']['success_rate']:.1%}"
-              f"  FPE: {summary_by_model['exp11']['mean_fpe']:.2f}m"
-              f"  TLD: {summary_by_model['exp11']['mean_tld']:.2f}")
+        results_by_model[model_key] = dict(ep_results)
+        print(f"\n  {model_key.upper()} success: {summary_by_model[model_key]['success_rate']:.1%}"
+              f"  FPE: {summary_by_model[model_key]['mean_fpe']:.2f}m"
+              f"  TLD: {summary_by_model[model_key]['mean_tld']:.2f}")
 
     # ── Step 3 multi-seed evaluation ─────────────────────────────────────────
     if run_step3:
