@@ -116,6 +116,79 @@
         transform: scale(1.02);
         box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
     }
+    .status-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 24px;
+    }
+    .status-card {
+      background: rgba(255,255,255,0.92);
+      border: 1px solid #dbeafe;
+      border-radius: 14px;
+      padding: 18px 18px 16px;
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+    }
+    .status-card .eyebrow {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #475569;
+      margin-bottom: 8px;
+      font-weight: 700;
+    }
+    .status-card .metric {
+      font-size: 1.45rem;
+      font-weight: 800;
+      color: #0f172a;
+      line-height: 1.25;
+    }
+    .status-card .detail {
+      margin-top: 8px;
+      color: #334155;
+      line-height: 1.55;
+      font-size: 0.96rem;
+    }
+    .reading-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 20px;
+    }
+    .reading-card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 20px;
+      box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+    }
+    .reading-card .step {
+      display: inline-block;
+      font-size: 0.78rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      color: #1d4ed8;
+      background: #dbeafe;
+      border-radius: 999px;
+      padding: 4px 10px;
+      margin-bottom: 12px;
+    }
+    .reading-card p {
+      color: #475569;
+      line-height: 1.65;
+    }
+    @media (max-width: 960px) {
+      .status-grid,
+      .reading-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+    @media (max-width: 640px) {
+      .status-grid,
+      .reading-grid {
+        grid-template-columns: 1fr;
+      }
+    }
   </style>
 </head>
 <body>
@@ -131,52 +204,10 @@
             Vision-Language-Action Models
           </h1>
           <p class="subtitle is-4 has-text-grey-lighter mb-6">
-            Advanced Agentic Robotics for Precise Navigation in Dynamic Domestic Environments. 
-            Empowering robots with spatial reasoning through next-token BBox grounding.
+            Advanced agentic robotics for precise mobile navigation.
+            Current public takeaway: decomposition with explicit grounding is stronger than the latest checked end-to-end policy.
           </p>
           <div class="publication-links" style="justify-content: flex-start;">
-            <span class="link-block">
-              <a href="https://github.com/minuum/MoNaVLA" class="button is-white is-outlined is-rounded">
-                <span class="icon"><i class="fab fa-github"></i></span>
-                <span>Source Code</span>
-              </a>
-            </span>
-            <span class="link-block">
-              <a href="reports/viewer.html?file=v5_experiment_report_20260415.md" class="button is-info is-rounded">
-                <span class="icon"><i class="fas fa-rocket"></i></span>
-                <span>V5 Exp Status</span>
-              </a>
-            </span>
-            <span class="link-block">
-              <a href="reports/viewer.html?file=v5/STATUS_20260421_EXP17.md" class="button is-primary is-rounded">
-                <span class="icon"><i class="fas fa-clock"></i></span>
-                <span>Status: Exp17 Trained, Eval Pending</span>
-              </a>
-            </span>
-            <span class="link-block">
-              <a href="v5/devlog.html" class="button is-warning is-rounded">
-                <span class="icon"><i class="fas fa-stream"></i></span>
-                <span>V5 Dev Log</span>
-              </a>
-            </span>
-            <span class="link-block">
-              <a href="v5/pure_backbone_9paths/index.html" class="button is-success is-rounded">
-                <span class="icon"><i class="fas fa-eye"></i></span>
-                <span>Pure Backbone 9-Paths</span>
-              </a>
-            </span>
-            <span class="link-block">
-              <a href="v5/bbox_nav_step0/index.html" class="button is-danger is-rounded">
-                <span class="icon"><i class="fas fa-crosshairs"></i></span>
-                <span>Exp14 Step 0</span>
-              </a>
-            </span>
-            <span class="link-block">
-              <a href="v5/bbox_nav_step0b/index.html" class="button is-primary is-rounded">
-                <span class="icon"><i class="fas fa-bullseye"></i></span>
-                <span>Exp14 Step 0-B (Exp10)</span>
-              </a>
-            </span>
             <span class="link-block">
               <a href="v5/bbox_nav_step1/index.html" class="button is-success is-rounded">
                 <span class="icon"><i class="fas fa-brain"></i></span>
@@ -192,7 +223,7 @@
             <span class="link-block">
               <a href="v5/bbox_nav_step3/index.html" class="button is-info is-rounded">
                 <span class="icon"><i class="fas fa-filter"></i></span>
-                <span>Exp14 Step 3 (77.0%)</span>
+                <span>BBox Track Step 3 (77.0%)</span>
               </a>
             </span>
             <span class="link-block">
@@ -208,35 +239,63 @@
               </a>
             </span>
             <span class="link-block">
-              <a href="reports/viewer.html?file=v5/TEXT_IGNORE_ROOTCAUSE_20260424.md" class="button is-danger is-outlined is-rounded">
-                <span class="icon"><i class="fas fa-brain"></i></span>
-                <span>Text Ignore Root Cause (draft)</span>
+              <a href="reports/viewer.html?file=v5/STATUS_20260421_EXP17.md" class="button is-primary is-rounded">
+                <span class="icon"><i class="fas fa-clock"></i></span>
+                <span>Exp17 Status</span>
               </a>
             </span>
             <span class="link-block">
-              <a href="v5/attention_analysis/index.html" class="button is-warning is-outlined is-rounded">
-                <span class="icon"><i class="fas fa-chart-bar"></i></span>
-                <span>Attention Analysis (Text=0%)</span>
-              </a>
-            </span>
-            <span class="link-block">
-              <a href="v5/attention_analysis/mechanism.html" class="button is-success is-outlined is-rounded">
-                <span class="icon"><i class="fas fa-layer-group"></i></span>
-                <span>Attention Collapse Mechanism (24-Layer)</span>
-              </a>
-            </span>
-            <span class="link-block">
-              <a href="v5/bbox_nav_feature_ablation/index.html" class="button is-info is-outlined is-rounded">
-                <span class="icon"><i class="fas fa-vials"></i></span>
-                <span>Feature Ablation: BBox vs Image</span>
+              <a href="v5/devlog.html" class="button is-warning is-rounded">
+                <span class="icon"><i class="fas fa-stream"></i></span>
+                <span>V5 Dev Log</span>
               </a>
             </span>
             <span class="link-block">
               <a href="v5/closed_loop_eval/index.html" class="button is-danger is-rounded">
                 <span class="icon"><i class="fas fa-route"></i></span>
-                <span>Closed-Loop Sim: Step2 66.7% vs Exp11 0%</span>
+                <span>Closed-Loop: Step2 66.7% vs Exp11 0%</span>
               </a>
             </span>
+            <span class="link-block">
+              <a href="v5/attention_analysis/index.html" class="button is-warning is-outlined is-rounded">
+                <span class="icon"><i class="fas fa-chart-bar"></i></span>
+                <span>Attention Analysis</span>
+              </a>
+            </span>
+            <span class="link-block">
+              <a href="v5/bbox_nav_feature_ablation/index.html" class="button is-info is-outlined is-rounded">
+                <span class="icon"><i class="fas fa-vials"></i></span>
+                <span>Feature Ablation</span>
+              </a>
+            </span>
+            <span class="link-block">
+              <a href="https://github.com/minuum/MoNaVLA" class="button is-white is-outlined is-rounded">
+                <span class="icon"><i class="fab fa-github"></i></span>
+                <span>Source Code</span>
+              </a>
+            </span>
+          </div>
+          <div class="status-grid">
+            <div class="status-card">
+              <div class="eyebrow">Strongest Practical Baseline</div>
+              <div class="metric">Exp14 Step 2<br>PM 75.9%</div>
+              <div class="detail">BBox history + low-res image feature. Closed-loop success is 66.7%, currently the clearest public baseline.</div>
+            </div>
+            <div class="status-card">
+              <div class="eyebrow">Best End-to-End Checked</div>
+              <div class="metric">Exp11<br>PM 58.6%</div>
+              <div class="detail">Still the strongest checked single-stage policy, but closed-loop remains 0%.</div>
+            </div>
+            <div class="status-card">
+              <div class="eyebrow">Latest End-to-End Track</div>
+              <div class="metric">Exp17<br>Trained, Eval Pending</div>
+              <div class="detail">Professor Protocol Step 3 run finished with early stopping. Best validation checkpoint: epoch 03 / val_loss 2.270.</div>
+            </div>
+            <div class="status-card">
+              <div class="eyebrow">Main Technical Reading</div>
+              <div class="metric">Image Wins,<br>Text Collapses</div>
+              <div class="detail">Public evidence currently points to image-dominant behavior and near-zero text attention in the latest policy track.</div>
+            </div>
           </div>
         </div>
       </div>
@@ -246,21 +305,20 @@
 
 <section class="section">
   <div class="container is-max-desktop">
-    <!-- Abstract. -->
     <div class="columns is-centered has-text-centered">
       <div class="column is-four-fifths">
-        <h2 class="title is-3">Abstract</h2>
+        <h2 class="title is-3">Current Public Reading</h2>
         <div class="content abstract-content">
           <p>
-            <strong>MoNaVLA</strong>는 로봇의 동적 네비게이션을 위해 설계된 차세대 Vision-Language-Action 모델입니다. 
-            시각적 편향(Visual Bias) 문제를 해결하기 위해 텍스트-로짓 민감도 분석을 수행하였으며, 
-            가장 최신화된 <strong>Exp 09</strong>에서는 8-Class Discretization과 Counterfactual Bootstrapping 기법을 적용하여 
-            제자리 회전(Turn-in-place)과 같은 미세한 기동을 극적으로 향상시켰습니다.
+            <strong>MoNaVLA</strong>는 모바일 로봇 내비게이션을 위한 vision-language-action 연구 트랙입니다.
+            현재 공개 결과 기준으로는, 거대한 end-to-end policy를 직접 학습시키는 것보다
+            <strong>grounding을 명시적으로 꺼내고 작은 action head로 연결하는 decomposition 접근</strong>이 더 안정적으로 작동합니다.
+            따라서 메인 baseline은 현재 <strong>Exp14 Step 2</strong>이며, 최신 end-to-end 균등비율 실험인 <strong>Exp17</strong>은
+            학습은 끝났지만 full evaluation은 아직 대기 상태입니다.
           </p>
         </div>
       </div>
     </div>
-    <!--/ Abstract. -->
   </div>
 </section>
 
@@ -268,35 +326,27 @@
   <div class="container is-max-desktop">
     <div class="columns is-centered">
       <div class="column is-full-width">
-        <h2 class="title is-3 has-text-centered">Methodology: Optimizing Action Policies (Exp 09)</h2>
+        <h2 class="title is-3 has-text-centered">Reading Path</h2>
         <div class="methodology-box">
-          <h3 class="title is-4"><i class="fas fa-bolt has-text-warning"></i> Counterfactual Bootstrapping</h3>
-          <p>
-            제자리 회전(Class 6, 7)은 에피소드 극초반에만 짧게 발생하여 데이터 불균형을 야기합니다.
-            이를 해결하기 위해 데이터로더 수준에서 <strong>15% 확률로 "제자리 회전 명령 + 회전 액션"을 강제로 주입</strong>하여, 명령어와 액션 간의 Grounding 결합도를 물리적으로 강화합니다.
-          </p>
-          <br>
-          <h3 class="title is-4"><i class="fas fa-sitemap has-text-info"></i> 8-Class Discretization</h3>
-          <p>
-            기존의 좌/우 이동(Strafe)과 제자리 회전(Turn-in-place)을 분리하여 더욱 정밀한 3DOF 기동을 구현합니다.
-          </p>
-          <div class="table-container">
-            <table class="table is-bordered is-striped is-narrow is-hoverable is-fullwidth">
-              <thead>
-                <tr>
-                  <th>Class ID</th>
-                  <th>Action Name</th>
-                  <th>Target Instruction (Example)</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr><td>0</td><td>STOP</td><td>"Halt in front of the gray basket."</td></tr>
-                <tr><td>1</td><td>Forward</td><td>"Navigate straight forward."</td></tr>
-                <tr><td>2 / 3</td><td>Strafe (L/R)</td><td>"Move left to the obstacle."</td></tr>
-                <tr><td>4 / 5</td><td>Diagonal</td><td>"Angle toward left-front side."</td></tr>
-                <tr><td><span class="highlight">6 / 7</span></td><td><span class="highlight">Turn (L/R)</span></td><td><span class="highlight">"Rotate toward the basket in place."</span></td></tr>
-              </tbody>
-            </table>
+          <div class="reading-grid">
+            <div class="reading-card">
+              <span class="step">1. Current Status</span>
+              <h3 class="title is-5">Start with the current snapshot</h3>
+              <p>Read the latest end-to-end status first. This tells you what is finished, what is pending, and why Exp17 is not yet ranked.</p>
+              <a href="reports/viewer.html?file=v5/STATUS_20260421_EXP17.md" class="button is-small is-link is-light mt-3">Open Exp17 Status</a>
+            </div>
+            <div class="reading-card">
+              <span class="step">2. Strongest Baseline</span>
+              <h3 class="title is-5">Read the decomposition track</h3>
+              <p>Exp14 comparison is the current public baseline story: Step 1, Step 2, Step 3, same-split, and why Step 2 matters.</p>
+              <a href="v5/bbox_nav_comparison.html" class="button is-small is-link is-light mt-3">Open Exp14 Comparison</a>
+            </div>
+            <div class="reading-card">
+              <span class="step">3. Why It Happens</span>
+              <h3 class="title is-5">Check the causal analyses</h3>
+              <p>Use attention analysis and feature ablation to understand why image-only signals dominate and why text conditioning collapses.</p>
+              <a href="v5/attention_analysis/index.html" class="button is-small is-link is-light mt-3">Open Attention Analysis</a>
+            </div>
           </div>
         </div>
       </div>
@@ -308,35 +358,35 @@
   <div class="container is-max-desktop">
     <div class="columns is-centered">
       <div class="column is-full-width">
-        <h2 class="title is-3 has-text-centered">Experimental Progress & Roadmap</h2>
+        <h2 class="title is-3 has-text-centered">Current Technical Interpretation</h2>
         <div class="content methodology-box" style="margin-top: 20px;">
           <ul class="roadmap-list">
             <li>
                 <i class="fas fa-check-circle has-text-success"></i>
                 <div>
-                    <strong>Dataset V5 Compilation</strong><br>
-                    <span class="is-size-6 has-text-grey">150 Episodes, 9 Scenarios (Balanced)</span>
+                    <strong>Decomposition currently beats checked end-to-end policy</strong><br>
+                    <span class="is-size-6 has-text-grey">Exp14 Step 2: PM 75.9%, closed-loop 66.7% vs Exp11: PM 58.6%, closed-loop 0%</span>
                 </div>
             </li>
             <li>
                 <i class="fas fa-check-circle has-text-success"></i>
                 <div>
-                    <strong>Exp 09 Optimized Policy</strong><br>
-                    <span class="is-size-6 has-text-grey">Completed with discrete 8-class grounding bootstapping.</span>
+                    <strong>Image features are doing most of the useful work</strong><br>
+                    <span class="is-size-6 has-text-grey">Feature ablation shows image-only is nearly as strong as bbox+image, while bbox-only is weaker and unstable.</span>
                 </div>
             </li>
             <li>
-                <i class="fas fa-check-circle has-text-success"></i>
+                <i class="fas fa-exclamation-triangle has-text-warning"></i>
                 <div>
-                    <strong>V5.Exp10: Action-Aware BBox Grounding</strong><br>
-                    <span class="is-size-6 has-text-grey">Status: <span class="tag is-success is-light">SUCCESS (Val Loss 0.012)</span>. 92% Action Alignment with expert H5 data achieved.</span>
+                    <strong>Text attention remains the main failure mode</strong><br>
+                    <span class="is-size-6 has-text-grey">The latest public evidence still points to near-zero text attention in the Google-robot based policy track.</span>
                 </div>
             </li>
             <li>
-                <i class="far fa-circle has-text-grey-light"></i>
+                <i class="fas fa-clock has-text-info"></i>
                 <div>
-                    <strong>Real-robot Validation (V5)</strong><br>
-                    <span class="is-size-6 has-text-grey">Final evaluation of grounding-to-action transfer on physical hardware.</span>
+                    <strong>Exp17 is a status check, not a conclusion yet</strong><br>
+                    <span class="is-size-6 has-text-grey">The balanced-ratio end-to-end run is trained, but full PM and closed-loop evaluation are still pending due to OOM risk.</span>
                 </div>
             </li>
           </ul>
