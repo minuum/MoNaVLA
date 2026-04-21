@@ -88,6 +88,27 @@ MODELS = {
         "fwd_pred_next_n": 5,
         "num_classes": 8,
     },
+    "exp21_pure_hf_head_only": {
+        "exp_dir": "runs/v5_nav/kosmos/mobile_vla_v5_exp21",
+        "config": "configs/mobile_vla_v5_exp21_pure_hf_head_only.json",
+        "window_size": 8,
+        "fwd_pred_next_n": 5,
+        "num_classes": 8,
+    },
+    "exp22_pure_hf_lora": {
+        "exp_dir": "runs/v5_nav/kosmos/mobile_vla_v5_exp22",
+        "config": "configs/mobile_vla_v5_exp22_pure_hf_lora.json",
+        "window_size": 8,
+        "fwd_pred_next_n": 5,
+        "num_classes": 8,
+    },
+    "exp23_pure_hf_both": {
+        "exp_dir": "runs/v5_nav/kosmos/mobile_vla_v5_exp23",
+        "config": "configs/mobile_vla_v5_exp23_pure_hf_both.json",
+        "window_size": 8,
+        "fwd_pred_next_n": 5,
+        "num_classes": 8,
+    },
 }
 
 INSTRUCTIONS = {
@@ -97,6 +118,28 @@ INSTRUCTIONS = {
 }
 
 NUM_IMAGE_TOKENS = 64
+
+
+def resolve_ckpt_path(cfg):
+    ckpt_rel = cfg.get("ckpt")
+    if ckpt_rel:
+        ckpt_full = ROOT / ckpt_rel
+        return ckpt_rel if ckpt_full.exists() else None
+
+    exp_dir = cfg.get("exp_dir")
+    if not exp_dir:
+        return None
+    exp_root = ROOT / exp_dir
+    if not exp_root.exists():
+        return None
+
+    candidates = sorted(exp_root.glob("**/epoch*.ckpt"))
+    if not candidates:
+        candidates = sorted(exp_root.glob("**/last*.ckpt"))
+    if not candidates:
+        return None
+    best = max(candidates, key=lambda p: p.stat().st_mtime)
+    return str(best.relative_to(ROOT))
 
 
 def load_model(ckpt_rel, config_rel):
@@ -390,12 +433,13 @@ def main():
 
     for name, cfg in MODELS.items():
         print(f"\n=== {name} ===")
-        ckpt_full = ROOT / cfg["ckpt"]
-        if not ckpt_full.exists():
-            print(f"  ckpt missing: {ckpt_full}, skip")
+        ckpt_rel = resolve_ckpt_path(cfg)
+        if not ckpt_rel:
+            print("  ckpt missing: no resolved checkpoint, skip")
             continue
+        ckpt_full = ROOT / ckpt_rel
 
-        model_wrapper, _ = load_model(cfg["ckpt"], cfg["config"])
+        model_wrapper, _ = load_model(ckpt_rel, cfg["config"])
         found = find_text_transformer(model_wrapper.model)
         print(f"  text-transformer candidates: {[(p, cn) for p, _, cn in found]}")
         if not found:

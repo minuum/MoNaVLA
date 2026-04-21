@@ -23,7 +23,7 @@ LOG_OUT   = Path("/tmp/v5_text_understanding_result.json")
 
 OPENVLA_PYTHON = "/home/billy/anaconda3/envs/openvla/bin/python"
 
-CLASS_NAMES = {0:"STOP",1:"FORWARD",2:"LEFT",3:"RIGHT",4:"FWD+L",5:"FWD+R"}
+CLASS_NAMES = {0:"STOP",1:"FORWARD",2:"LEFT",3:"RIGHT",4:"FWD+L",5:"FWD+R",6:"ROT_L",7:"ROT_R"}
 
 INSTRUCTIONS = {
     # Exp07 PATH_TYPE_INSTRUCTIONS와 정확히 일치하는 문장 사용
@@ -42,6 +42,21 @@ CHECKPOINTS = [
         "name": "exp07_path_type (last-v1)",
         "ckpt": "runs/v5_nav/kosmos/mobile_vla_v5_exp07/2026-04-13/v5-exp07-path-type/last-v1.ckpt",
         "config": "configs/mobile_vla_v5_exp07_path_type.json",
+    },
+    {
+        "name": "exp21_pure_hf_head_only",
+        "exp_dir": "runs/v5_nav/kosmos/mobile_vla_v5_exp21",
+        "config": "configs/mobile_vla_v5_exp21_pure_hf_head_only.json",
+    },
+    {
+        "name": "exp22_pure_hf_lora",
+        "exp_dir": "runs/v5_nav/kosmos/mobile_vla_v5_exp22",
+        "config": "configs/mobile_vla_v5_exp22_pure_hf_lora.json",
+    },
+    {
+        "name": "exp23_pure_hf_both",
+        "exp_dir": "runs/v5_nav/kosmos/mobile_vla_v5_exp23",
+        "config": "configs/mobile_vla_v5_exp23_pure_hf_both.json",
     },
 ]
 
@@ -69,6 +84,28 @@ def img_to_b64(img_array):
     buf = io.BytesIO()
     pil.save(buf, format="JPEG", quality=90)
     return base64.b64encode(buf.getvalue()).decode()
+
+
+def resolve_ckpt_path(ckpt_info):
+    ckpt = ckpt_info.get("ckpt")
+    if ckpt:
+        ckpt_full = ROOT / ckpt
+        return ckpt if ckpt_full.exists() else None
+
+    exp_dir = ckpt_info.get("exp_dir")
+    if not exp_dir:
+        return None
+    exp_root = ROOT / exp_dir
+    if not exp_root.exists():
+        return None
+
+    candidates = sorted(exp_root.glob("**/epoch*.ckpt"))
+    if not candidates:
+        candidates = sorted(exp_root.glob("**/last*.ckpt"))
+    if not candidates:
+        return None
+    best = max(candidates, key=lambda p: p.stat().st_mtime)
+    return str(best.relative_to(ROOT))
 
 def api_call(b64_img, instruction, reset=False, retries=3):
     payload = json.dumps({"image": b64_img, "instruction": instruction, "reset": reset}).encode()
@@ -157,13 +194,13 @@ def get_test_frame():
 
 def test_server_text_sensitivity(ckpt_info, test_img, orig_instruction):
     name   = ckpt_info["name"]
-    ckpt   = ckpt_info["ckpt"]
     config = ckpt_info["config"]
+    ckpt   = resolve_ckpt_path(ckpt_info)
 
-    ckpt_full = ROOT / ckpt
-    if not ckpt_full.exists():
-        print(f"  ⚠️  체크포인트 없음, 스킵: {ckpt_full.name}")
+    if not ckpt:
+        print(f"  ⚠️  체크포인트 없음, 스킵: {name}")
         return None
+    ckpt_full = ROOT / ckpt
 
     print(f"\n{'='*60}")
     print(f"🔬 {name}")
