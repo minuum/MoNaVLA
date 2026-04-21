@@ -1,0 +1,288 @@
+{
+  "dataset_scope": "docs/v5/bbox_nav_step1/bbox_dataset.json (45 grounded episodes)",
+  "rules": {
+    "goal_near_v0": {
+      "definition": {
+        "has_bbox": true,
+        "area_min": 0.27,
+        "center_error_x_max": 0.03125
+      },
+      "metrics": {
+        "global": {
+          "episodes": 45,
+          "early_total": 255,
+          "early_positive": 52,
+          "late5_total": 225,
+          "late5_positive": 155,
+          "late5_episode_any": 42,
+          "late5_episode_all": 10,
+          "early_positive_rate": 0.203922,
+          "late5_frame_hit_rate": 0.688889,
+          "late5_episode_any_rate": 0.933333,
+          "late5_episode_all_rate": 0.222222
+        },
+        "by_path": {
+          "center_left": {
+            "episodes": 5,
+            "early_total": 30,
+            "early_positive": 9,
+            "late5_total": 25,
+            "late5_positive": 13,
+            "late5_episode_any": 4,
+            "late5_episode_all": 0,
+            "early_positive_rate": 0.3,
+            "late5_frame_hit_rate": 0.52,
+            "late5_episode_any_rate": 0.8,
+            "late5_episode_all_rate": 0.0
+          },
+          "center_right": {
+            "episodes": 5,
+            "early_total": 30,
+            "early_positive": 3,
+            "late5_total": 25,
+            "late5_positive": 19,
+            "late5_episode_any": 5,
+            "late5_episode_all": 1,
+            "early_positive_rate": 0.1,
+            "late5_frame_hit_rate": 0.76,
+            "late5_episode_any_rate": 1.0,
+            "late5_episode_all_rate": 0.2
+          },
+          "center_straight": {
+            "episodes": 5,
+            "early_total": 20,
+            "early_positive": 4,
+            "late5_total": 25,
+            "late5_positive": 16,
+            "late5_episode_any": 5,
+            "late5_episode_all": 1,
+            "early_positive_rate": 0.2,
+            "late5_frame_hit_rate": 0.64,
+            "late5_episode_any_rate": 1.0,
+            "late5_episode_all_rate": 0.2
+          },
+          "left_left": {
+            "episodes": 5,
+            "early_total": 30,
+            "early_positive": 4,
+            "late5_total": 25,
+            "late5_positive": 19,
+            "late5_episode_any": 5,
+            "late5_episode_all": 1,
+            "early_positive_rate": 0.133333,
+            "late5_frame_hit_rate": 0.76,
+            "late5_episode_any_rate": 1.0,
+            "late5_episode_all_rate": 0.2
+          },
+          "left_right": {
+            "episodes": 5,
+            "early_total": 30,
+            "early_positive": 3,
+            "late5_total": 25,
+            "late5_positive": 12,
+            "late5_episode_any": 4,
+            "late5_episode_all": 1,
+            "early_positive_rate": 0.1,
+            "late5_frame_hit_rate": 0.48,
+            "late5_episode_any_rate": 0.8,
+            "late5_episode_all_rate": 0.2
+          },
+          "left_straight": {
+            "episodes": 5,
+            "early_total": 30,
+            "early_positive": 1,
+            "late5_total": 25,
+            "late5_positive": 12,
+            "late5_episode_any": 4,
+            "late5_episode_all": 0,
+            "early_positive_rate": 0.033333,
+            "late5_frame_hit_rate": 0.48,
+            "late5_episode_any_rate": 0.8,
+            "late5_episode_all_rate": 0.0
+          },
+          "right_left": {
+            "episodes": 5,
+            "early_total": 30,
+            "early_positive": 15,
+            "late5_total": 25,
+            "late5_positive": 20,
+            "late5_episode_any": 5,
+            "late5_episode_all": 1,
+            "early_positive_rate": 0.5,
+            "late5_frame_hit_rate": 0.8,
+            "late5_episode_any_rate": 1.0,
+            "late5_episode_all_rate": 0.2
+          },
+          "right_right": {
+            "episodes": 5,
+            "early_total": 25,
+            "early_positive": 10,
+            "late5_total": 25,
+            "late5_positive": 21,
+            "late5_episode_any": 5,
+            "late5_episode_all": 2,
+            "early_positive_rate": 0.4,
+            "late5_frame_hit_rate": 0.84,
+            "late5_episode_any_rate": 1.0,
+            "late5_episode_all_rate": 0.4
+          },
+          "right_straight": {
+            "episodes": 5,
+            "early_total": 30,
+            "early_positive": 3,
+            "late5_total": 25,
+            "late5_positive": 23,
+            "late5_episode_any": 5,
+            "late5_episode_all": 3,
+            "early_positive_rate": 0.1,
+            "late5_frame_hit_rate": 0.92,
+            "late5_episode_any_rate": 1.0,
+            "late5_episode_all_rate": 0.6
+          }
+        }
+      }
+    },
+    "goal_near_v0_strict": {
+      "definition": {
+        "has_bbox": true,
+        "area_min": 0.31,
+        "center_error_x_max": 0.039062,
+        "abs_delta_cx_max": 0.0625
+      },
+      "metrics": {
+        "global": {
+          "episodes": 45,
+          "early_total": 255,
+          "early_positive": 38,
+          "late5_total": 225,
+          "late5_positive": 134,
+          "late5_episode_any": 40,
+          "late5_episode_all": 8,
+          "early_positive_rate": 0.14902,
+          "late5_frame_hit_rate": 0.595556,
+          "late5_episode_any_rate": 0.888889,
+          "late5_episode_all_rate": 0.177778
+        },
+        "by_path": {
+          "center_left": {
+            "episodes": 5,
+            "early_total": 30,
+            "early_positive": 4,
+            "late5_total": 25,
+            "late5_positive": 10,
+            "late5_episode_any": 4,
+            "late5_episode_all": 0,
+            "early_positive_rate": 0.133333,
+            "late5_frame_hit_rate": 0.4,
+            "late5_episode_any_rate": 0.8,
+            "late5_episode_all_rate": 0.0
+          },
+          "center_right": {
+            "episodes": 5,
+            "early_total": 30,
+            "early_positive": 1,
+            "late5_total": 25,
+            "late5_positive": 18,
+            "late5_episode_any": 5,
+            "late5_episode_all": 1,
+            "early_positive_rate": 0.033333,
+            "late5_frame_hit_rate": 0.72,
+            "late5_episode_any_rate": 1.0,
+            "late5_episode_all_rate": 0.2
+          },
+          "center_straight": {
+            "episodes": 5,
+            "early_total": 20,
+            "early_positive": 4,
+            "late5_total": 25,
+            "late5_positive": 11,
+            "late5_episode_any": 4,
+            "late5_episode_all": 0,
+            "early_positive_rate": 0.2,
+            "late5_frame_hit_rate": 0.44,
+            "late5_episode_any_rate": 0.8,
+            "late5_episode_all_rate": 0.0
+          },
+          "left_left": {
+            "episodes": 5,
+            "early_total": 30,
+            "early_positive": 2,
+            "late5_total": 25,
+            "late5_positive": 18,
+            "late5_episode_any": 5,
+            "late5_episode_all": 1,
+            "early_positive_rate": 0.066667,
+            "late5_frame_hit_rate": 0.72,
+            "late5_episode_any_rate": 1.0,
+            "late5_episode_all_rate": 0.2
+          },
+          "left_right": {
+            "episodes": 5,
+            "early_total": 30,
+            "early_positive": 1,
+            "late5_total": 25,
+            "late5_positive": 10,
+            "late5_episode_any": 3,
+            "late5_episode_all": 0,
+            "early_positive_rate": 0.033333,
+            "late5_frame_hit_rate": 0.4,
+            "late5_episode_any_rate": 0.6,
+            "late5_episode_all_rate": 0.0
+          },
+          "left_straight": {
+            "episodes": 5,
+            "early_total": 30,
+            "early_positive": 1,
+            "late5_total": 25,
+            "late5_positive": 8,
+            "late5_episode_any": 4,
+            "late5_episode_all": 0,
+            "early_positive_rate": 0.033333,
+            "late5_frame_hit_rate": 0.32,
+            "late5_episode_any_rate": 0.8,
+            "late5_episode_all_rate": 0.0
+          },
+          "right_left": {
+            "episodes": 5,
+            "early_total": 30,
+            "early_positive": 14,
+            "late5_total": 25,
+            "late5_positive": 18,
+            "late5_episode_any": 5,
+            "late5_episode_all": 1,
+            "early_positive_rate": 0.466667,
+            "late5_frame_hit_rate": 0.72,
+            "late5_episode_any_rate": 1.0,
+            "late5_episode_all_rate": 0.2
+          },
+          "right_right": {
+            "episodes": 5,
+            "early_total": 25,
+            "early_positive": 8,
+            "late5_total": 25,
+            "late5_positive": 18,
+            "late5_episode_any": 5,
+            "late5_episode_all": 2,
+            "early_positive_rate": 0.32,
+            "late5_frame_hit_rate": 0.72,
+            "late5_episode_any_rate": 1.0,
+            "late5_episode_all_rate": 0.4
+          },
+          "right_straight": {
+            "episodes": 5,
+            "early_total": 30,
+            "early_positive": 3,
+            "late5_total": 25,
+            "late5_positive": 23,
+            "late5_episode_any": 5,
+            "late5_episode_all": 3,
+            "early_positive_rate": 0.1,
+            "late5_frame_hit_rate": 0.92,
+            "late5_episode_any_rate": 1.0,
+            "late5_episode_all_rate": 0.6
+          }
+        }
+      }
+    }
+  }
+}
