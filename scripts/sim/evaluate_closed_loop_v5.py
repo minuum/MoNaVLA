@@ -6,6 +6,7 @@ V5 Closed-Loop Simulation Evaluator (Phase 1: Offline Replay)
   --model exp11   : Kosmos-2 policy model (LSTM action head)
   --model step2   : BBox+Image MLP (decomposition approach)
   --model exp17   : Exp17 (33/33/34 balanced, end-to-end)
+  --model exp18   : Exp18 (VLM + LoRA + text embedding fusion)
 
 Usage:
   # Exp11
@@ -15,6 +16,9 @@ Usage:
 
   # Step 2 (자동으로 MLP 재학습 후 rollout)
   python3 scripts/sim/evaluate_closed_loop_v5.py --model step2
+
+  # Exp19 (Step2 + proxy features)
+  python3 scripts/sim/evaluate_closed_loop_v5.py --model exp19
 """
 
 import argparse
@@ -50,6 +54,50 @@ IMG_SIZE = 16
 WINDOW = 3
 IMG_SIZE_STEP3 = 32
 WINDOW_STEP3 = 8
+CONSISTENCY_K = 5
+CX_TOL = 0.08
+AREA_TOL = 0.08
+
+
+def load_text_embedding_map():
+    dataset_path = ROOT / "docs" / "v5" / "v5_dataset_with_text_embeddings.json"
+    if not dataset_path.exists():
+        return {}
+    data = json.loads(dataset_path.read_text())
+    return {
+        item["episode"]: np.asarray(item["text_embedding"], dtype=np.float32)
+        for item in data
+        if "episode" in item and "text_embedding" in item
+    }
+
+
+def recent_bbox_consistency(frames, t, k=CONSISTENCY_K, cx_tol=CX_TOL, area_tol=AREA_TOL):
+    start = max(0, t - k + 1)
+    tail = frames[start:t + 1]
+    valid = [fr for fr in tail if fr["has_bbox"]]
+    if not valid:
+        return 0.0
+    if len(valid) == 1:
+        return 1.0
+    stable_pairs = 0
+    total_pairs = 0
+    for a, b in zip(valid[:-1], valid[1:]):
+        total_pairs += 1
+        if abs(float(b["cx"]) - float(a["cx"])) <= cx_tol and abs(float(b["area"]) - float(a["area"])) <= area_tol:
+            stable_pairs += 1
+    if total_pairs == 0:
+        return 1.0
+    return stable_pairs / total_pairs
+
+
+def build_proxy_features(frames, t):
+    cur = frames[t]
+    prev = frames[t - 1] if t > 0 else None
+    area = float(cur["area"])
+    center_error_x = abs(float(cur["cx"]) - 0.5)
+    abs_delta_cx = 0.0 if prev is None else abs(float(cur["cx"]) - float(prev["cx"]))
+    recent_consistency = recent_bbox_consistency(frames, t)
+    return [area, center_error_x, abs_delta_cx, recent_consistency]
 
 
 # ── Exp11: policy model inference ───────────────────────────────────────────
@@ -106,7 +154,7 @@ def load_exp11_model(config_path: str, ckpt_path: str):
     return model_wrapper
 
 
-def eval_exp11_episode(ep_path, model, processor, window_size=8):
+def eval_exp11_episode(ep_path, model, processor, window_size=8, text_embedding_map=None):
     """Run policy model on every frame of one episode; return predicted class list.
     model = model_wrapper.model (RoboKosMos backbone), same as PM eval's forward_action call.
     """
@@ -137,6 +185,12 @@ def eval_exp11_episode(ep_path, model, processor, window_size=8):
     lang_mask = lang_tokens["attention_mask"].bool().cuda()
 
     pred_classes = []
+    text_embedding = None
+    if text_embedding_map is not None:
+        emb = text_embedding_map.get(ep_path.stem)
+        if emb is not None:
+            text_embedding = torch.tensor(emb, dtype=torch.float16, device="cuda").unsqueeze(0)
+
     for t in range(len(imgs)):
         window_imgs = []
         for k in range(window_size):
@@ -149,6 +203,7 @@ def eval_exp11_episode(ep_path, model, processor, window_size=8):
             vision_x=vision_x,
             lang_x=lang_x,
             attention_mask=lang_mask,
+            text_embedding=text_embedding,
             vision_gripper=None,
             instr_and_action_ids=None,
             instr_and_action_labels=None,
@@ -271,6 +326,115 @@ def eval_step2_episode(ep_entry, mlp, device, window=WINDOW):
         pred_classes.append(min(cls, NUM_CLASSES - 1))
 
     # Load expert actions from H5
+    path = next(DATA_DIR.glob(f"{ep_entry['episode']}.h5"))
+    with h5py.File(path, "r") as f:
+        expert_actions = f["actions"][:]
+
+    return pred_classes, expert_actions[:len(frames)]
+
+
+def train_exp19_proxy_mlp(bbox_dataset, train_eps, window=WINDOW, epochs=220, seed=0):
+    from PIL import Image
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+
+    def frame_to_img_feat(ep_stem, frame_idx):
+        path = next(DATA_DIR.glob(f"{ep_stem}.h5"))
+        with h5py.File(path, "r") as f:
+            imgs = f["observations"]["images"][:] if ("observations" in f and "images" in f["observations"]) else f["images"][:]
+        frame = imgs[frame_idx]
+        img = Image.fromarray(frame.astype(np.uint8)).convert("L").resize((IMG_SIZE, IMG_SIZE))
+        return np.asarray(img, dtype=np.float32).reshape(-1) / 255.0
+
+    X, y = [], []
+    for ep in train_eps:
+        frames = ep["frames"]
+        img_feats = [frame_to_img_feat(ep["episode"], f["frame_idx"]) for f in frames]
+        for t in range(len(frames)):
+            feat = []
+            for k in range(window):
+                idx = max(0, t - (window - 1 - k))
+                f = frames[idx]
+                feat.extend([f["cx"], f["cy"], f["area"], float(f["has_bbox"])])
+            feat.extend(img_feats[t].tolist())
+            feat.extend(build_proxy_features(frames, t))
+            X.append(feat)
+            y.append(frames[t]["gt_class"])
+
+    X = np.asarray(X, dtype=np.float32)
+    y = np.asarray(y, dtype=np.int64)
+
+    d_in = X.shape[1]
+    model = torch.nn.Sequential(
+        torch.nn.Linear(d_in, 256), torch.nn.ReLU(), torch.nn.Dropout(0.25),
+        torch.nn.Linear(256, 128), torch.nn.ReLU(), torch.nn.Dropout(0.2),
+        torch.nn.Linear(128, 64), torch.nn.ReLU(),
+        torch.nn.Linear(64, NUM_CLASSES),
+    ).to(device)
+
+    cls_counts = np.bincount(y, minlength=NUM_CLASSES).astype(np.float32)
+    cls_counts = np.where(cls_counts == 0, 1.0, cls_counts)
+    weights = torch.tensor(1.0 / cls_counts, device=device)
+    weights = weights / weights.sum() * NUM_CLASSES
+    loss_fn = torch.nn.CrossEntropyLoss(weight=weights)
+    opt = torch.optim.AdamW(model.parameters(), lr=2e-3, weight_decay=1e-4)
+
+    X_t = torch.tensor(X, device=device)
+    y_t = torch.tensor(y, device=device)
+
+    best_acc, best_state = 0.0, None
+    for ep_i in range(epochs):
+        model.train()
+        idx = torch.randperm(len(X_t))
+        for i in range(0, len(idx), 128):
+            b = idx[i:i + 128]
+            loss = loss_fn(model(X_t[b]), y_t[b])
+            opt.zero_grad(); loss.backward(); opt.step()
+        if ep_i % 40 == 0 or ep_i == epochs - 1:
+            model.eval()
+            with torch.no_grad():
+                acc = (model(X_t).argmax(1) == y_t).float().mean().item()
+            if acc > best_acc:
+                best_acc = acc
+                best_state = {k: v.clone() for k, v in model.state_dict().items()}
+            print(f"  Exp19 ep{ep_i:3d}: loss={loss.item():.3f} train_acc={acc:.3f} best={best_acc:.3f}")
+
+    if best_state:
+        model.load_state_dict(best_state)
+    model.eval()
+    return model, device
+
+
+def eval_exp19_episode(ep_entry, mlp, device, window=WINDOW):
+    from PIL import Image
+
+    frames = ep_entry["frames"]
+
+    def frame_to_img_feat(frame_idx):
+        path = next(DATA_DIR.glob(f"{ep_entry['episode']}.h5"))
+        with h5py.File(path, "r") as f:
+            imgs = f["observations"]["images"][:] if ("observations" in f and "images" in f["observations"]) else f["images"][:]
+        frame = imgs[frame_idx]
+        img = Image.fromarray(frame.astype(np.uint8)).convert("L").resize((IMG_SIZE, IMG_SIZE))
+        return np.asarray(img, dtype=np.float32).reshape(-1) / 255.0
+
+    img_feats = [frame_to_img_feat(f["frame_idx"]) for f in frames]
+    pred_classes = []
+    for t in range(len(frames)):
+        feat = []
+        for k in range(window):
+            idx = max(0, t - (window - 1 - k))
+            f = frames[idx]
+            feat.extend([f["cx"], f["cy"], f["area"], float(f["has_bbox"])])
+        feat.extend(img_feats[t].tolist())
+        feat.extend(build_proxy_features(frames, t))
+        x = torch.tensor([feat], dtype=torch.float32, device=device)
+        with torch.no_grad():
+            cls = int(mlp(x).argmax(1).item())
+        pred_classes.append(min(cls, NUM_CLASSES - 1))
+
     path = next(DATA_DIR.glob(f"{ep_entry['episode']}.h5"))
     with h5py.File(path, "r") as f:
         expert_actions = f["actions"][:]
@@ -488,7 +652,7 @@ def build_html(results_by_model, summary_by_model):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--model", choices=["exp11", "step2", "step3", "step3_ablated", "exp17", "both"], default="step2")
+    ap.add_argument("--model", choices=["exp11", "step2", "step3", "step3_ablated", "exp17", "exp18", "exp19", "both"], default="step2")
     ap.add_argument("--config", default="configs/mobile_vla_v5_exp11_google_robot_8cls.json")
     ap.add_argument("--ckpt", default=None)
     ap.add_argument("--dt", type=float, default=DT_DEFAULT)
@@ -497,9 +661,10 @@ def main():
                     help="Seeds for multi-run evaluation (step2/step3 only)")
     args = ap.parse_args()
 
-    run_exp11 = args.model in ("exp11", "exp17", "both")
+    run_exp11 = args.model in ("exp11", "exp17", "exp18", "both")
     run_step2 = args.model in ("step2", "both")
     run_step3 = args.model == "step3"
+    run_exp19 = args.model == "exp19"
 
     # Load existing results so partial runs merge rather than overwrite
     existing_json_path = OUT_DIR / "rollout_metrics.json"
@@ -558,7 +723,7 @@ def main():
               f"  FPE: {summary_by_model['step2']['mean_fpe']:.2f}m"
               f"  TLD: {summary_by_model['step2']['mean_tld']:.2f}")
 
-    # ── Exp11/Exp17 evaluation ──────────────────────────────────────────────────
+    # ── Exp11/Exp17/Exp18 evaluation ────────────────────────────────────────────
     if run_exp11:
         model_name = args.model.upper() if args.model in ("exp11", "exp17") else "Exp11"
         print(f"\n=== {model_name} (policy model) ===")
@@ -566,6 +731,8 @@ def main():
             # Try to find best ckpt automatically
             if args.model == "exp17":
                 ckpt_dir = ROOT / "runs/v5_nav/kosmos/mobile_vla_v5_exp17/2026-04-20/v5-exp17-step3-balanced"
+            elif args.model == "exp18":
+                ckpt_dir = ROOT / "runs/v5_nav/kosmos/mobile_vla_v5_exp18/2026-04-21/v5-exp18-vla-text-fusion"
             else:
                 ckpt_dir = ROOT / "runs/v5_nav/kosmos/mobile_vla_v5_exp11/2026-04-16/v5-exp11-google-robot-8cls"
             ckpts = sorted(ckpt_dir.glob("epoch_epoch*.ckpt"))
@@ -575,10 +742,13 @@ def main():
             else:
                 args.ckpt = str(ckpts[-1])
                 print(f"  Auto-selected ckpt: {Path(args.ckpt).name}")
+        if args.model == "exp18" and args.config == "configs/mobile_vla_v5_exp11_google_robot_8cls.json":
+            args.config = "configs/mobile_vla_v5_exp18_vla_finetuned.json"
 
     if run_exp11:
         from transformers import AutoProcessor
         processor = AutoProcessor.from_pretrained(str(ROOT / ".vlms/kosmos-2-patch14-224"))
+        text_embedding_map = load_text_embedding_map() if args.model == "exp18" else None
 
         model_wrapper = load_exp11_model(args.config, args.ckpt)
         model_backbone = model_wrapper.model  # RoboKosMos, same as PM eval
@@ -612,6 +782,7 @@ def main():
                 try:
                     pred_classes, expert_actions = eval_exp11_episode(
                         ep_path, model_backbone, processor, window_size=8,
+                        text_embedding_map=text_embedding_map,
                     )
                     expert_cls = [continuous_to_class(*a[:3]) for a in expert_actions]
                     expert_traj = build_trajectory(expert_cls, args.dt)
@@ -625,7 +796,7 @@ def main():
                     print(f"  ERROR on {ep_path.name}: {e}")
 
         all_m = [m for ms in ep_results.values() for m in ms]
-        model_key = args.model if args.model in ("exp11", "exp17") else "exp11"
+        model_key = args.model if args.model in ("exp11", "exp17", "exp18") else "exp11"
         summary_by_model[model_key] = {
             "n_episodes": len(all_m),
             "success_rate": sum(m["success"] for m in all_m) / max(len(all_m), 1),
@@ -716,6 +887,50 @@ def main():
             step3_out.write_text(json.dumps({"summary": summary_by_model["step3"],
                                              "seeds": seed_results}, indent=2))
             print(f"  Saved: {step3_out}")
+
+    if run_exp19:
+        print("\n=== Exp19 (Step2 + proxy features) ===")
+        bbox_ds = json.loads((STEP1_DIR / "bbox_dataset.json").read_text())
+        rng = np.random.default_rng(42)
+        by_path = defaultdict(list)
+        for i, ep in enumerate(bbox_ds):
+            by_path[ep["path_type"]].append(i)
+        train_idx, test_idx = [], []
+        for _, idxs in by_path.items():
+            rng.shuffle(idxs)
+            k = max(1, int(len(idxs) * 0.2))
+            test_idx.extend(idxs[:k])
+            train_idx.extend(idxs[k:])
+        train_eps = [bbox_ds[i] for i in train_idx]
+        test_eps = [bbox_ds[i] for i in test_idx]
+        print(f"  Exp19 train={len(train_eps)} test={len(test_eps)} episodes")
+
+        print("  Training Exp19 proxy MLP...")
+        mlp, device = train_exp19_proxy_mlp(bbox_ds, train_eps)
+
+        ep_results = defaultdict(list)
+        for ep_entry in test_eps:
+            pred_classes, expert_actions = eval_exp19_episode(ep_entry, mlp, device)
+            expert_cls = [continuous_to_class(*a[:3]) for a in expert_actions]
+            expert_traj = build_trajectory(expert_cls, args.dt)
+            pred_traj = build_trajectory(pred_classes, args.dt)
+            m = compute_metrics(expert_traj, pred_traj, args.success_fpe)
+            m["episode"] = ep_entry["episode"]
+            m["path_type"] = ep_entry["path_type"]
+            ep_results[ep_entry["path_type"]].append(m)
+            print(f"  {ep_entry['path_type']:20s} FPE={m['fpe']:.2f}m TLD={m['tld']:.2f} {'✅' if m['success'] else '❌'}")
+
+        all_m = [m for ms in ep_results.values() for m in ms]
+        summary_by_model["exp19"] = {
+            "n_episodes": len(all_m),
+            "success_rate": sum(m["success"] for m in all_m) / max(len(all_m), 1),
+            "mean_fpe": float(np.mean([m["fpe"] for m in all_m])),
+            "mean_tld": float(np.mean([m["tld"] for m in all_m])),
+        }
+        results_by_model["exp19"] = dict(ep_results)
+        print(f"\n  EXP19 success: {summary_by_model['exp19']['success_rate']:.1%}"
+              f"  FPE: {summary_by_model['exp19']['mean_fpe']:.2f}m"
+              f"  TLD: {summary_by_model['exp19']['mean_tld']:.2f}")
 
     # ── Save & HTML ──────────────────────────────────────────────────────────
     out_json = {

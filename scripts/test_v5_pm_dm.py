@@ -82,6 +82,33 @@ CLASS_NAMES_6 = {0:"STOP", 1:"FORWARD", 2:"LEFT", 3:"RIGHT", 4:"FWD+L", 5:"FWD+R
 CLASS_NAMES_8 = {0:"STOP", 1:"FORWARD", 2:"LEFT", 3:"RIGHT", 4:"FWD+L", 5:"FWD+R", 6:"TURN_L", 7:"TURN_R"}
 CLASS_NAMES = CLASS_NAMES_8 if NUM_CLASSES == 8 else CLASS_NAMES_6
 
+
+def _load_eval_settings_from_config():
+    global V5_DATA, NUM_CLASSES, _VAL_TRAIN_SPLIT, _VAL_WINDOW_SIZE, CLASS_NAMES
+    try:
+        with open(CONFIG, "r", encoding="utf-8") as f:
+            cfg = json.load(f)
+    except Exception:
+        return
+
+    val_cfg = cfg.get("val_dataset", {})
+    train_cfg = cfg.get("train_dataset", {})
+    data_cfg = val_cfg or train_cfg
+
+    if _cli.data is None and data_cfg.get("data_dir"):
+        V5_DATA = data_cfg["data_dir"]
+    if _cli.num_classes is None and data_cfg.get("num_classes"):
+        NUM_CLASSES = int(data_cfg["num_classes"])
+    if _cli.train_split is None and data_cfg.get("train_split"):
+        _VAL_TRAIN_SPLIT = float(data_cfg["train_split"])
+    if _cli.window_size is None and data_cfg.get("window_size"):
+        _VAL_WINDOW_SIZE = int(data_cfg["window_size"])
+
+    CLASS_NAMES = CLASS_NAMES_8 if NUM_CLASSES == 8 else CLASS_NAMES_6
+
+
+_load_eval_settings_from_config()
+
 # ── 모델 로드 (inference_server와 동일한 방식)
 def load_model():
     os.chdir(ROOT)
@@ -205,6 +232,7 @@ def evaluate():
                     vision_x=gpu["rgb"],
                     lang_x=gpu["text"],
                     attention_mask=gpu["text_mask"].bool(),
+                    text_embedding=gpu.get("text_embedding"),
                     vision_gripper=gpu.get("hand_rgb"),
                     instr_and_action_ids=gpu.get("instr_and_action_ids"),
                     instr_and_action_labels=gpu.get("instr_and_action_labels"),
