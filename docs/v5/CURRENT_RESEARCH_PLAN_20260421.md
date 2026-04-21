@@ -71,8 +71,8 @@ The current mid conclusion is:
 
 This is why the next queue is ordered as:
 
-1. Exp19: Step2 + proxy feature concat
-2. Exp20: Step2 + proxy auxiliary head
+1. Refine Exp19 proxy set because closed-loop stopped at `55.6%`
+2. Re-run the best proxy branch after feature/threshold cleanup
 3. Controlled analysis of why Exp18 collapsed despite lower val loss
 
 ---
@@ -130,6 +130,30 @@ Keep the Exp14 Step2 backbone and add the strongest non-leaky proxy signals.
   - `docs/v5/bbox_nav_exp19_proxy/summary.json`
   - `docs/v5/bbox_nav_exp19_proxy/index.html`
 
+### Current PM result
+
+- PM: `76.58%`
+- Step2 reference: `75.95%`
+- delta: `+0.63%p`
+
+Current read:
+
+- small PM gain exists
+- not enough to change the baseline by itself
+- closed-loop has now been measured
+
+### Closed-loop result
+
+- closed-loop: `55.6%`
+- FPE: `0.51m`
+- TLD: `0.95`
+
+Current read:
+
+- Exp19 is much stronger than end-to-end branches
+- but it still does not beat Exp14 Step2 (`66.7%`)
+- therefore it is a promising proxy branch, not the new baseline
+
 ### Success criterion
 
 - main criterion: closed-loop `> 66.7%`
@@ -155,6 +179,19 @@ If Exp19 does not clearly improve closed-loop, add a lightweight auxiliary targe
   - `docs/v5/bbox_nav_exp20_proxy_aux/summary.json`
   - `docs/v5/bbox_nav_exp20_proxy_aux/index.html`
 
+### Current PM result
+
+- PM: `75.32%`
+- Exp19 reference: `76.58%`
+- delta vs Exp19: `-1.27%p`
+- goal-near auxiliary quality: precision `0.908`, recall `1.000`
+
+Current read:
+
+- the auxiliary head learns goal-near well
+- but main action PM does not improve
+- Exp20 is not the preferred rollout branch right now
+
 ### Loss
 
 - action CE
@@ -175,10 +212,11 @@ After Exp18 evaluation:
 - do not prioritize further end-to-end scaling over proxy-enhanced Step2
 - treat proxy signals as soft state estimates first
 
-Until Exp19/20 closed-loop is measured:
+After Exp19 closed-loop:
 
-- do not claim proxy features solve stopping
+- do not claim proxy features already solve stopping
 - do not use `goal_near_v0` as a global hard stop rule
+- do treat Exp19 as the only proxy branch worth refining further right now
 
 ---
 
@@ -187,6 +225,9 @@ Until Exp19/20 closed-loop is measured:
 ```bash
 # Run Exp19
 python3 scripts/test_v5_bbox_nav_exp19_proxy.py
+
+# Run Exp19 closed-loop
+python3 scripts/sim/evaluate_closed_loop_v5.py --model exp19
 
 # Run Exp20
 python3 scripts/test_v5_bbox_nav_exp20_proxy_aux.py

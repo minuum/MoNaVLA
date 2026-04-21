@@ -1,0 +1,50 @@
+{
+  "overall_pm_exp20": 0.7531645894050598,
+  "exp19_ref_pm": 0.7658228278160095,
+  "delta_vs_exp19": -0.012658238410949707,
+  "goal_near_precision": 0.9076923076923077,
+  "goal_near_recall": 1.0,
+  "total_train": 636,
+  "total_test": 158,
+  "device": "cuda",
+  "epochs": 220,
+  "aux_weight": 0.25,
+  "pm_by_path": {
+    "center_straight": {
+      "correct": 10,
+      "total": 14
+    },
+    "center_left": {
+      "correct": 11,
+      "total": 18
+    },
+    "center_right": {
+      "correct": 9,
+      "total": 18
+    },
+    "left_straight": {
+      "correct": 16,
+      "total": 18
+    },
+    "left_left": {
+      "correct": 16,
+      "total": 19
+    },
+    "left_right": {
+      "correct": 15,
+      "total": 19
+    },
+    "right_straight": {
+      "correct": 16,
+      "total": 18
+    },
+    "right_left": {
+      "correct": 16,
+      "total": 18
+    },
+    "right_right": {
+      "correct": 10,
+      "total": 16
+    }
+  }
+}

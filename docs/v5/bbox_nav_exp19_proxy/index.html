@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Exp19: Step2 + Proxy Features</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin: 0; padding: 24px; background: #0f172a; color: #e2e8f0; }
+  h1 { font-size: 2rem; margin-bottom: 8px; }
+  .sub { color: #94a3b8; margin-bottom: 24px; max-width: 940px; line-height: 1.6; }
+  .back { color: #60a5fa; text-decoration: none; display: inline-block; margin-bottom: 16px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px; }
+  .box { background: #1e293b; padding: 16px 20px; border-radius: 10px; }
+  .num { font-size: 2.5rem; font-weight: 800; }
+  .good { color: #22c55e; } .blue { color: #60a5fa; } .warn { color: #fbbf24; }
+  table { border-collapse: collapse; background: #1e293b; border-radius: 8px; overflow: hidden; width: 100%; }
+  th, td { padding: 8px 14px; border-bottom: 1px solid #334155; text-align: left; }
+  th { background: #0b1220; }
+  .diag { background: #172554; border-left: 4px solid #60a5fa; padding: 14px 18px; border-radius: 6px; color: #dbeafe; margin-top: 20px; line-height: 1.7; }
+</style>
+</head>
+<body>
+  <a class="back" href="../../index.html">← Back to main</a>
+  <h1>Exp19: Step2 + Goal-Near Proxy Features</h1>
+  <p class="sub">
+    Exp14 Step2의 bbox history + 16x16 grayscale image feature에
+    non-leaky proxy signal 4개
+    (<code>area</code>, <code>center_error_x</code>, <code>abs_delta_cx</code>, <code>recent_bbox_consistency</code>)
+    를 추가한 실험입니다.
+  </p>
+
+  <div class="grid3">
+    <div class="box">
+      <div style="color:#94a3b8; font-size:0.85rem; text-transform:uppercase;">Step 2 Reference</div>
+      <div class="num blue">75.9%</div>
+      <div>bbox + image baseline</div>
+    </div>
+    <div class="box">
+      <div style="color:#94a3b8; font-size:0.85rem; text-transform:uppercase;">Exp19 Proxy</div>
+      <div class="num good">76.6%</div>
+      <div>(121/158)</div>
+    </div>
+    <div class="box">
+      <div style="color:#94a3b8; font-size:0.85rem; text-transform:uppercase;">Delta vs Step 2</div>
+      <div class="num good">+0.6%</div>
+      <div>same split protocol</div>
+    </div>
+  </div>
+
+  <h2>PM per Path Type (test split)</h2>
+  <table>
+    <tr><th>Path Type</th><th>Correct/Total</th><th>PM</th></tr>
+    <tr><td>center_straight</td><td>11/14</td><td><strong>78.6%</strong></td></tr><tr><td>center_left</td><td>12/18</td><td><strong>66.7%</strong></td></tr><tr><td>center_right</td><td>10/18</td><td><strong>55.6%</strong></td></tr><tr><td>left_straight</td><td>17/18</td><td><strong>94.4%</strong></td></tr><tr><td>left_left</td><td>15/19</td><td><strong>78.9%</strong></td></tr><tr><td>left_right</td><td>13/19</td><td><strong>68.4%</strong></td></tr><tr><td>right_straight</td><td>17/18</td><td><strong>94.4%</strong></td></tr><tr><td>right_left</td><td>16/18</td><td><strong>88.9%</strong></td></tr><tr><td>right_right</td><td>10/16</td><td><strong>62.5%</strong></td></tr>
+  </table>
+
+  <div class="diag">
+    <strong>Proxy pack</strong><br>
+    area, center_error_x, abs_delta_cx, recent_bbox_consistency.<br>
+    Split protocol과 backbone 용량은 Step 2와 동일하게 유지했습니다.
+  </div>
+</body>
+</html>

@@ -1,0 +1,51 @@
+{
+  "overall_pm_step3": 0.7809523940086365,
+  "step2_ref_pm": 0.7594936490058899,
+  "total_train": 2101,
+  "total_test": 525,
+  "config": {
+    "window": 8,
+    "img_size": 32,
+    "epochs": 300,
+    "n_episodes": 150,
+    "mode": "filtered"
+  },
+  "pm_by_path": {
+    "center_straight": {
+      "correct": 48,
+      "total": 56
+    },
+    "center_left": {
+      "correct": 36,
+      "total": 54
+    },
+    "center_right": {
+      "correct": 28,
+      "total": 54
+    },
+    "left_straight": {
+      "correct": 68,
+      "total": 72
+    },
+    "left_left": {
+      "correct": 39,
+      "total": 55
+    },
+    "left_right": {
+      "correct": 39,
+      "total": 57
+    },
+    "right_straight": {
+      "correct": 72,
+      "total": 72
+    },
+    "right_left": {
+      "correct": 41,
+      "total": 57
+    },
+    "right_right": {
+      "correct": 39,
+      "total": 48
+    }
+  }
+}

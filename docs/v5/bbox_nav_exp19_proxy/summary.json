@@ -1,0 +1,53 @@
+{
+  "overall_pm_exp19": 0.7658228278160095,
+  "step2_ref_pm": 0.7594936490058899,
+  "delta_vs_step2": 0.006329178810119629,
+  "total_train": 636,
+  "total_test": 158,
+  "device": "cuda",
+  "epochs": 220,
+  "proxy_features": [
+    "area",
+    "center_error_x",
+    "abs_delta_cx",
+    "recent_bbox_consistency"
+  ],
+  "pm_by_path": {
+    "center_straight": {
+      "correct": 11,
+      "total": 14
+    },
+    "center_left": {
+      "correct": 12,
+      "total": 18
+    },
+    "center_right": {
+      "correct": 10,
+      "total": 18
+    },
+    "left_straight": {
+      "correct": 17,
+      "total": 18
+    },
+    "left_left": {
+      "correct": 15,
+      "total": 19
+    },
+    "left_right": {
+      "correct": 13,
+      "total": 19
+    },
+    "right_straight": {
+      "correct": 17,
+      "total": 18
+    },
+    "right_left": {
+      "correct": 16,
+      "total": 18
+    },
+    "right_right": {
+      "correct": 10,
+      "total": 16
+    }
+  }
+}
