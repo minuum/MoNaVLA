@@ -8,6 +8,7 @@ from torch.utils.data import Dataset
 import torchvision.transforms as T
 # from robovlms.utils.model_utils import load_image
 import random
+import json
 
 class MobileVLAH5Dataset(Dataset):
 
@@ -237,6 +238,18 @@ class MobileVLAH5Dataset(Dataset):
         
         self.episode_files = filtered_files
         print(f"{'Validation' if self.is_validation else 'Training'} dataset initialized with {len(self.episode_files)} episodes and {len(self.frame_indices)} valid sequences.")
+
+        # Load text embeddings for Exp18 (if available)
+        text_emb_path = Path(data_dir).parent.parent / "docs" / "v5" / "v5_dataset_with_text_embeddings.json"
+        if text_emb_path.exists():
+            with open(text_emb_path) as f:
+                text_emb_data = json.load(f)
+            self.text_embeddings = {}
+            for item in text_emb_data:
+                ep_name = item['episode']
+                self.text_embeddings[ep_name] = np.array(item['text_embedding'], dtype=np.float32)
+        else:
+            self.text_embeddings = {}
 
         # Transforms
         if self.use_color_jitter:
@@ -706,6 +719,13 @@ class MobileVLAH5Dataset(Dataset):
             # Fallback (should not happen in real training via GRDataModule)
             data_dict['text'] = torch.zeros(256, dtype=torch.long)
             data_dict['text_mask'] = torch.zeros(256, dtype=torch.long)
+
+        # Add text embedding for Exp18
+        ep_stem = self.episode_files[ep_idx].stem
+        if ep_stem in self.text_embeddings:
+            data_dict['text_embedding'] = torch.from_numpy(self.text_embeddings[ep_stem])
+        else:
+            data_dict['text_embedding'] = torch.zeros(1024, dtype=torch.float32)
 
         return data_dict
 

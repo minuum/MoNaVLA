@@ -16,9 +16,15 @@ from robovlms.model.backbone.robokosmos import RoboKosMos
 class NavRoboKosMos(RoboKosMos):
     """RoboKosMos + explicit instruction conditioning via word-embedding mean."""
 
-    def forward_continuous(self, vision_x, lang_x, attention_mask=None, **kwargs):
-        """lang_x word embedding을 mean pool해 _instr_emb_cache에 저장 후 parent 호출."""
-        if lang_x is not None:
+    def forward_continuous(self, vision_x, lang_x, attention_mask=None, text_embedding=None, **kwargs):
+        """lang_x word embedding을 mean pool해 _instr_emb_cache에 저장 후 parent 호출.
+
+        text_embedding: (bs, 1024) frozen Kosmos-2 text embeddings for Exp18
+        """
+        # [Exp18] If frozen text_embedding provided, use it directly
+        if text_embedding is not None:
+            self._instr_emb_cache = text_embedding
+        elif lang_x is not None:
             # lang_x: (bs, text_len) — forward_continuous 진입 시점의 원본 shape
             instr_embeds = self.word_embedding(lang_x)          # (bs, text_len, embed_dim)
             # detach: instr_proj만 학습, word embedding gradient path 분리

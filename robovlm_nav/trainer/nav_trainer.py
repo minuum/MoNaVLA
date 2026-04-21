@@ -123,6 +123,10 @@ class NavTrainer(BaseTrainer):
         """
         BaseTrainer.training_step을 오버라이딩하여 Loss 전달 과정을 투명하게 관리
         """
+        text_embedding = batch.get("text_embedding", None)
+        if isinstance(text_embedding, torch.Tensor):
+            text_embedding = text_embedding.to(self.device).to(self.dtype)
+
         # 데이터 전처리
         processed_batch = self._process_batch(batch)
         
@@ -133,6 +137,7 @@ class NavTrainer(BaseTrainer):
             attention_mask=processed_batch[4], # text_mask
             action_labels=(processed_batch[9], processed_batch[10]), # arm_action_chunck, gripper_action_chunck
             action_mask=processed_batch[11], # chunck_mask
+            text_embedding=text_embedding,
             raw_text=processed_batch[16],
             data_source=processed_batch[18]
         )
@@ -162,6 +167,10 @@ class NavTrainer(BaseTrainer):
         """
         # 확실하게 grad 계산 차단
         with torch.no_grad():
+            text_embedding = batch.get("text_embedding", None)
+            if isinstance(text_embedding, torch.Tensor):
+                text_embedding = text_embedding.to(self.device).to(self.dtype)
+
             processed_batch = self._process_batch(batch)
             prediction = self.model.forward(
                 processed_batch[0],      # rgb
@@ -169,6 +178,7 @@ class NavTrainer(BaseTrainer):
                 attention_mask=processed_batch[4],
                 action_labels=(processed_batch[9], processed_batch[10]),
                 action_mask=processed_batch[11],
+                text_embedding=text_embedding,
                 raw_text=processed_batch[16],
                 data_source=processed_batch[18]
             )
