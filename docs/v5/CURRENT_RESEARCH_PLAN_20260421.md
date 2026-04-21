@@ -74,6 +74,7 @@ This is why the next queue is ordered as:
 1. Refine Exp19 proxy set because closed-loop stopped at `55.6%`
 2. Re-run the best proxy branch after feature/threshold cleanup
 3. Controlled analysis of why Exp18 collapsed despite lower val loss
+4. Run pure-HF controlled ablation to separate `backbone source` vs `training objective`
 
 ---
 
@@ -217,6 +218,25 @@ After Exp19 closed-loop:
 - do not claim proxy features already solve stopping
 - do not use `goal_near_v0` as a global hard stop rule
 - do treat Exp19 as the only proxy branch worth refining further right now
+
+---
+
+## 8. Root-Cause Next Step — Pure HF Controlled Ablation
+
+The next root-cause checkpoint is now prepared as a runnable 3-way branch:
+
+- [`configs/mobile_vla_v5_exp21_pure_hf_head_only.json`](../../configs/mobile_vla_v5_exp21_pure_hf_head_only.json)
+- [`configs/mobile_vla_v5_exp22_pure_hf_lora.json`](../../configs/mobile_vla_v5_exp22_pure_hf_lora.json)
+- [`configs/mobile_vla_v5_exp23_pure_hf_both.json`](../../configs/mobile_vla_v5_exp23_pure_hf_both.json)
+
+Runbook:
+
+- [`docs/v5/PURE_HF_CONTROLLED_ABLATION_20260421.md`](./PURE_HF_CONTROLLED_ABLATION_20260421.md)
+
+Interpretation goal:
+
+- if pure HF keeps non-zero text attention, the backbone source is the primary failure point
+- if pure HF also collapses, the action objective / shortcut structure is the stronger culprit
 
 ---
 

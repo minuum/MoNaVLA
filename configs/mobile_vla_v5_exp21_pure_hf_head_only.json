@@ -1,0 +1,35 @@
+{
+    "_comment": "V5 Exp21: Pure HF Kosmos-2 controlled ablation — head-only. Same V5 8-class setup as Exp11, but remove Google-Robot post-train and freeze the VLM fully.",
+    "parent": "configs/mobile_vla_v5_exp11_google_robot_8cls.json",
+    "exp_name": "v5-exp21-pure-hf-head-only",
+    "task_name": "mobile_vla_v5_exp21",
+
+    "pretrained_vlm_path": null,
+    "load_vlm_only": false,
+    "model_load_path": null,
+    "model_load_source": null,
+
+    "learning_rate": 5e-5,
+    "max_epochs": 20,
+
+    "train_setup": {
+        "precision": "16-mixed",
+        "predict_action": true,
+        "predict_forward": false,
+        "predict_forward_hand": false,
+        "predict_caption": false,
+        "train_vision": false,
+        "bits": -1,
+        "freeze_backbone": true,
+        "freeze_mm_mlp_adapter": true,
+        "freeze_resampler": true,
+        "tune_mm_mlp_adapter": false,
+        "tune_mm_projector": false,
+        "mm_use_im_start_end": false,
+        "mm_use_im_patch_token": false,
+        "gradient_checkpointing": true,
+        "lora_enable": false,
+        "mm_projector_lr": 5e-5,
+        "train_text_embedding": false
+    }
+}

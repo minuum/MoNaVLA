@@ -1,0 +1,14 @@
+{
+    "_comment": "V5 Exp22: Pure HF Kosmos-2 controlled ablation — frozen backbone + LoRA. Same V5 8-class setup as Exp11, but remove Google-Robot post-train so the foundation starts from raw HF Kosmos-2.",
+    "parent": "configs/mobile_vla_v5_exp11_google_robot_8cls.json",
+    "exp_name": "v5-exp22-pure-hf-lora",
+    "task_name": "mobile_vla_v5_exp22",
+
+    "pretrained_vlm_path": null,
+    "load_vlm_only": false,
+    "model_load_path": null,
+    "model_load_source": null,
+
+    "learning_rate": 5e-5,
+    "max_epochs": 20
+}
