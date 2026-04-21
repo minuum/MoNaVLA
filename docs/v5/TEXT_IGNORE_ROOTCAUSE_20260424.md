@@ -221,15 +221,30 @@ Pure Kosmos-2의 Top-5 position에는 **text positions가 섞여 있다** (예: 
   - Foundation (LoRA/FT 없음): image `77.3%` / **text `22.7%`** — instruction에 정상 attend
   - 학습 후 (Exp11/13): text `0.000%` — **학습이 text attention을 소멸시킴**
   - 이로써 causal chain 완성: "학습 과정이 instruction text 경로를 죽임 → 학습된 모델이 instruction 무시"
+- **Exp15 head-only 보강 (2026-04-21 재정리)**:
+  - Config상 `freeze_backbone=true`, `lora_enable=false`, `train_text_embedding=false`
+  - 그런데도 **last-layer image `94.2%` / text `0.000%`**, mean-over-layers image `66.4%` / text `0.000%`
+  - 즉 **LoRA는 collapse의 필요조건이 아님**. 최소한 Google-Robot 기반 policy stack에서는, backbone을 얼린 head-only 세팅만으로도 text path는 이미 죽어 있다.
 - **잔여 약점**:
   - Oracle test(Exp12) 정량 수치 미확보
   - Exp13의 `forward_2` 샘플만 약한 action 차이 → instr_proj이 아주 미세한 기여 (left/right 구별은 여전히 0)
-  - Attention 소멸의 **메커니즘** (FORWARD class imbalance? LoRA 특정 layer? mm_projector?) 은 미규명
+  - Attention 소멸의 **메커니즘** (Google-Robot post-train checkpoint 자체? action objective? mm_projector/adapter stack?) 은 아직 미규명
 
 ### 반문 3 — "3-way ablation이 실제로 실행되지 않았다"
 
-- **방어**: 제한적 — 과거 실험들이 정확히 LoRA-only / head-only / both로 분리된 적 없음.
-- **잔여 약점**: controlled comparison 없이는 "셋 다 실패"라는 일반화 불가. §7 TODO.
+- **방어 (2026-04-21 보강)**:
+  - 완전한 3-way controlled ablation은 아직 아니지만, **head-only control(Exp15)** 은 이미 존재함.
+  - Exp15는 `freeze_backbone=true`, `lora_enable=false` 인 상태에서 학습되었고, attention 실측 결과가 **전 layer text `0.000%`** 였음.
+  - 따라서 적어도 **"LoRA를 켰기 때문에 text path가 죽었다"** 는 단순 설명은 반박 가능.
+- **현재까지 말할 수 있는 것**:
+  - `Pure HF foundation`: text `22.6%` 전후로 살아 있음
+  - `Google-Robot + head-only (Exp15)`: text `0.000%`
+  - `Google-Robot + LoRA (Exp11)`: text `0.000%`
+  - `Google-Robot + LoRA + instr_proj (Exp13)`: text `0.000%`
+  - 즉 **collapse는 LoRA 유무와 무관하게 Google-Robot policy track 전체에서 관측**됨.
+- **잔여 약점**:
+  - pure backbone 위에 truly controlled LoRA-only / both를 동일 split에서 다시 학습한 표는 아직 없음
+  - 따라서 "정확히 어느 단계에서 collapse가 시작됐는가"는 아직 `Google-Robot post-train checkpoint` vs `policy fine-tuning stack` 사이에서 완전히 분리되지 않음
 
 ### 반문 4 — "BBox가 성공한 게 아니라 task simplification일 뿐"
 
@@ -262,7 +277,8 @@ Pure Kosmos-2의 Top-5 position에는 **text positions가 섞여 있다** (예: 
 | 레이어 구조 원인 (image 91%, text 0.000%) | ★★★★★ | attention weight 실측 완료 (Exp11/Exp13) |
 | 학습이 text 경로를 죽인다 (before/after) | ★★★★★ | Pure Kosmos text 22.7% → 학습 후 0% 소멸 |
 | 파이프라인 shortcut이 원인 | ★★★ | V4 정성 증거 + V5 instruction 생성 로직 |
-| 3 세팅 모두 실패 | ★★ | controlled ablation 부재 |
+| LoRA는 collapse의 필요조건이 아님 | ★★★★ | Exp15 head-only도 text 0.000% |
+| 3 세팅 모두 실패 | ★★★ | Pure HF만 text alive, Google-Robot 계열 head-only/LoRA/instr_proj 모두 text 0.000% |
 
 ---
 
@@ -272,7 +288,7 @@ Pure Kosmos-2의 Top-5 position에는 **text positions가 섞여 있다** (예: 
 - [ ] **Oracle test (Exp12) 재현** — GT instruction 주입, LEFT% 정량 수치 확보
 - [x] ~~**Attention weight 측정**~~ — **완료 (2026-04-18)**: image 91%, text `0.000%`, 3 instruction 동일 (`attention_analysis/summary.json`)
 - [x] ~~**Same-subset에서 Step 2 220-epoch 재학습**~~ — **완료 (2026-04-17)**: `Step 2 50% = Exp11 50%` 동률
-- [ ] **3-way controlled ablation** — 동일 데이터/config에서 LoRA-only / head-only / both 학습
+- [ ] **3-way controlled ablation 마무리** — 동일 데이터/config에서 pure-backbone 기준 LoRA-only / head-only / both 완전 통제 비교
 - [ ] **1-step TF vs N-step free-running PM gap** 측정 — exposure bias 기여도 정량화
 
 ---
@@ -283,6 +299,10 @@ Pure Kosmos-2의 Top-5 position에는 **text positions가 섞여 있다** (예: 
   - Correlational: Exp07/11/13 출력 레벨 L2 = 0
   - Causal (layer-level): self-attention 레벨에서 text region `0.000%`
   - Causal (before/after): Pure Kosmos-2에선 `22.7%` → 학습 후 `0%` **소멸**
+- 추가 결론 (2026-04-21):
+  - **LoRA는 collapse의 필요조건이 아니다.**
+  - fully frozen VLM + action head만 학습한 Exp15에서도 text attention은 전 layer `0.000%`였다.
+  - 따라서 현재 root-cause 후보는 "LoRA가 text path를 깨뜨린다"보다 **Google-Robot 기반 policy track 전체가 이미 image-dominant한 상태**에 가깝다.
 - 교수님이 제시한 "레이어 구조 vs 학습 파이프라인" 중 **둘이 연결됨**: 학습 파이프라인(shortcut learning)이 Transformer의 self-attention 구조를 변형하여 **text path를 원천 차단**. "레이어 구조 원인"과 "학습 파이프라인 원인"은 별개가 아닌 **학습이 구조를 파괴한 결과**.
 - Cross-attention이 없는 구조 + self-attention이 text를 버림 → **우회 통로 부재**. Exp13의 `instr_proj` 후단 주입도 LM 단계의 soul collapse를 복원하지 못함.
 - BBox decomposition(Exp14)의 성공은 "text conditioning을 고쳤다"가 아니라 **"text 경로 자체를 제거했다"**에 가까움.

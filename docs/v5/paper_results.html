@@ -194,6 +194,10 @@ Exp18 & End-to-end VLM + text fusion & 27.62 & 11.1 & Lower val loss, but rollou
 \end{tabular}
 \end{table}</code></pre>
 
+        <div class="notification is-warning is-light mt-4">
+          <strong>Root-cause update.</strong> Pure HF Kosmos-2 keeps about <strong>22.6\%</strong> text attention, while Google-Robot policy variants including <strong>head-only Exp15</strong> collapse to <strong>0.000\%</strong>. This means LoRA is not a necessary condition for the observed text-path collapse.
+        </div>
+
         <pre><code>\begin{table}[t]
 \centering
 \caption{Representative design differences of the main V5 experiments. Only settings directly supported by configs/docs are reported.}
