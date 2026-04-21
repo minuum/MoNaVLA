@@ -91,8 +91,8 @@
           </div>
           <div class="summary-card">
             <div class="eyebrow">Exp18 Status</div>
-            <div class="metric">Training Finished</div>
-            <div class="detail">Best validation loss 1.325. PM and closed-loop evaluation are still pending.</div>
+            <div class="metric">Gate Failed</div>
+            <div class="detail">Best val loss 1.325, but PM 27.62% and closed-loop 11.1%.</div>
           </div>
           <div class="summary-card">
             <div class="eyebrow">Current Conclusion</div>
@@ -165,9 +165,9 @@
               <tr>
                 <td>Exp18</td>
                 <td>End-to-end VLM + text fusion</td>
-                <td>Pending</td>
-                <td>Pending</td>
-                <td>Training finished; evaluation pending.</td>
+                <td>27.62</td>
+                <td>11.1</td>
+                <td>Lower val loss did not translate to rollout improvement.</td>
               </tr>
             </tbody>
           </table>
@@ -189,7 +189,7 @@ Exp11 & End-to-end VLM & 58.6 & 0.0 & Current policy baseline, rollout failure \
 Exp14 Step1 & Decomposition & 68.4 & N/A & BBox history alone outperforms Exp11 in PM \\
 Exp14 Step2 & Decomposition & 75.9 & 66.7 & Strongest practical baseline \\
 Exp17 & End-to-end VLM & 76.95 & 11.1 & PM improved, but rollout still failed \\
-Exp18 & End-to-end VLM + text fusion & pending & pending & Training finished, evaluation pending \\
+Exp18 & End-to-end VLM + text fusion & 27.62 & 11.1 & Lower val loss, but rollout still failed \\
 \bottomrule
 \end{tabular}
 \end{table}</code></pre>
@@ -205,7 +205,7 @@ Exp11 & Google-Robot pretrained Kosmos-2 & Yes & Raw instruction tokens & Curren
 Exp14 Step2 & BBox history + 16x16 image MLP & No & None (explicitly bypassed) & Strongest practical baseline \\
 Exp15 & Frozen Google-Robot VLM + action head & No & Frozen text path & Head-only control ablation \\
 Exp17 & Exp11 line + balanced 33/33/34 sampling & Yes & Raw instruction tokens & Professor Step-3 test \\
-Exp18 & Google-Robot Kosmos-2 + text embedding fusion & Yes & Raw text + frozen text embedding & Evaluation pending \\
+Exp18 & Google-Robot Kosmos-2 + text embedding fusion & Yes & Raw text + frozen text embedding & Gate evaluation failed \\
 \bottomrule
 \end{tabular}
 \end{table}</code></pre>
@@ -262,11 +262,11 @@ Use goal\_near\_v0 as hard stop rule now? & No \\
 
 This gap indicates that frame-level action matching is not sufficient for model selection in mobile navigation. The result is consistent with the root-cause analyses: the current end-to-end policy remains heavily image-dominant, while the text pathway often collapses during fine-tuning. In parallel, the V5 dataset analysis shows that STOP is not directly supervised in the raw action distribution, which suggests that late-phase stopping behavior is better treated as a proxy-signal problem than as a naturally emergent property of the current end-to-end objective.
 
-Accordingly, our current research direction keeps Exp14 Step2 as the mainline baseline, while Exp18 is treated as a gate evaluation branch. Exp18 has finished training with a best validation loss of 1.325, but PM and closed-loop evaluation are still pending. Until a single-stage policy exceeds the 66.7\% closed-loop result of Exp14 Step2, decomposition remains the most defensible practical approach.</code></pre>
+Accordingly, our current research direction keeps Exp14 Step2 as the mainline baseline, while Exp18 is now treated as a failed gate branch. Although Exp18 reached a best validation loss of 1.325, its PM was only 27.62\% and its closed-loop success remained 11.1\%. Until a single-stage policy exceeds the 66.7\% closed-loop result of Exp14 Step2, decomposition remains the most defensible practical approach.</code></pre>
       </div>
 
       <div class="callout">
-        <strong>Current paper-safe takeaway:</strong> on V5, decomposition is still the strongest public result, and Exp18 should be reported as <em>training finished, evaluation pending</em> until PM and closed-loop numbers are verified.
+        <strong>Current paper-safe takeaway:</strong> on V5, decomposition is still the strongest public result, and Exp18 should now be reported as <em>training finished, evaluation failed</em>.
       </div>
     </div>
   </section>

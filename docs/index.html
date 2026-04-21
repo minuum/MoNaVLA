@@ -239,9 +239,9 @@
               </a>
             </span>
             <span class="link-block">
-              <a href="reports/viewer.html?file=v5/STATUS_20260421_EXP17.md" class="button is-primary is-rounded">
+              <a href="reports/viewer.html?file=v5/STATUS_20260421_EXP18.md" class="button is-primary is-rounded">
                 <span class="icon"><i class="fas fa-clock"></i></span>
-                <span>Exp17 Status</span>
+                <span>Exp18 Gate Result</span>
               </a>
             </span>
             <span class="link-block">
@@ -289,18 +289,18 @@
             </div>
             <div class="status-card">
               <div class="eyebrow">Best End-to-End Checked</div>
-              <div class="metric">Exp11<br>PM 58.6%</div>
-              <div class="detail">Still the strongest checked single-stage policy, but closed-loop remains 0%.</div>
+              <div class="metric">Exp17<br>PM 76.95%</div>
+              <div class="detail">Highest checked PM among end-to-end runs, but closed-loop stayed at 11.1%.</div>
             </div>
             <div class="status-card">
               <div class="eyebrow">Latest End-to-End Track</div>
-              <div class="metric">Exp17<br>Trained, Eval Pending</div>
-              <div class="detail">Professor Protocol Step 3 run finished with early stopping. Best validation checkpoint: epoch 03 / val_loss 2.270.</div>
+              <div class="metric">Exp18<br>Gate Failed</div>
+              <div class="detail">Text-fusion run finished with best val_loss 1.325, but PM was 27.62% and closed-loop stayed at 11.1%.</div>
             </div>
             <div class="status-card">
               <div class="eyebrow">Main Technical Reading</div>
-              <div class="metric">Image Wins,<br>Text Collapses</div>
-              <div class="detail">Public evidence currently points to image-dominant behavior and near-zero text attention in the latest policy track.</div>
+              <div class="metric">Loss Down,<br>Policy Fails</div>
+              <div class="detail">Exp18 strengthened the evidence that lower val loss still does not guarantee stable rollout behavior.</div>
             </div>
           </div>
         </div>
@@ -319,8 +319,8 @@
             <strong>MoNaVLA</strong>는 모바일 로봇 내비게이션을 위한 vision-language-action 연구 트랙입니다.
             현재 공개 결과 기준으로는, 거대한 end-to-end policy를 직접 학습시키는 것보다
             <strong>grounding을 명시적으로 꺼내고 작은 action head로 연결하는 decomposition 접근</strong>이 더 안정적으로 작동합니다.
-            따라서 메인 baseline은 현재 <strong>Exp14 Step 2</strong>이며, 최신 end-to-end 균등비율 실험인 <strong>Exp17</strong>은
-            학습은 끝났지만 full evaluation은 아직 대기 상태입니다.
+            따라서 메인 baseline은 현재 <strong>Exp14 Step 2</strong>이며, 최신 gate 실험인 <strong>Exp18</strong>도
+            <strong>PM 27.62% / closed-loop 11.1%</strong>로 실패했습니다. 즉 현재 공개 기준에서는 decomposition 쪽 결론이 더 강해졌습니다.
           </p>
         </div>
       </div>
@@ -338,8 +338,8 @@
             <div class="reading-card">
               <span class="step">1. Current Status</span>
               <h3 class="title is-5">Start with the current snapshot</h3>
-              <p>Read the latest end-to-end status first. This tells you what is finished, what is pending, and why Exp17 is not yet ranked.</p>
-              <a href="reports/viewer.html?file=v5/STATUS_20260421_EXP17.md" class="button is-small is-link is-light mt-3">Open Exp17 Status</a>
+              <p>Read the latest gate result first. This tells you why Exp18 did not promote itself beyond a branch despite the improved validation loss.</p>
+              <a href="reports/viewer.html?file=v5/STATUS_20260421_EXP18.md" class="button is-small is-link is-light mt-3">Open Exp18 Status</a>
             </div>
             <div class="reading-card">
               <span class="step">2. Strongest Baseline</span>
@@ -356,7 +356,7 @@
             <div class="reading-card">
               <span class="step">4. Paper-Ready Summary</span>
               <h3 class="title is-5">Use a paper-safe result page</h3>
-              <p>Open the consolidated page for booktabs LaTeX tables, Korean captions, and the current Experimental Results draft. Exp18 is marked as training finished, evaluation pending.</p>
+              <p>Open the consolidated page for booktabs LaTeX tables, Korean captions, and the current Experimental Results draft. Exp18 is now marked as evaluation failed.</p>
               <a href="v5/paper_results.html" class="button is-small is-link is-light mt-3">Open Paper Results</a>
             </div>
           </div>
