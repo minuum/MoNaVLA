@@ -142,6 +142,20 @@ def load_exp11_model(config_path: str, ckpt_path: str):
 
     from robovlms.train.mobile_vla_trainer import MobileVLATrainer
     model_wrapper = MobileVLATrainer(configs)
+    train_ds_cfg = configs.get("train_dataset", {})
+    eval_image_size = int(configs.get("image_size", 224))
+    eval_resize_mode = train_ds_cfg.get("resize_mode", "direct")
+    eval_image_mean = configs.get("image_mean", [0.48145466, 0.4578275, 0.40821073])
+    eval_image_std = configs.get("image_std", [0.26862954, 0.26130258, 0.27577711])
+    model_wrapper._eval_image_size = eval_image_size
+    model_wrapper._eval_resize_mode = eval_resize_mode
+    model_wrapper._eval_image_mean = eval_image_mean
+    model_wrapper._eval_image_std = eval_image_std
+    if hasattr(model_wrapper, "model"):
+        model_wrapper.model._eval_image_size = eval_image_size
+        model_wrapper.model._eval_resize_mode = eval_resize_mode
+        model_wrapper.model._eval_image_mean = eval_image_mean
+        model_wrapper.model._eval_image_std = eval_image_std
 
     ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
     full_sd = ckpt.get("model_state_dict", ckpt.get("state_dict", {}))
@@ -154,12 +168,36 @@ def load_exp11_model(config_path: str, ckpt_path: str):
     return model_wrapper
 
 
+def preprocess_eval_frame(img, image_size, resize_mode, mean, std):
+    from PIL import Image
+    import torchvision.transforms as T
+
+    if resize_mode == "letterbox":
+        src_w, src_h = img.size
+        scale = min(image_size / src_w, image_size / src_h)
+        new_w = max(1, int(round(src_w * scale)))
+        new_h = max(1, int(round(src_h * scale)))
+        resized = img.resize((new_w, new_h), Image.BILINEAR)
+        canvas = Image.new("RGB", (image_size, image_size), (0, 0, 0))
+        off_x = (image_size - new_w) // 2
+        off_y = (image_size - new_h) // 2
+        canvas.paste(resized, (off_x, off_y))
+        img = canvas
+    else:
+        img = img.resize((image_size, image_size), Image.BILINEAR)
+
+    transform = T.Compose([
+        T.ToTensor(),
+        T.Normalize(mean=mean, std=std),
+    ])
+    return transform(img)
+
+
 def eval_exp11_episode(ep_path, model, processor, window_size=8, text_embedding_map=None):
     """Run policy model on every frame of one episode; return predicted class list.
     model = model_wrapper.model (RoboKosMos backbone), same as PM eval's forward_action call.
     """
     from PIL import Image
-    import torchvision.transforms as T
 
     with h5py.File(ep_path, "r") as f:
         if "observations" in f and "images" in f["observations"]:
@@ -168,13 +206,10 @@ def eval_exp11_episode(ep_path, model, processor, window_size=8, text_embedding_
             imgs = f["images"][:]
         expert_actions = f["actions"][:]
 
-    # Match dataset image normalization
-    transform = T.Compose([
-        T.Resize((224, 224)),
-        T.ToTensor(),
-        T.Normalize(mean=[0.48145466, 0.4578275, 0.40821073],
-                    std=[0.26862954, 0.26130258, 0.27577711]),
-    ])
+    image_size = int(getattr(model, "_eval_image_size", 224))
+    resize_mode = getattr(model, "_eval_resize_mode", "direct")
+    image_mean = getattr(model, "_eval_image_mean", [0.48145466, 0.4578275, 0.40821073])
+    image_std = getattr(model, "_eval_image_std", [0.26862954, 0.26130258, 0.27577711])
 
     instr = "<grounding>Navigate toward the gray basket"
     lang_tokens = processor.tokenizer(
@@ -196,7 +231,7 @@ def eval_exp11_episode(ep_path, model, processor, window_size=8, text_embedding_
         for k in range(window_size):
             idx = max(0, t - (window_size - 1 - k))
             img = Image.fromarray(imgs[idx].astype(np.uint8)).convert("RGB")
-            window_imgs.append(transform(img))
+            window_imgs.append(preprocess_eval_frame(img, image_size, resize_mode, image_mean, image_std))
         vision_x = torch.stack(window_imgs).unsqueeze(0).half().cuda()  # (1, ws, 3, H, W)
 
         out = model.forward_action(

@@ -1,0 +1,12 @@
+{
+    "_comment": "V5 Exp25: Exp17 balanced all-path setup + objective shaping from Exp24. Keep the strongest end-to-end data regime, then add label smoothing and class-prior regularization to reduce attractor collapse without changing the backbone path.",
+    "parent": "configs/mobile_vla_v5_exp17_step3_balanced.json",
+    "exp_name": "v5-exp25-step3-balanced-objective",
+    "task_name": "mobile_vla_v5_exp25",
+
+    "act_head": {
+        "label_smoothing": 0.05,
+        "prior_reg_weight": 0.2,
+        "target_class_prior": [0.0, 0.7444783, 0.0228484, 0.0175171, 0.0971059, 0.1028180, 0.0076161, 0.0076161]
+    }
+}

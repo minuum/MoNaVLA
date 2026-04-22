@@ -225,9 +225,19 @@ Pure Kosmos-2의 Top-5 position에는 **text positions가 섞여 있다** (예: 
   - Config상 `freeze_backbone=true`, `lora_enable=false`, `train_text_embedding=false`
   - 그런데도 **last-layer image `94.2%` / text `0.000%`**, mean-over-layers image `66.4%` / text `0.000%`
   - 즉 **LoRA는 collapse의 필요조건이 아님**. 최소한 Google-Robot 기반 policy stack에서는, backbone을 얼린 head-only 세팅만으로도 text path는 이미 죽어 있다.
+- **Exp21 pure-HF head-only 보강 (2026-04-22)**:
+  - Raw HF backbone + head-only control에서도 attention probe 기준 **last-layer image `97.7%` / text `0.000%`**
+  - 하지만 single-frame text swap test에서는 `L2(left,right)=0.9758`로 action 출력이 갈라짐
+  - 반면 dataset-level PM은 `0.00% (0/100)`이고, `FORWARD/LEFT/RIGHT -> FWD+R` 전역 collapse 발생
+  - 즉 **attention 0% = 곧바로 "행동 레벨 완전 무반응"** 은 아니다.
+  - 더 정확한 해석은: 현재 policy stack에서는
+    - Google-Robot 계열: text-insensitive collapse
+    - Pure-HF head-only: local sensitivity는 있으나 sequence policy가 전역 collapse
+    로 failure mode가 다를 수 있다.
 - **잔여 약점**:
   - Oracle test(Exp12) 정량 수치 미확보
   - Exp13의 `forward_2` 샘플만 약한 action 차이 → instr_proj이 아주 미세한 기여 (left/right 구별은 여전히 0)
+  - Exp21이 "attention 0 but single-frame sensitivity exists"를 보여서, attention probe만으로 conditioning failure 전체를 설명하긴 부족함
   - Attention 소멸의 **메커니즘** (Google-Robot post-train checkpoint 자체? action objective? mm_projector/adapter stack?) 은 아직 미규명
 
 ### 반문 3 — "3-way ablation이 실제로 실행되지 않았다"
@@ -241,6 +251,7 @@ Pure Kosmos-2의 Top-5 position에는 **text positions가 섞여 있다** (예: 
   - `Google-Robot + head-only (Exp15)`: text `0.000%`
   - `Google-Robot + LoRA (Exp11)`: text `0.000%`
   - `Google-Robot + LoRA + instr_proj (Exp13)`: text `0.000%`
+  - `Pure HF + head-only (Exp21)`: text `0.000%`, but single-frame `L2(left,right)=0.9758`, PM `0.0%`
   - 즉 **collapse는 LoRA 유무와 무관하게 Google-Robot policy track 전체에서 관측**됨.
 - **잔여 약점**:
   - pure backbone 위에 truly controlled LoRA-only / both를 동일 split에서 다시 학습한 표는 아직 없음
@@ -278,6 +289,7 @@ Pure Kosmos-2의 Top-5 position에는 **text positions가 섞여 있다** (예: 
 | 학습이 text 경로를 죽인다 (before/after) | ★★★★★ | Pure Kosmos text 22.7% → 학습 후 0% 소멸 |
 | 파이프라인 shortcut이 원인 | ★★★ | V4 정성 증거 + V5 instruction 생성 로직 |
 | LoRA는 collapse의 필요조건이 아님 | ★★★★ | Exp15 head-only도 text 0.000% |
+| Attention 0%가 곧 행동 완전 무반응을 뜻하진 않음 | ★★★ | Exp21: text 0.000%, but single-frame L/R diff 0.9758 |
 | 3 세팅 모두 실패 | ★★★ | Pure HF만 text alive, Google-Robot 계열 head-only/LoRA/instr_proj 모두 text 0.000% |
 
 ---
@@ -288,6 +300,7 @@ Pure Kosmos-2의 Top-5 position에는 **text positions가 섞여 있다** (예: 
 - [ ] **Oracle test (Exp12) 재현** — GT instruction 주입, LEFT% 정량 수치 확보
 - [x] ~~**Attention weight 측정**~~ — **완료 (2026-04-18)**: image 91%, text `0.000%`, 3 instruction 동일 (`attention_analysis/summary.json`)
 - [x] ~~**Same-subset에서 Step 2 220-epoch 재학습**~~ — **완료 (2026-04-17)**: `Step 2 50% = Exp11 50%` 동률
+- [x] ~~**Exp21 pure-HF head-only 실행**~~ — **완료 (2026-04-22)**: attention `0.000%`, single-frame L/R diff `0.9758`, PM `0.0%`
 - [ ] **3-way controlled ablation 마무리** — 동일 데이터/config에서 pure-backbone 기준 LoRA-only / head-only / both 완전 통제 비교
 - [ ] **1-step TF vs N-step free-running PM gap** 측정 — exposure bias 기여도 정량화
 
@@ -303,6 +316,22 @@ Pure Kosmos-2의 Top-5 position에는 **text positions가 섞여 있다** (예: 
   - **LoRA는 collapse의 필요조건이 아니다.**
   - fully frozen VLM + action head만 학습한 Exp15에서도 text attention은 전 layer `0.000%`였다.
   - 따라서 현재 root-cause 후보는 "LoRA가 text path를 깨뜨린다"보다 **Google-Robot 기반 policy track 전체가 이미 image-dominant한 상태**에 가깝다.
+- 추가 결론 (2026-04-22):
+  - `Pure HF + head-only (Exp21)`도 attention probe 기준으로는 text `0.000%`였다.
+  - 그러나 single-frame instruction swap에는 반응이 남아 있었고, 대신 dataset-level policy는 `FWD+R` collapse로 무너졌다.
+  - 따라서 현재 문제는 단일 원인 하나라기보다
+    - `text-insensitive collapse`
+    - `policy-level global action collapse`
+    두 failure mode가 겹쳐 있을 가능성이 높다.
+  - Shared-split degradation 분석에서도 이 차이가 보인다:
+    - `Exp11`: frame_acc `28.2%`, prefix@5 success `22.2%`, prefix@10부터 `0%`
+    - `Exp21`: frame_acc `10.4%`, prefix@5 success `33.3%`, prefix@10 `22.2%`, prefix@15부터 `0%`
+  - 즉 `Exp21`은 one-step accuracy는 더 낮지만 아주 짧은 horizon에서는 더 오래 버티고, 대신 긴 horizon에서 더 크게 드리프트한다.
+  - transition attractor도 다르다:
+    - `Exp11`: `RIGHT -> RIGHT`가 최다 (`70`)
+    - `Exp21`: `FWD+L -> FWD+L`가 압도적 (`141`)
+  - 따라서 현재 policy failure는 단순 "text를 안 읽는다" 하나로 끝나지 않고,
+    **모델마다 다른 action-attractor collapse**로 나타난다.
 - 교수님이 제시한 "레이어 구조 vs 학습 파이프라인" 중 **둘이 연결됨**: 학습 파이프라인(shortcut learning)이 Transformer의 self-attention 구조를 변형하여 **text path를 원천 차단**. "레이어 구조 원인"과 "학습 파이프라인 원인"은 별개가 아닌 **학습이 구조를 파괴한 결과**.
 - Cross-attention이 없는 구조 + self-attention이 text를 버림 → **우회 통로 부재**. Exp13의 `instr_proj` 후단 주입도 LM 단계의 soul collapse를 복원하지 못함.
 - BBox decomposition(Exp14)의 성공은 "text conditioning을 고쳤다"가 아니라 **"text 경로 자체를 제거했다"**에 가까움.

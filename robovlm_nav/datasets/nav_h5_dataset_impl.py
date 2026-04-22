@@ -73,6 +73,8 @@ class MobileVLAH5Dataset(Dataset):
         augment=False,
         use_color_jitter=False,
         use_random_crop=False,
+        resize_mode="direct",
+        letterbox_fill=0,
         curvature_only=False,
         counterfactual_stop_prob=0.0,
         counterfactual_steer_prob=0.0,
@@ -92,6 +94,8 @@ class MobileVLAH5Dataset(Dataset):
         self.augment = augment
         self.use_color_jitter = use_color_jitter
         self.use_random_crop = use_random_crop
+        self.resize_mode = resize_mode
+        self.letterbox_fill = int(letterbox_fill)
         self.curvature_only = curvature_only
         # [Counterfactual] 학습 중 이 확률로 명령어 + 대응 액션으로 오버라이드
         self._counterfactual_stop_prob = counterfactual_stop_prob
@@ -257,6 +261,24 @@ class MobileVLAH5Dataset(Dataset):
         if self.use_random_crop:
             self.random_crop = T.RandomResizedCrop(self.image_size, scale=(0.8, 1.0))
 
+    def _resize_image(self, img):
+        if self.use_random_crop:
+            return self.random_crop(img)
+
+        if self.resize_mode == "letterbox":
+            src_w, src_h = img.size
+            scale = min(self.image_size / src_w, self.image_size / src_h)
+            new_w = max(1, int(round(src_w * scale)))
+            new_h = max(1, int(round(src_h * scale)))
+            resized = img.resize((new_w, new_h), Image.BILINEAR)
+            canvas = Image.new("RGB", (self.image_size, self.image_size), (self.letterbox_fill,) * 3)
+            off_x = (self.image_size - new_w) // 2
+            off_y = (self.image_size - new_h) // 2
+            canvas.paste(resized, (off_x, off_y))
+            return canvas
+
+        return img.resize((self.image_size, self.image_size), Image.BILINEAR)
+
     def __len__(self):
         return len(self.frame_indices)
 
@@ -406,11 +428,7 @@ class MobileVLAH5Dataset(Dataset):
                 if self.use_color_jitter:
                     img = self.color_jitter(img)
                 
-                # [V3] Random Crop
-                if self.use_random_crop:
-                    img = self.random_crop(img)
-                else:
-                    img = img.resize((self.image_size, self.image_size), Image.BILINEAR)
+                img = self._resize_image(img)
                 
                 img_tensor = torch.from_numpy(np.array(img)).float() / 255.0
                 img_tensor = img_tensor.permute(2, 0, 1)

@@ -89,7 +89,7 @@ MODELS = {
         "num_classes": 8,
     },
     "exp21_pure_hf_head_only": {
-        "exp_dir": "runs/v5_nav/kosmos/mobile_vla_v5_exp21",
+        "ckpt": "/tmp/monavla_resume_runs/kosmos/mobile_vla_v5_exp21/2026-04-21/v5-exp21-pure-hf-head-only/epoch_epoch=epoch=14-val_loss=val_loss=2.009.ckpt",
         "config": "configs/mobile_vla_v5_exp21_pure_hf_head_only.json",
         "window_size": 8,
         "fwd_pred_next_n": 5,

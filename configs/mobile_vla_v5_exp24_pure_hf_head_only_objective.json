@@ -1,0 +1,13 @@
+{
+    "_comment": "V5 Exp24: Pure HF head-only with anti-attractor objective. Same backbone/control as Exp21, but add label smoothing + class-prior regularization and rebalance class weights away from FWD+L collapse.",
+    "parent": "configs/mobile_vla_v5_exp21_pure_hf_head_only.json",
+    "exp_name": "v5-exp24-pure-hf-head-only-objective",
+    "task_name": "mobile_vla_v5_exp24",
+
+    "act_head": {
+        "class_weights": [1.0, 1.0, 12.0, 16.0, 2.0, 6.0, 40.0, 40.0],
+        "label_smoothing": 0.05,
+        "prior_reg_weight": 0.2,
+        "target_class_prior": [0.0, 0.7444783, 0.0228484, 0.0175171, 0.0971059, 0.1028180, 0.0076161, 0.0076161]
+    }
+}
