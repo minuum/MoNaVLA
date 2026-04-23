@@ -70,6 +70,7 @@ class MobileVLALSTMDecoder(BasePolicyHead):
     def reset(self):
         self.hidden_state = None
         self.history_memory = []
+        self.last_hidden_states = None
 
     def forward(self, tok_seq, h_0=None, **kwargs):
         """
@@ -326,6 +327,7 @@ class MobileVLAClassificationDecoder(BasePolicyHead):
     def reset(self):
         self.hidden_state = None
         self.history_memory = []
+        self.last_hidden_states = None
 
     def forward(self, tok_seq, h_0=None, **kwargs):
         # 강제로 그래디언트 계산 활성화
@@ -371,6 +373,8 @@ class MobileVLAClassificationDecoder(BasePolicyHead):
                 tok_seq = tok_seq.to(next(self.rnn.parameters()).dtype)
             x, h_n = self.rnn(tok_seq, self.hidden_state)
             self.hidden_state = h_n
+
+        self.last_hidden_states = x
 
         # 클래스별 Logits 출력
         logits = self.logits(x)

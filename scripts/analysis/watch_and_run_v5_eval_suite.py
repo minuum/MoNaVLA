@@ -31,6 +31,9 @@ MODEL_CONFIGS = {
     "exp18": "configs/mobile_vla_v5_exp18_vla_finetuned.json",
     "exp21": "configs/mobile_vla_v5_exp21_pure_hf_head_only.json",
     "exp24": "configs/mobile_vla_v5_exp24_pure_hf_head_only_objective.json",
+    "exp25": "configs/mobile_vla_v5_exp25_step3_balanced_objective.json",
+    "exp26": "configs/mobile_vla_v5_exp26_step3_objective_direct224.json",
+    "exp27": "configs/mobile_vla_v5_exp27_step3_objective_letterbox224.json",
 }
 
 MODEL_CKPT_GLOBS = {
@@ -39,6 +42,9 @@ MODEL_CKPT_GLOBS = {
     "exp18": [ROOT / "runs/v5_nav/kosmos/mobile_vla_v5_exp18"],
     "exp21": [Path("/tmp/monavla_resume_runs/kosmos/mobile_vla_v5_exp21")],
     "exp24": [Path("/tmp/monavla_resume_runs/kosmos/mobile_vla_v5_exp24")],
+    "exp25": [ROOT / "runs/v5_nav/kosmos/mobile_vla_v5_exp25"],
+    "exp26": [ROOT / "runs/v5_nav/kosmos/mobile_vla_v5_exp26"],
+    "exp27": [ROOT / "runs/v5_nav/kosmos/mobile_vla_v5_exp27"],
 }
 
 
@@ -92,7 +98,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--models",
-        default="exp24,exp21,exp18,exp17,exp11",
+        default="exp27,exp26,exp25,exp24,exp21,exp18,exp17,exp11",
         help="Comma-separated reserved model keys",
     )
     parser.add_argument("--poll_sec", type=float, default=20.0)

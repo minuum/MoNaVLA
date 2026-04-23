@@ -174,7 +174,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--models",
-        default="exp11,exp17,exp18,exp21",
+        default="exp11,exp17,exp18,exp21,exp24,exp25,exp26,exp27",
         help="Comma-separated model keys supported by evaluate_rollout_degradation_v5.py",
     )
     parser.add_argument("--prefix_horizon", type=int, default=5)

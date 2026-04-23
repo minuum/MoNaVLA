@@ -1,0 +1,48 @@
+{
+    "_comment": "V5 Exp28: Exp25 objective baseline + frame-level grounding aux from bbox_truth_mini + hard turning-family oversampling. Intended to preserve Exp25 rollout stability while improving early left/right commitment.",
+    "parent": "configs/mobile_vla_v5_exp25_step3_balanced_objective.json",
+    "exp_name": "v5-exp28-step3-objective-grounding-turnboost",
+    "task_name": "mobile_vla_v5_exp28",
+
+    "act_head": {
+        "class_weights": [1.0, 0.25, 12.0, 12.0, 6.0, 6.0, 60.0, 60.0]
+    },
+
+    "grounding_aux": {
+        "enabled": true,
+        "truth_path": "/home/billy/25-1kp/MoNaVLA/docs/v5/bbox_truth_mini.json",
+        "partial_weight": 0.5,
+        "lambda_bbox": 0.05,
+        "lambda_coarse": 0.10,
+        "bbox_loss": "smooth_l1",
+        "dropout": 0.1
+    },
+
+    "train_dataset": {
+        "path_type_weights": null,
+        "path_family_weights": {
+            "center_straight": 0.07,
+            "center_left": 0.10,
+            "center_right": 0.10,
+            "left_straight": 0.07,
+            "left_left": 0.17,
+            "left_right": 0.16,
+            "right_straight": 0.07,
+            "right_left": 0.13,
+            "right_right": 0.13
+        },
+        "grounding_aux": {
+            "enabled": true,
+            "truth_path": "/home/billy/25-1kp/MoNaVLA/docs/v5/bbox_truth_mini.json",
+            "partial_weight": 0.5
+        }
+    },
+
+    "val_dataset": {
+        "grounding_aux": {
+            "enabled": true,
+            "truth_path": "/home/billy/25-1kp/MoNaVLA/docs/v5/bbox_truth_mini.json",
+            "partial_weight": 0.5
+        }
+    }
+}

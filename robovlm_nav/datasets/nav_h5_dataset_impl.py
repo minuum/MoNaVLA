@@ -11,6 +11,11 @@ import random
 import json
 
 class MobileVLAH5Dataset(Dataset):
+    COARSE_LABELS = {
+        "left": 0,
+        "center": 1,
+        "right": 2,
+    }
 
     PATH_TYPE_INSTRUCTIONS = {
         "left": [
@@ -108,7 +113,9 @@ class MobileVLAH5Dataset(Dataset):
         self.use_bbox_target = use_bbox_target
         # [BugFix/Track1] instruction_override 명시적 저장 및 반영
         self.instruction_override = kwargs.get('instruction_override', None)
-        
+        self.grounding_aux_config = kwargs.get("grounding_aux", None) or {}
+        self.path_family_weights = kwargs.get("path_family_weights", None)
+
         # [NEW] Handle is_training from GRDataModule/third_party
         if 'is_training' in kwargs:
             is_validation = not kwargs['is_training']
@@ -138,7 +145,33 @@ class MobileVLAH5Dataset(Dataset):
 
         # path_type_weights를 사용해서 각 그룹별 에피소드 비율 조정 (Step 3: 33/33/33)
         path_type_weights = kwargs.get('path_type_weights', None)
-        if path_type_weights:
+        if self.path_family_weights:
+            from collections import defaultdict
+
+            groups = defaultdict(list)
+            for f in self.episode_files:
+                groups[self._extract_path_family(f.stem)].append(f)
+
+            total_episodes = len(self.episode_files)
+            resampled_files = []
+
+            for key in sorted(groups.keys()):
+                weight = float(self.path_family_weights.get(key, 0.0))
+                target_count = int(round(total_episodes * weight))
+                group_files = groups[key]
+
+                if target_count > 0 and len(group_files) > 0:
+                    if len(group_files) >= target_count:
+                        sampled = random.sample(group_files, target_count)
+                    else:
+                        sampled = [random.choice(group_files) for _ in range(target_count)]
+                    resampled_files.extend(sampled)
+
+            if resampled_files:
+                self.episode_files = resampled_files
+                random.shuffle(self.episode_files)
+
+        elif path_type_weights:
             from collections import defaultdict
 
             # 그룹화
@@ -255,11 +288,67 @@ class MobileVLAH5Dataset(Dataset):
         else:
             self.text_embeddings = {}
 
+        self.grounding_aux_index = self._load_grounding_aux_index()
+
         # Transforms
         if self.use_color_jitter:
             self.color_jitter = T.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.4, hue=0.1)
         if self.use_random_crop:
             self.random_crop = T.RandomResizedCrop(self.image_size, scale=(0.8, 1.0))
+
+    @staticmethod
+    def _extract_path_family(stem):
+        marker = "_target_"
+        suffix = "_path"
+        if marker in stem and suffix in stem:
+            return stem.split(marker, 1)[1].split(suffix, 1)[0]
+        return "other"
+
+    def _load_grounding_aux_index(self):
+        if not self.grounding_aux_config.get("enabled", False):
+            return {}
+
+        truth_path = self.grounding_aux_config.get(
+            "truth_path",
+            str(Path(self.data_dir).parent.parent / "docs" / "v5" / "bbox_truth_mini.json"),
+        )
+        truth_path = Path(truth_path)
+        if not truth_path.exists():
+            print(f"⚠️ [NavH5Dataset] grounding_aux enabled but truth file missing: {truth_path}")
+            return {}
+
+        payload = json.loads(truth_path.read_text())
+        annotations = payload["annotations"] if isinstance(payload, dict) else payload
+        index = {}
+
+        for ann in annotations:
+            if ann.get("review_status") not in {"complete", "verified", "done"}:
+                continue
+
+            episode = ann.get("episode")
+            frame_idx = ann.get("frame_idx")
+            bbox = ann.get("bbox_xyxy_norm")
+            coarse = ann.get("coarse_position")
+            visible_flag = ann.get("target_visible")
+
+            if episode is None or frame_idx is None or bbox is None or coarse not in self.COARSE_LABELS:
+                continue
+
+            if visible_flag is True:
+                aux_weight = 1.0
+            elif visible_flag == "partial":
+                aux_weight = float(self.grounding_aux_config.get("partial_weight", 0.5))
+            else:
+                continue
+
+            index[(episode, int(frame_idx))] = {
+                "bbox_xyxy_norm": np.asarray(bbox, dtype=np.float32),
+                "coarse_label": int(self.COARSE_LABELS[coarse]),
+                "aux_weight": float(aux_weight),
+            }
+
+        print(f"[NavH5Dataset] Loaded grounding aux annotations: {len(index)} frames from {truth_path}")
+        return index
 
     def _resize_image(self, img):
         if self.use_random_crop:
@@ -708,6 +797,8 @@ class MobileVLAH5Dataset(Dataset):
             action_chunck = torch.stack(action_chunks).reshape(self.window_size, self.fwd_pred_next_n, actions_tensor_full.shape[-1])
             actions_tensor = actions_tensor_full # (window_size + next_n - 1, dims)
         
+        ep_stem = self.episode_files[ep_idx].stem
+
         data_dict = {
             'rgb': images_tensor,
             'hand_rgb': torch.zeros_like(images_tensor),
@@ -720,6 +811,29 @@ class MobileVLAH5Dataset(Dataset):
             'data_source': 'mobile_vla_action',
             'attention_mask': torch.ones(self.window_size),
         }
+
+        grounding_bbox = torch.zeros(self.window_size, 4, dtype=torch.float32)
+        grounding_bbox_mask = torch.zeros(self.window_size, dtype=torch.bool)
+        grounding_bbox_weight = torch.zeros(self.window_size, dtype=torch.float32)
+        grounding_coarse_label = torch.full((self.window_size,), -100, dtype=torch.long)
+        grounding_coarse_mask = torch.zeros(self.window_size, dtype=torch.bool)
+
+        if self.grounding_aux_index:
+            for rel_t in range(self.window_size):
+                ann = self.grounding_aux_index.get((ep_stem, start_frame + rel_t))
+                if ann is None:
+                    continue
+                grounding_bbox[rel_t] = torch.from_numpy(ann["bbox_xyxy_norm"])
+                grounding_bbox_mask[rel_t] = True
+                grounding_bbox_weight[rel_t] = float(ann["aux_weight"])
+                grounding_coarse_label[rel_t] = int(ann["coarse_label"])
+                grounding_coarse_mask[rel_t] = True
+
+        data_dict["grounding_bbox"] = grounding_bbox
+        data_dict["grounding_bbox_mask"] = grounding_bbox_mask
+        data_dict["grounding_bbox_weight"] = grounding_bbox_weight
+        data_dict["grounding_coarse_label"] = grounding_coarse_label
+        data_dict["grounding_coarse_mask"] = grounding_coarse_mask
 
         # [CRITICAL] Tokenize the instruction
         if self.tokenizer is not None:
@@ -739,7 +853,6 @@ class MobileVLAH5Dataset(Dataset):
             data_dict['text_mask'] = torch.zeros(256, dtype=torch.long)
 
         # Add text embedding for Exp18
-        ep_stem = self.episode_files[ep_idx].stem
         if ep_stem in self.text_embeddings:
             data_dict['text_embedding'] = torch.from_numpy(self.text_embeddings[ep_stem])
         else:

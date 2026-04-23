@@ -73,6 +73,24 @@ MODEL_SPECS = {
         "exp_dir": Path("/tmp/monavla_resume_runs/kosmos/mobile_vla_v5_exp24"),
         "uses_text_embedding": False,
     },
+    "exp25": {
+        "label": "Exp25",
+        "config": ROOT / "configs/mobile_vla_v5_exp25_step3_balanced_objective.json",
+        "exp_dir": ROOT / "runs/v5_nav/kosmos/mobile_vla_v5_exp25",
+        "uses_text_embedding": False,
+    },
+    "exp26": {
+        "label": "Exp26",
+        "config": ROOT / "configs/mobile_vla_v5_exp26_step3_objective_direct224.json",
+        "exp_dir": ROOT / "runs/v5_nav/kosmos/mobile_vla_v5_exp26",
+        "uses_text_embedding": False,
+    },
+    "exp27": {
+        "label": "Exp27",
+        "config": ROOT / "configs/mobile_vla_v5_exp27_step3_objective_letterbox224.json",
+        "exp_dir": ROOT / "runs/v5_nav/kosmos/mobile_vla_v5_exp27",
+        "uses_text_embedding": False,
+    },
 }
 
 
@@ -362,7 +380,7 @@ def build_html(payload: Dict, horizons: List[int]) -> str:
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--models", default="exp11,exp21", help="Comma-separated model keys")
+    ap.add_argument("--models", default="exp11,exp17,exp18,exp21,exp24,exp25,exp26,exp27", help="Comma-separated model keys")
     ap.add_argument("--horizons", default="5,10,15", help="Comma-separated prefix lengths")
     ap.add_argument("--dt", type=float, default=0.1)
     ap.add_argument("--success_fpe", type=float, default=0.5)

@@ -10,6 +10,8 @@
 
 import os
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
 from robovlms.train.base_trainer import BaseTrainer
 
 class NavTrainer(BaseTrainer):
@@ -19,8 +21,48 @@ class NavTrainer(BaseTrainer):
     """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self._init_grounding_aux()
         # Upstream/Base 설정이 만든 trainable 상태를 그대로 유지하고 요약만 남긴다.
         self._log_trainable_params()
+
+    def _init_grounding_aux(self):
+        self.grounding_aux_config = self.configs.get("grounding_aux", {}) or {}
+        self.grounding_bbox_head = None
+        self.grounding_coarse_head = None
+        self.grounding_bbox_weight = float(self.grounding_aux_config.get("lambda_bbox", 0.0))
+        self.grounding_coarse_weight = float(self.grounding_aux_config.get("lambda_coarse", 0.0))
+        self.grounding_bbox_loss_type = str(self.grounding_aux_config.get("bbox_loss", "smooth_l1")).lower()
+
+        if not self.grounding_aux_config.get("enabled", False):
+            return
+
+        act_head = getattr(self.model, "act_head", None)
+        if act_head is None:
+            print("⚠️ [NavTrainer] grounding_aux enabled but act_head is missing.", flush=True)
+            return
+
+        hidden_size = int(getattr(act_head, "hidden_size", 1024)) * int(getattr(act_head, "latent", 1))
+        mlp_hidden = int(self.grounding_aux_config.get("mlp_hidden", max(hidden_size // 2, 128)))
+        dropout = float(self.grounding_aux_config.get("dropout", 0.1))
+
+        self.grounding_bbox_head = nn.Sequential(
+            nn.Linear(hidden_size, mlp_hidden),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(mlp_hidden, 4),
+            nn.Sigmoid(),
+        )
+        self.grounding_coarse_head = nn.Sequential(
+            nn.Linear(hidden_size, mlp_hidden),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(mlp_hidden, 3),
+        )
+        print(
+            f"✅ [NavTrainer] grounding_aux enabled: hidden={hidden_size}, "
+            f"lambda_bbox={self.grounding_bbox_weight}, lambda_coarse={self.grounding_coarse_weight}",
+            flush=True,
+        )
 
     @classmethod
     def from_checkpoint(cls, checkpoint_path, load_source="nav", variant=None):
@@ -144,7 +186,11 @@ class NavTrainer(BaseTrainer):
 
         # Loss 추출
         loss_dict = self._get_loss(prediction)
-        train_loss = loss_dict["loss"]
+        aux_loss_dict = self._compute_grounding_aux_loss(batch)
+        train_loss = loss_dict["loss"] + aux_loss_dict["loss_grounding_total"]
+        loss_dict.update(aux_loss_dict)
+        loss_dict["loss_base"] = loss_dict["loss"]
+        loss_dict["loss"] = train_loss
 
         # 로그 기록
         for k, v in loss_dict.items():
@@ -183,6 +229,10 @@ class NavTrainer(BaseTrainer):
                 data_source=processed_batch[18]
             )
             loss_dict = self._get_loss(prediction)
+            aux_loss_dict = self._compute_grounding_aux_loss(batch)
+            loss_dict.update(aux_loss_dict)
+            loss_dict["loss_base"] = loss_dict["loss"]
+            loss_dict["loss"] = loss_dict["loss"] + aux_loss_dict["loss_grounding_total"]
             
             for k, v in loss_dict.items():
                 if v is not None and isinstance(v, torch.Tensor):
@@ -247,4 +297,67 @@ class NavTrainer(BaseTrainer):
             "loss":         loss,
             "loss_arm_act": loss,
             "acc_arm_act":  acc,
+        }
+
+    def _compute_grounding_aux_loss(self, batch):
+        zero = None
+        act_head = getattr(self.model, "act_head", None)
+        hidden_states = getattr(act_head, "last_hidden_states", None) if act_head is not None else None
+
+        if hidden_states is None or self.grounding_bbox_head is None or self.grounding_coarse_head is None:
+            zero = torch.tensor(0.0, device=self.device)
+            return {
+                "loss_grounding_bbox": zero,
+                "loss_grounding_coarse": zero,
+                "loss_grounding_total": zero,
+            }
+
+        zero = hidden_states.sum() * 0.0
+        aux_hidden_dtype = next(self.grounding_bbox_head.parameters()).dtype
+        aux_hidden_states = hidden_states.to(aux_hidden_dtype)
+
+        bbox_targets = batch.get("grounding_bbox", None)
+        bbox_mask = batch.get("grounding_bbox_mask", None)
+        bbox_weight = batch.get("grounding_bbox_weight", None)
+        coarse_labels = batch.get("grounding_coarse_label", None)
+        coarse_mask = batch.get("grounding_coarse_mask", None)
+
+        loss_bbox = zero
+        loss_coarse = zero
+
+        if bbox_targets is not None and bbox_mask is not None and bbox_weight is not None and self.grounding_bbox_weight > 0.0:
+            bbox_targets = bbox_targets.to(self.device).to(aux_hidden_dtype)
+            bbox_mask = bbox_mask.to(self.device).bool()
+            bbox_weight = bbox_weight.to(self.device).to(aux_hidden_dtype)
+            pred_bbox = self.grounding_bbox_head(aux_hidden_states)
+
+            if bbox_mask.any():
+                if self.grounding_bbox_loss_type == "l1":
+                    bbox_loss = F.l1_loss(pred_bbox, bbox_targets, reduction="none")
+                else:
+                    bbox_loss = F.smooth_l1_loss(pred_bbox, bbox_targets, reduction="none")
+                bbox_loss = bbox_loss.mean(dim=-1)
+                weighted_bbox_loss = bbox_loss[bbox_mask] * bbox_weight[bbox_mask]
+                loss_bbox = weighted_bbox_loss.sum() / bbox_weight[bbox_mask].sum().clamp_min(1e-6)
+
+        if coarse_labels is not None and coarse_mask is not None and bbox_weight is not None and self.grounding_coarse_weight > 0.0:
+            coarse_labels = coarse_labels.to(self.device).long()
+            coarse_mask = coarse_mask.to(self.device).bool()
+            coarse_weights = bbox_weight.to(self.device).to(aux_hidden_dtype)
+            coarse_logits = self.grounding_coarse_head(aux_hidden_states)
+
+            if coarse_mask.any():
+                coarse_loss = F.cross_entropy(
+                    coarse_logits[coarse_mask],
+                    coarse_labels[coarse_mask],
+                    reduction="none",
+                )
+                weighted_coarse_loss = coarse_loss * coarse_weights[coarse_mask]
+                loss_coarse = weighted_coarse_loss.sum() / coarse_weights[coarse_mask].sum().clamp_min(1e-6)
+
+        total = self.grounding_bbox_weight * loss_bbox + self.grounding_coarse_weight * loss_coarse
+        return {
+            "loss_grounding_bbox": loss_bbox,
+            "loss_grounding_coarse": loss_coarse,
+            "loss_grounding_total": total,
         }
