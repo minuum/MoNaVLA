@@ -35,11 +35,19 @@
 
 ## 메모리 시스템 통합 조회
 
-**참조**: `.menemory/core/memory_systems_integration.md`
+**참조**:
+- `.menemory/core/memory_systems_integration.md`
+- `docs/MEMORY_SYNC_MAP.md`
+- `.agent/skills/memory-sync-hub/SKILL.md`
 
 세 개의 메모리 시스템 (Claude Code, Codex IDE, AntiGravity-Server)을 통합 관리하는 맵.
 - Claude memory: 프로젝트 격리, MEMORY.md 인덱스
 - Codex memory: 로컬 IDE, SQLite 로그, history
 - AntiGravity: 시스템 런타임, 서버 로그
 
-세션 시작 시 MEMORY.md → memory_systems_integration.md 순으로 읽기.
+세션 시작 시 `docs/AGENT_ENTRYPOINT.md` → `docs/MEMORY_SYNC_MAP.md` →
+`MEMORY.md` → `memory_systems_integration.md` 순으로 읽는다.
+
+주의:
+- Antigravity 복구 원문은 `~/.gemini/antigravity/brain/<uuid>/` 에 있다.
+- `conversations/*.pb` 는 인덱스일 뿐이다.

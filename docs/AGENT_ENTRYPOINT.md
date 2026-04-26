@@ -1,11 +1,22 @@
 # Agent Entrypoint
-작성일: 2026-04-16 / 마지막 업데이트: 2026-04-18
+작성일: 2026-04-16 / 마지막 업데이트: 2026-04-26
 
 ## 1. 목적
 
 새로 들어온 에이전트가 MoNaVLA 프로젝트를 빠르게 파악할 수 있도록 **읽기 순서**를 정의한다.
 
 ## 2. 가장 먼저 읽을 문서
+
+### Step 0. 공용 메모리 동기화 계약 (필수)
+- [MEMORY_SYNC_MAP.md](/home/billy/25-1kp/MoNaVLA/docs/MEMORY_SYNC_MAP.md:1) — Claude/Codex/Antigravity/Menemory 공용 조회 계약
+- `.agent/skills/memory-sync-hub/SKILL.md` — 어떤 에이전트든 세션 복구 시 따라야 할 스킬
+- `scripts/utils/collect_memory_context.sh` — 실제 경로와 접근 가능 상태를 한 번에 확인
+
+확인할 것:
+- 실제 Antigravity 복구 원본은 `~/.gemini/antigravity/brain/<uuid>/`
+- `.pb` 는 세션 인덱스일 뿐 본문 원천이 아님
+- Claude memory / Menemory / Codex / Antigravity에 무엇을 저장할지 구분
+- 문서가 낡았으면 Menemory 세션 + 현재 브랜치 상태를 함께 확인
 
 ### Step 1. 작업 규칙 + 현재 상태 (필수)
 - [CLAUDE.md](/home/billy/25-1kp/MoNaVLA/CLAUDE.md:1) — 행동 규칙 + **프로젝트 컨텍스트** (최신 실험 이력 포함)
@@ -22,7 +33,10 @@
 ### Step 3. 현재 진행 계획
 - [plan.md](/home/billy/25-1kp/MoNaVLA/plan.md:1) — 진행 중/완료 실험의 상세 계획
 
-## 3. 현재 상태 한 줄 요약 (2026-04-18)
+## 3. 현재 상태 한 줄 요약
+
+아래 표는 과거 스냅샷일 수 있다. 최신 상태가 필요하면 Menemory active session,
+현재 브랜치, `docs/v5/` 최신 보고서를 같이 확인한다.
 
 | 항목 | 내용 |
 |---|---|

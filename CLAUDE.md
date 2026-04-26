@@ -141,6 +141,17 @@ menemory show
   - Claude memory: 사용자 프로필, 피드백, 작업 방식 선호도
   - Menemory core: 프로젝트 장기 목표, 아키텍처 원칙, 금지 규칙
 
+### 특수 트리거: `메네모리`
+
+사용자가 `메네모리` 라고만 입력하면 아래 순서로 즉시 컨텍스트 복구를 수행한다.
+
+1. `docs/MEMORY_SYNC_MAP.md` 읽기
+2. `.agent/skills/메네모리/SKILL.md` 와 `.agent/skills/memory-sync-hub/SKILL.md` 확인
+3. `scripts/utils/collect_memory_context.sh` 실행
+4. `menemory status` 와 필요 시 `menemory show`
+5. 필요 시 Claude memory / Codex history / Antigravity recovery source를 순서대로 조회
+6. 복구 결과를 Menemory session summary에 저장
+
 ---
 
 ## 프로젝트 컨텍스트

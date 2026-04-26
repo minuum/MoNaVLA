@@ -1,7 +1,11 @@
-# Memory Systems Integration Map (Claude + Codex + AntiGravity)
+# Memory Systems Integration Map (Claude + Codex + Antigravity + Menemory)
 
 **작성일**: 2026-04-20
-**목적**: 세 메모리 시스템의 통합 조회 및 동기화 맵
+**마지막 업데이트**: 2026-04-26
+**목적**: 여러 AI 메모리 시스템을 같은 절차로 조회하기 위한 내부 맵
+
+> 공용 계약 문서는 `docs/MEMORY_SYNC_MAP.md` 이다. 이 파일은 Menemory 내부 관점의
+> 보조 설명이다.
 
 ---
 
@@ -9,10 +13,11 @@
 
 | 시스템 | 위치 | 특징 | 상태 |
 |--------|------|------|------|
-| **Claude Code** | `~/.claude_MINU/projects/-home-billy-25-1kp-MoNaVLA/memory/` | 프로젝트 격리, 마크다운 기반, 자동 로드 | ✅ 활성 (이 세션) |
-| **Codex IDE** | `~/.codex/` | 로컬 IDE, SQLite 로그, 플러그인 지원 | ✅ 활성 (최근 업데이트) |
-| **AntiGravity** | `~/.antigravity/` | 미니멀 설정 | ⚠️ 상태 불명 |
-| **AntiGravity-Server** | `~/.antigravity-server/` | 활성 서버, 풀스택 런타임 | ✅ 지금 실행 중 |
+| **Claude Code** | `~/.claude_MINU/projects/-home-billy-25-1kp-MoNaVLA/memory/` | 프로젝트 격리, 마크다운 기반 | ✅ 존재 |
+| **Codex IDE** | `~/.codex/` | 로컬 IDE, history/logs/memories | ✅ 존재 |
+| **Antigravity Recovery** | `~/.gemini/antigravity/` | 복구 가능한 원문 아티팩트 | ✅ 존재 |
+| **Antigravity-Server** | `~/.antigravity-server/` | 런타임/로그 | ✅ 존재 |
+| **Menemory** | `.menemory/` | 워크스페이스 장기 메모리 + 세션 요약 | ✅ 현재 허브 |
 
 ---
 
@@ -60,22 +65,24 @@
 
 ---
 
-## 4. AntiGravity 시스템
+## 4. Antigravity 시스템
 
 ```
-~/.antigravity/
-└── config.json              (최소 설정)
+~/.gemini/antigravity/
+├── brain/<uuid>/            (복구 가능한 Markdown, media, metadata)
+└── conversations/*.pb       (세션 인덱스)
 
 ~/.antigravity-server/
-├── data/                    (데이터 저장소)
-├── extensions/              (30개 익스텐션)
-├── .log                     (실시간 로그, 510KB)
-└── .pid / .token            (프로세스 관리)
+├── data/
+├── extensions/
+├── .log
+└── .pid / .token
 ```
 
 ### 현황
-- `.antigravity`: 거의 사용 안 함 (23B 설정만)
-- `.antigravity-server`: 활성 서버 (log 최신 = 2026-04-20 22:47)
+- `.gemini/antigravity/brain/<uuid>/` 가 실질적인 복구 원본
+- `.pb` 는 인덱스일 뿐이며 직접 읽을 본문이 아님
+- `.antigravity-server` 는 시스템 런타임 확인용
 
 ---
 
@@ -120,14 +127,13 @@
 ### 📌 권장 동기화 (부분)
 세션 시작 시:
 ```bash
-1. ~/.claude_MINU/.../memory/MEMORY.md 읽기
-   (→ 자동으로 모든 memory/*.md 로드)
-
-2. .menemory/core/master_memory.md 읽기
-   (→ 장기 목표, 아키텍처 원칙 상기)
-
-3. 필요시 Codex history.jsonl 검색
-   (→ 최근 실행 명령 확인)
+1. docs/MEMORY_SYNC_MAP.md 읽기
+2. .agent/skills/memory-sync-hub/SKILL.md 읽기
+3. scripts/utils/collect_memory_context.sh 실행
+4. ~/.claude_MINU/.../memory/MEMORY.md 읽기
+5. .menemory/core/master_memory.md 읽기
+6. 필요시 ~/.codex/history.jsonl 검색
+7. Antigravity가 필요하면 ~/.gemini/antigravity/brain/<uuid>/ 확인
 ```
 
 ### ❌ 권장하지 않는 것
@@ -146,8 +152,8 @@ cat ~/.claude_MINU/projects/-home-billy-25-1kp-MoNaVLA/memory/MEMORY.md
 # Codex 히스토리 검색
 grep "exp17\|train" ~/.codex/history.jsonl
 
-# AntiGravity-Server 로그
-tail -100 ~/.antigravity-server/.62335c71d47037adf0a8de54e250bb8ea6016b15.log
+# Antigravity recovery source
+find ~/.gemini/antigravity/brain -maxdepth 2 -type f | head
 ```
 
 ### 쓰기 (이 세션에서만)
@@ -198,4 +204,3 @@ vi .menemory/core/master_memory.md
 ### 프로젝트 장기 상태 확인
 - [ ] .menemory/core/master_memory.md 읽기 (여러 세션 공유)
 - [ ] .menemory/longterm/ 확인 (장기 목표)
-
