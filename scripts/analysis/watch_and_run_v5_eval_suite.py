@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 import time
@@ -34,6 +35,7 @@ MODEL_CONFIGS = {
     "exp25": "configs/mobile_vla_v5_exp25_step3_balanced_objective.json",
     "exp26": "configs/mobile_vla_v5_exp26_step3_objective_direct224.json",
     "exp27": "configs/mobile_vla_v5_exp27_step3_objective_letterbox224.json",
+    "exp28": "configs/mobile_vla_v5_exp28_step3_balanced_objective_grounding_turnboost.json",
 }
 
 MODEL_CKPT_GLOBS = {
@@ -45,7 +47,15 @@ MODEL_CKPT_GLOBS = {
     "exp25": [ROOT / "runs/v5_nav/kosmos/mobile_vla_v5_exp25"],
     "exp26": [ROOT / "runs/v5_nav/kosmos/mobile_vla_v5_exp26"],
     "exp27": [ROOT / "runs/v5_nav/kosmos/mobile_vla_v5_exp27"],
+    "exp28": [ROOT / "runs/v5_nav/kosmos/mobile_vla_v5_exp28"],
 }
+
+
+def parse_val_loss_from_ckpt_name(path: Path) -> float | None:
+    match = re.search(r"val_loss=val_loss=([0-9]+(?:\.[0-9]+)?)", path.name)
+    if match:
+        return float(match.group(1))
+    return None
 
 
 def wait_for_training_completion(log_path: Path, patterns: list[str], poll_sec: float) -> None:
@@ -75,8 +85,13 @@ def resolve_ckpt(model_key: str) -> Path:
         raise FileNotFoundError(f"No checkpoint found for {model_key}")
 
     def score(path: Path):
-        is_epoch = 1 if path.name.startswith("epoch") else 0
-        return (is_epoch, path.stat().st_mtime)
+        val_loss = parse_val_loss_from_ckpt_name(path)
+        is_epoch = path.name.startswith("epoch")
+        if val_loss is not None:
+            return (2, -val_loss, path.stat().st_mtime)
+        if is_epoch:
+            return (1, 0.0, path.stat().st_mtime)
+        return (0, 0.0, path.stat().st_mtime)
 
     return max(candidates, key=score)
 
@@ -98,7 +113,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--models",
-        default="exp27,exp26,exp25,exp24,exp21,exp18,exp17,exp11",
+        default="exp28,exp27,exp26,exp25,exp24,exp21,exp18,exp17,exp11",
         help="Comma-separated reserved model keys",
     )
     parser.add_argument("--poll_sec", type=float, default=20.0)

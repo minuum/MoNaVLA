@@ -22,6 +22,7 @@ class NavTrainer(BaseTrainer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._init_grounding_aux()
+        self._init_loss_balance()
         # Upstream/Base 설정이 만든 trainable 상태를 그대로 유지하고 요약만 남긴다.
         self._log_trainable_params()
 
@@ -63,6 +64,108 @@ class NavTrainer(BaseTrainer):
             f"lambda_bbox={self.grounding_bbox_weight}, lambda_coarse={self.grounding_coarse_weight}",
             flush=True,
         )
+
+    def _init_loss_balance(self):
+        self.loss_balance_mode = str(self.grounding_aux_config.get("loss_balance_mode", "fixed")).lower()
+        self.loss_balance_logits = None
+        self.loss_balance_names = []
+        self.loss_balance_eps = float(self.grounding_aux_config.get("loss_balance_eps", 1e-6))
+        self.loss_balance_ema_momentum = float(self.grounding_aux_config.get("loss_balance_ema_momentum", 0.98))
+        self.loss_balance_min_share = float(self.grounding_aux_config.get("loss_balance_min_share", 0.0))
+        self.loss_balance_temperature = float(self.grounding_aux_config.get("loss_balance_temperature", 1.0))
+        self.loss_balance_normalize = bool(self.grounding_aux_config.get("loss_balance_normalize", True))
+
+        if self.loss_balance_mode != "learned":
+            return
+
+        names = ["action"]
+        if self.grounding_bbox_weight > 0.0:
+            names.append("bbox")
+        if self.grounding_coarse_weight > 0.0:
+            names.append("coarse")
+        self.loss_balance_names = names
+
+        n_tasks = len(names)
+        if n_tasks == 0:
+            self.loss_balance_mode = "fixed"
+            return
+
+        if self.loss_balance_min_share * n_tasks >= 1.0:
+            raise ValueError(
+                f"loss_balance_min_share ({self.loss_balance_min_share}) must satisfy "
+                f"min_share * n_tasks < 1.0 (n_tasks={n_tasks})"
+            )
+
+        init_map = self.grounding_aux_config.get("initial_task_weights", {}) or {}
+        init_weights = torch.tensor(
+            [float(init_map.get(name, 1.0 / n_tasks)) for name in names],
+            dtype=torch.float32,
+        )
+        init_weights = init_weights / init_weights.sum().clamp_min(self.loss_balance_eps)
+        self.loss_balance_logits = nn.Parameter(init_weights.clamp_min(self.loss_balance_eps).log())
+        self.register_buffer(
+            "loss_balance_ema",
+            torch.ones(n_tasks, dtype=torch.float32),
+        )
+        print(
+            "✅ [NavTrainer] learned loss balance enabled: "
+            f"tasks={names}, init={init_weights.tolist()}, "
+            f"normalize={self.loss_balance_normalize}, min_share={self.loss_balance_min_share}",
+            flush=True,
+        )
+
+    def _get_learned_task_weights(self):
+        if self.loss_balance_mode != "learned" or self.loss_balance_logits is None:
+            return None
+
+        logits = self.loss_balance_logits / max(self.loss_balance_temperature, self.loss_balance_eps)
+        weights = torch.softmax(logits, dim=0)
+        if self.loss_balance_min_share > 0.0:
+            n_tasks = weights.numel()
+            weights = weights * (1.0 - self.loss_balance_min_share * n_tasks) + self.loss_balance_min_share
+        return weights
+
+    def _combine_losses(self, base_loss, aux_loss_dict, is_training: bool):
+        loss_bbox = aux_loss_dict["loss_grounding_bbox"]
+        loss_coarse = aux_loss_dict["loss_grounding_coarse"]
+
+        if self.loss_balance_mode != "learned" or self.loss_balance_logits is None:
+            total = base_loss + aux_loss_dict["loss_grounding_total"]
+            return total, {}
+
+        raw_losses = [base_loss]
+        if self.grounding_bbox_weight > 0.0:
+            raw_losses.append(loss_bbox)
+        if self.grounding_coarse_weight > 0.0:
+            raw_losses.append(loss_coarse)
+        raw_losses = torch.stack(raw_losses)
+
+        ema = self.loss_balance_ema.to(device=raw_losses.device, dtype=raw_losses.dtype)
+        if is_training:
+            with torch.no_grad():
+                detached = raw_losses.detach().clamp_min(self.loss_balance_eps)
+                updated = self.loss_balance_ema_momentum * ema + (1.0 - self.loss_balance_ema_momentum) * detached
+                self.loss_balance_ema.copy_(updated.to(dtype=self.loss_balance_ema.dtype))
+                ema = self.loss_balance_ema.to(device=raw_losses.device, dtype=raw_losses.dtype)
+
+        if self.loss_balance_normalize:
+            normalized_losses = raw_losses / ema.clamp_min(self.loss_balance_eps)
+        else:
+            normalized_losses = raw_losses
+
+        weights = self._get_learned_task_weights().to(device=raw_losses.device, dtype=raw_losses.dtype)
+        total = torch.sum(weights * normalized_losses)
+
+        metrics = {
+            "loss_balance_mode_learned": raw_losses.new_tensor(1.0),
+        }
+        for idx, name in enumerate(self.loss_balance_names):
+            metrics[f"loss_share_{name}"] = weights[idx]
+            metrics[f"loss_raw_{name}"] = raw_losses[idx]
+            metrics[f"loss_norm_{name}"] = normalized_losses[idx]
+            metrics[f"loss_ema_{name}"] = ema[idx]
+
+        return total, metrics
 
     @classmethod
     def from_checkpoint(cls, checkpoint_path, load_source="nav", variant=None):
@@ -187,10 +290,11 @@ class NavTrainer(BaseTrainer):
         # Loss 추출
         loss_dict = self._get_loss(prediction)
         aux_loss_dict = self._compute_grounding_aux_loss(batch)
-        train_loss = loss_dict["loss"] + aux_loss_dict["loss_grounding_total"]
+        train_loss, balance_metrics = self._combine_losses(loss_dict["loss"], aux_loss_dict, is_training=True)
         loss_dict.update(aux_loss_dict)
         loss_dict["loss_base"] = loss_dict["loss"]
         loss_dict["loss"] = train_loss
+        loss_dict.update(balance_metrics)
 
         # 로그 기록
         for k, v in loss_dict.items():
@@ -230,9 +334,11 @@ class NavTrainer(BaseTrainer):
             )
             loss_dict = self._get_loss(prediction)
             aux_loss_dict = self._compute_grounding_aux_loss(batch)
+            total_loss, balance_metrics = self._combine_losses(loss_dict["loss"], aux_loss_dict, is_training=False)
             loss_dict.update(aux_loss_dict)
             loss_dict["loss_base"] = loss_dict["loss"]
-            loss_dict["loss"] = loss_dict["loss"] + aux_loss_dict["loss_grounding_total"]
+            loss_dict["loss"] = total_loss
+            loss_dict.update(balance_metrics)
             
             for k, v in loss_dict.items():
                 if v is not None and isinstance(v, torch.Tensor):

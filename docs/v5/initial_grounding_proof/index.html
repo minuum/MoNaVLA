@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Initial Grounding Proof</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 24px; background: #f8fafc; color: #111827; }
+    h1 { margin-bottom: 4px; }
+    .summary, .card { background: white; border: 1px solid #d1d5db; border-radius: 6px; }
+    .summary { padding: 16px; margin: 16px 0 20px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 16px; }
+    .card.pending { border-left: 5px solid #f59e0b; }
+    .card.reviewed { border-left: 5px solid #10b981; }
+    img { width: 100%; display: block; border-bottom: 1px solid #e5e7eb; }
+    .meta { padding: 12px; font-size: 14px; line-height: 1.45; }
+    code { background: #eef2ff; padding: 1px 5px; border-radius: 4px; }
+    pre { white-space: pre-wrap; background: #0f172a; color: #e5e7eb; padding: 12px; border-radius: 6px; }
+  </style>
+</head>
+<body>
+  <h1>Initial Grounding Proof</h1>
+  <div>Purpose: TODO 1 object-recognition proof from April 24 meeting.</div>
+  <section class="summary">
+    <div>status: <code>pending_human_review</code></div>
+    <div>reviewed: <code>0 / 18</code></div>
+    <div>model bbox-like outputs: <code>6 / 18</code></div>
+    <h2>Model Output Before Human Review</h2>
+    <pre>{
+  &quot;model_source_counts&quot;: {
+    &quot;first_valid_fallback&quot;: 5,
+    &quot;keyword_match&quot;: 1,
+    &quot;none&quot;: 12
+  },
+  &quot;model_entity_top10&quot;: {
+    &quot;none&quot;: 12,
+    &quot;the white wall&quot;: 3,
+    &quot;the gray air conditioner&quot;: 1,
+    &quot;The white wall&quot;: 1,
+    &quot;a chair&quot;: 1
+  }
+}</pre>
+    <h2>Metrics</h2>
+    <p>No human-reviewed rows yet; quantitative perception metrics are intentionally withheld.</p>
+  </section>
+  <section class="grid">
+    
+            <article class="card pending">
+              <img src="overlays/episode_260408_123008_target_center_straight_path__core__fixed_center_f0000.png" alt="episode_260408_123008_target_center_straight_path__core__fixed_center frame 0">
+              <div class="meta">
+                <div><strong>center_straight</strong> / frame 0 / reviewed=false</div>
+                <div>model: entity=<code>the white wall</code>, coarse=<code>center</code>, source=<code>first_valid_fallback</code></div>
+                <div>GT: visible=<code>None</code>, coarse=<code>None</code>, IoU=<code>None</code></div>
+                <div>seed: entity=<code>the white wall</code></div>
+                <p>the center of the image, with the white wall and the window in the background.</p>
+              </div>
+            </article>
+            
+            <article class="card pending">
+              <img src="overlays/episode_260408_123008_target_center_straight_path__core__fixed_center_f0002.png" alt="episode_260408_123008_target_center_straight_path__core__fixed_center frame 2">
+              <div class="meta">
+                <div><strong>center_straight</strong> / frame 2 / reviewed=false</div>
+                <div>model: entity=<code>the white wall</code>, coarse=<code>center</code>, source=<code>first_valid_fallback</code></div>
+                <div>GT: visible=<code>None</code>, coarse=<code>None</code>, IoU=<code>None</code></div>
+                <div>seed: entity=<code>the white wall</code></div>
+                <p>the center of the image, with the white wall and the window in the background.</p>
+              </div>
+            </article>
+            
+            <article class="card pending">
+              <img src="overlays/episode_260408_174654_target_center_left_path__core__fixed_center_f0000.png" alt="episode_260408_174654_target_center_left_path__core__fixed_center frame 0">
+              <div class="meta">
+                <div><strong>center_left</strong> / frame 0 / reviewed=false</div>
+                <div>model: entity=<code>the gray air conditioner</code>, coarse=<code>center</code>, source=<code>keyword_match</code></div>
+                <div>GT: visible=<code>None</code>, coarse=<code>None</code>, IoU=<code>None</code></div>
+                <div>seed: entity=<code>the gray air conditioner</code></div>
+                <p>the center of the image, with the gray air conditioner sitting on the floor in front of it.</p>
+              </div>
+            </article>
+            
+            <article class="card pending">
+              <img src="overlays/episode_260408_174654_target_center_left_path__core__fixed_center_f0002.png" alt="episode_260408_174654_target_center_left_path__core__fixed_center frame 2">
+              <div class="meta">
+                <div><strong>center_left</strong> / frame 2 / reviewed=false</div>
+                <div>model: entity=<code>The white wall</code>, coarse=<code>center</code>, source=<code>first_valid_fallback</code></div>
+                <div>GT: visible=<code>None</code>, coarse=<code>None</code>, IoU=<code>None</code></div>
+                <div>seed: entity=<code>The white wall</code></div>
+                <p>the bottom of the image. The white wall is behind it. A window is above the window.</p>
+              </div>
+            </article>
+            
+            <article class="card pending">
+              <img src="overlays/episode_260408_185014_target_center_right_path__core__fixed_center_f0000.png" alt="episode_260408_185014_target_center_right_path__core__fixed_center frame 0">
+              <div class="meta">
+                <div><strong>center_right</strong> / frame 0 / reviewed=false</div>
+                <div>model: entity=<code>the white wall</code>, coarse=<code>center</code>, source=<code>first_valid_fallback</code></div>
+                <div>GT: visible=<code>None</code>, coarse=<code>None</code>, IoU=<code>None</code></div>
+                <div>seed: entity=<code>the white wall</code></div>
+                <p>the center of the image, with the white wall and the window in the background.</p>
+              </div>
+            </article>
+            
+            <article class="card pending">
+              <img src="overlays/episode_260408_185014_target_center_right_path__core__fixed_center_f0002.png" alt="episode_260408_185014_target_center_right_path__core__fixed_center frame 2">
+              <div class="meta">
+                <div><strong>center_right</strong> / frame 2 / reviewed=false</div>
+                <div>model: entity=<code>a chair</code>, coarse=<code>right</code>, source=<code>first_valid_fallback</code></div>
+                <div>GT: visible=<code>None</code>, coarse=<code>None</code>, IoU=<code>None</code></div>
+                <div>seed: entity=<code>a chair</code></div>
+                <p>the end of the room, with a chair and a table in the background.</p>
+              </div>
+            </article>
+            
+            <article class="card pending">
+              <img src="overlays/episode_260409_072214_target_left_straight_path__core__fixed_center_f0000.png" alt="episode_260409_072214_target_left_straight_path__core__fixed_center frame 0">
+              <div class="meta">
+                <div><strong>left_straight</strong> / frame 0 / reviewed=false</div>
+                <div>model: entity=<code>None</code>, coarse=<code>not_visible</code>, source=<code>none</code></div>
+                <div>GT: visible=<code>None</code>, coarse=<code>None</code>, IoU=<code>None</code></div>
+                <div>seed: entity=<code>None</code></div>
+                <p>None</p>
+              </div>
+            </article>
+            
+            <article class="card pending">
+              <img src="overlays/episode_260409_072214_target_left_straight_path__core__fixed_center_f0002.png" alt="episode_260409_072214_target_left_straight_path__core__fixed_center frame 2">
+              <div class="meta">
+                <div><strong>left_straight</strong> / frame 2 / reviewed=false</div>
+                <div>model: entity=<code>None</code>, coarse=<code>not_visible</code>, source=<code>none</code></div>
+                <div>GT: visible=<code>None</code>, coarse=<code>None</code>, IoU=<code>None</code></div>
+                <div>seed: entity=<code>None</code></div>
+                <p>None</p>
+              </div>
+            </article>
+            
+            <article class="card pending">
+              <img src="overlays/episode_260409_124157_target_left_left_path__core__fixed_center_f0000.png" alt="episode_260409_124157_target_left_left_path__core__fixed_center frame 0">
+              <div class="meta">
+                <div><strong>left_left</strong> / frame 0 / reviewed=false</div>
+                <div>model: entity=<code>None</code>, coarse=<code>not_visible</code>, source=<code>none</code></div>
+                <div>GT: visible=<code>None</code>, coarse=<code>None</code>, IoU=<code>None</code></div>
+                <div>seed: entity=<code>None</code></div>
+                <p>None</p>
+              </div>
+            </article>
+            
+            <article class="card pending">
+              <img src="overlays/episode_260409_124157_target_left_left_path__core__fixed_center_f0002.png" alt="episode_260409_124157_target_left_left_path__core__fixed_center frame 2">
+              <div class="meta">
+                <div><strong>left_left</strong> / frame 2 / reviewed=false</div>
+                <div>model: entity=<code>None</code>, coarse=<code>not_visible</code>, source=<code>none</code></div>
+                <div>GT: visible=<code>None</code>, coarse=<code>None</code>, IoU=<code>None</code></div>
+                <div>seed: entity=<code>None</code></div>
+                <p>None</p>
+              </div>
+            </article>
+            
+            <article class="card pending">
+              <img src="overlays/episode_260409_123044_target_left_right_path__core__fixed_center_f0000.png" alt="episode_260409_123044_target_left_right_path__core__fixed_center frame 0">
+              <div class="meta">
+                <div><strong>left_right</strong> / frame 0 / reviewed=false</div>
+                <div>model: entity=<code>None</code>, coarse=<code>not_visible</code>, source=<code>none</code></div>
+                <div>GT: visible=<code>None</code>, coarse=<code>None</code>, IoU=<code>None</code></div>
+                <div>seed: entity=<code>None</code></div>
+                <p>None</p>
+              </div>
+            </article>
+            
+            <article class="card pending">
+              <img src="overlays/episode_260409_123044_target_left_right_path__core__fixed_center_f0002.png" alt="episode_260409_123044_target_left_right_path__core__fixed_center frame 2">
+              <div class="meta">
+                <div><strong>left_right</strong> / frame 2 / reviewed=false</div>
+                <div>model: entity=<code>None</code>, coarse=<code>not_visible</code>, source=<code>none</code></div>
+                <div>GT: visible=<code>None</code>, coarse=<code>None</code>, IoU=<code>None</code></div>
+                <div>seed: entity=<code>None</code></div>
+                <p>None</p>
+              </div>
+            </article>
+            
+            <article class="card pending">
+              <img src="overlays/episode_260409_134030_target_right_straight_path__core__fixed_center_f0000.png" alt="episode_260409_134030_target_right_straight_path__core__fixed_center frame 0">
+              <div class="meta">
+                <div><strong>right_straight</strong> / frame 0 / reviewed=false</div>
+                <div>model: entity=<code>None</code>, coarse=<code>not_visible</code>, source=<code>none</code></div>
+                <div>GT: visible=<code>None</code>, coarse=<code>None</code>, IoU=<code>None</code></div>
+                <div>seed: entity=<code>None</code></div>
+                <p>None</p>
+              </div>
+            </article>
+            
+            <article class="card pending">
+              <img src="overlays/episode_260409_134030_target_right_straight_path__core__fixed_center_f0002.png" alt="episode_260409_134030_target_right_straight_path__core__fixed_center frame 2">
+              <div class="meta">
+                <div><strong>right_straight</strong> / frame 2 / reviewed=false</div>
+                <div>model: entity=<code>None</code>, coarse=<code>not_visible</code>, source=<code>none</code></div>
+                <div>GT: visible=<code>None</code>, coarse=<code>None</code>, IoU=<code>None</code></div>
+                <div>seed: entity=<code>None</code></div>
+                <p>None</p>
+              </div>
+            </article>
+            
+            <article class="card pending">
+              <img src="overlays/episode_260409_131126_target_right_left_path__core__fixed_center_f0000.png" alt="episode_260409_131126_target_right_left_path__core__fixed_center frame 0">
+              <div class="meta">
+                <div><strong>right_left</strong> / frame 0 / reviewed=false</div>
+                <div>model: entity=<code>None</code>, coarse=<code>not_visible</code>, source=<code>none</code></div>
+                <div>GT: visible=<code>None</code>, coarse=<code>None</code>, IoU=<code>None</code></div>
+                <div>seed: entity=<code>None</code></div>
+                <p>None</p>
+              </div>
+            </article>
+            
+            <article class="card pending">
+              <img src="overlays/episode_260409_131126_target_right_left_path__core__fixed_center_f0002.png" alt="episode_260409_131126_target_right_left_path__core__fixed_center frame 2">
+              <div class="meta">
+                <div><strong>right_left</strong> / frame 2 / reviewed=false</div>
+                <div>model: entity=<code>None</code>, coarse=<code>not_visible</code>, source=<code>none</code></div>
+                <div>GT: visible=<code>None</code>, coarse=<code>None</code>, IoU=<code>None</code></div>
+                <div>seed: entity=<code>None</code></div>
+                <p>None</p>
+              </div>
+            </article>
+            
+            <article class="card pending">
+              <img src="overlays/episode_260409_172906_target_right_right_path__core__fixed_center_f0000.png" alt="episode_260409_172906_target_right_right_path__core__fixed_center frame 0">
+              <div class="meta">
+                <div><strong>right_right</strong> / frame 0 / reviewed=false</div>
+                <div>model: entity=<code>None</code>, coarse=<code>not_visible</code>, source=<code>none</code></div>
+                <div>GT: visible=<code>None</code>, coarse=<code>None</code>, IoU=<code>None</code></div>
+                <div>seed: entity=<code>None</code></div>
+                <p>None</p>
+              </div>
+            </article>
+            
+            <article class="card pending">
+              <img src="overlays/episode_260409_172906_target_right_right_path__core__fixed_center_f0002.png" alt="episode_260409_172906_target_right_right_path__core__fixed_center frame 2">
+              <div class="meta">
+                <div><strong>right_right</strong> / frame 2 / reviewed=false</div>
+                <div>model: entity=<code>None</code>, coarse=<code>not_visible</code>, source=<code>none</code></div>
+                <div>GT: visible=<code>None</code>, coarse=<code>None</code>, IoU=<code>None</code></div>
+                <div>seed: entity=<code>None</code></div>
+                <p>None</p>
+              </div>
+            </article>
+            
+  </section>
+</body>
+</html>

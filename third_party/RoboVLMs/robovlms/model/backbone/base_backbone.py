@@ -529,6 +529,53 @@ class BaseRoboVLM(nn.Module):
 
         return action_head, fwd_decoder, clip_norm_head
 
+    def _get_text_decoder_layers(self):
+        if hasattr(self.text_tower, "layers"):
+            return self.text_tower.layers
+        if hasattr(self.text_tower, "blocks"):
+            return self.text_tower.blocks
+        return None
+
+    def _resolve_lora_target_modules(self, model):
+        from robovlms.utils.lora_utils import find_all_linear_names
+
+        target_modules = self.train_setup_configs.get("lora_target_modules", None)
+        lora_decoder_layers = int(self.train_setup_configs.get("lora_decoder_layers", -1))
+        decoder_layers = self._get_text_decoder_layers()
+
+        if target_modules is not None or lora_decoder_layers == -1 or decoder_layers is None:
+            return target_modules if target_modules is not None else find_all_linear_names(model)
+
+        if lora_decoder_layers <= 0:
+            raise ValueError("train_setup.lora_decoder_layers must be -1 or a positive integer.")
+        if lora_decoder_layers > len(decoder_layers):
+            raise ValueError(
+                f"Requested lora_decoder_layers={lora_decoder_layers}, "
+                f"but text tower only has {len(decoder_layers)} layers."
+            )
+
+        allowed_module_ids = set()
+        for layer in decoder_layers[-lora_decoder_layers:]:
+            for module in layer.modules():
+                if isinstance(module, nn.Linear):
+                    allowed_module_ids.add(id(module))
+
+        filtered = [
+            name
+            for name, module in model.named_modules()
+            if isinstance(module, nn.Linear) and id(module) in allowed_module_ids
+        ]
+        if not filtered:
+            raise RuntimeError(
+                "Failed to resolve LoRA target modules for the requested decoder slice."
+            )
+
+        print(
+            f"Restricting LoRA to last {lora_decoder_layers} decoder layers "
+            f"({len(filtered)} exact linear modules)."
+        )
+        return filtered
+
     def _trainable_params_setup(self):
         model = self.model
         compute_dtype = (
@@ -544,13 +591,9 @@ class BaseRoboVLM(nn.Module):
                 model.requires_grad_(True)
             else:
                 model.requires_grad_(False)
-                if hasattr(self.text_tower, "layers"):
-                    for layer in self.text_tower.layers[
-                        -self.train_setup_configs["train_decoder_layers"] :
-                    ]:
-                        layer.requires_grad_(True)
-                elif hasattr(self.text_tower, "blocks"):
-                    for layer in self.text_tower.blocks[
+                decoder_layers = self._get_text_decoder_layers()
+                if decoder_layers is not None:
+                    for layer in decoder_layers[
                         -self.train_setup_configs["train_decoder_layers"] :
                     ]:
                         layer.requires_grad_(True)
@@ -576,12 +619,9 @@ class BaseRoboVLM(nn.Module):
             self.word_embedding.register_forward_hook(make_inputs_require_grad)
 
         if self.train_setup_configs["lora_enable"]:
-            from robovlms.utils.lora_utils import find_all_linear_names
             from peft import LoraConfig, get_peft_model
 
-            target_modules = self.train_setup_configs.get("lora_target_modules", None)
-            if target_modules is None:
-                target_modules = find_all_linear_names(model)
+            target_modules = self._resolve_lora_target_modules(model)
 
             lora_config = LoraConfig(
                 r=self.train_setup_configs["lora_r"],

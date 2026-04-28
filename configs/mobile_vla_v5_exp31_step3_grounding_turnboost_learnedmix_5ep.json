@@ -1,0 +1,30 @@
+{
+    "_comment": "V5 Exp31: 5-epoch grounding-turnboost run with learned action/bbox/coarse loss shares. Uses EMA-normalized task losses so auxiliary tasks can compete with the dominant action loss.",
+    "parent": "configs/mobile_vla_v5_exp28_step3_balanced_objective_grounding_turnboost.json",
+    "exp_name": "v5-exp31-step3-grounding-turnboost-learnedmix-5ep",
+    "task_name": "mobile_vla_v5_exp31",
+
+    "trainer": {
+        "max_epochs": 5
+    },
+
+    "grounding_aux": {
+        "enabled": true,
+        "truth_path": "/home/billy/25-1kp/MoNaVLA/docs/v5/bbox_truth_mini.json",
+        "partial_weight": 0.5,
+        "lambda_bbox": 0.05,
+        "lambda_coarse": 0.10,
+        "bbox_loss": "smooth_l1",
+        "dropout": 0.1,
+        "loss_balance_mode": "learned",
+        "loss_balance_normalize": true,
+        "loss_balance_ema_momentum": 0.98,
+        "loss_balance_min_share": 0.10,
+        "loss_balance_temperature": 1.0,
+        "initial_task_weights": {
+            "action": 0.70,
+            "bbox": 0.15,
+            "coarse": 0.15
+        }
+    }
+}

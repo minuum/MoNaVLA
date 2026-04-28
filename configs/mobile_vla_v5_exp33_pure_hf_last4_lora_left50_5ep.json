@@ -1,0 +1,29 @@
+{
+    "_comment": "V5 Exp33: pure HF Kosmos-2 + last-4 decoder train + last-4 decoder LoRA on exact left-start families (50 episodes). Mirrors the 2026-04-24 professor request directly.",
+    "parent": "configs/mobile_vla_v5_exp21_pure_hf_head_only.json",
+    "exp_name": "v5-exp33-pure-hf-last4-lora-left50-5ep",
+    "task_name": "mobile_vla_v5_exp33",
+
+    "max_epochs": 5,
+
+    "trainer": {
+        "max_epochs": 5
+    },
+
+    "train_setup": {
+        "freeze_backbone": false,
+        "lora_enable": true,
+        "train_decoder_layers": 4,
+        "lora_decoder_layers": 4
+    },
+
+    "train_dataset": {
+        "exclude_path_types": null,
+        "include_path_families": ["left_straight", "left_left", "left_right"]
+    },
+
+    "val_dataset": {
+        "exclude_path_types": null,
+        "include_path_families": ["left_straight", "left_left", "left_right"]
+    }
+}

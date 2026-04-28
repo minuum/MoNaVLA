@@ -1,0 +1,14 @@
+{
+    "_comment": "V5 Exp34: pure HF Kosmos-2 + last-4 decoder train + last-4 decoder LoRA on the full 150-episode V5 set. Monday smoke run to check whether the left-only gain survives all-path evaluation.",
+    "parent": "configs/mobile_vla_v5_exp33_pure_hf_last4_lora_left50_5ep.json",
+    "exp_name": "v5-exp34-pure-hf-last4-lora-allpath-5ep",
+    "task_name": "mobile_vla_v5_exp34",
+
+    "train_dataset": {
+        "include_path_families": null
+    },
+
+    "val_dataset": {
+        "include_path_families": null
+    }
+}

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -91,7 +92,20 @@ MODEL_SPECS = {
         "exp_dir": ROOT / "runs/v5_nav/kosmos/mobile_vla_v5_exp27",
         "uses_text_embedding": False,
     },
+    "exp28": {
+        "label": "Exp28",
+        "config": ROOT / "configs/mobile_vla_v5_exp28_step3_balanced_objective_grounding_turnboost.json",
+        "exp_dir": ROOT / "runs/v5_nav/kosmos/mobile_vla_v5_exp28",
+        "uses_text_embedding": False,
+    },
 }
+
+
+def parse_val_loss_from_ckpt_name(path: Path) -> float | None:
+    match = re.search(r"val_loss=val_loss=([0-9]+(?:\.[0-9]+)?)", path.name)
+    if match:
+        return float(match.group(1))
+    return None
 
 
 def resolve_ckpt_path(spec: Dict) -> Path:
@@ -115,9 +129,13 @@ def resolve_ckpt_path(spec: Dict) -> Path:
         raise FileNotFoundError(f"No checkpoint found under {exp_root}")
 
     def score(path: Path):
-        name = path.name
-        is_epoch = 1 if name.startswith("epoch") else 0
-        return (is_epoch, path.stat().st_mtime)
+        val_loss = parse_val_loss_from_ckpt_name(path)
+        is_epoch = path.name.startswith("epoch")
+        if val_loss is not None:
+            return (2, -val_loss, path.stat().st_mtime)
+        if is_epoch:
+            return (1, 0.0, path.stat().st_mtime)
+        return (0, 0.0, path.stat().st_mtime)
 
     return max(candidates, key=score)
 
@@ -380,7 +398,7 @@ def build_html(payload: Dict, horizons: List[int]) -> str:
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--models", default="exp11,exp17,exp18,exp21,exp24,exp25,exp26,exp27", help="Comma-separated model keys")
+    ap.add_argument("--models", default="exp11,exp17,exp18,exp21,exp24,exp25,exp26,exp27,exp28", help="Comma-separated model keys")
     ap.add_argument("--horizons", default="5,10,15", help="Comma-separated prefix lengths")
     ap.add_argument("--dt", type=float, default=0.1)
     ap.add_argument("--success_fpe", type=float, default=0.5)

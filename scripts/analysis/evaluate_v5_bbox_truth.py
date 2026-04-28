@@ -163,7 +163,7 @@ def main() -> None:
     pending = 0
 
     for ann in annotations:
-        if ann.get("review_status") not in {"complete", "verified"}:
+        if ann.get("review_status") not in {"done", "complete", "completed", "verified", "reviewed"}:
             pending += 1
             continue
 

@@ -107,6 +107,7 @@ class MobileVLAH5Dataset(Dataset):
         self._counterfactual_steer_prob = counterfactual_steer_prob
         self.stratified_split = stratified_split
         self.exclude_path_types = set(exclude_path_types) if exclude_path_types else set()
+        self.include_path_families = set(kwargs.get("include_path_families", []) or [])
         self.train_split = train_split
         self.tokenizer = kwargs.get('tokenizer', None)
         self.grounding_prefix = kwargs.get('grounding_prefix', False)
@@ -141,6 +142,12 @@ class MobileVLAH5Dataset(Dataset):
             self.episode_files = [
                 f for f in self.episode_files
                 if not any(pt in f.stem for pt in self.exclude_path_types)
+            ]
+
+        if self.include_path_families:
+            self.episode_files = [
+                f for f in self.episode_files
+                if self._extract_path_family(f.stem) in self.include_path_families
             ]
 
         # path_type_weights를 사용해서 각 그룹별 에피소드 비율 조정 (Step 3: 33/33/33)

@@ -1,0 +1,13 @@
+{
+  "wait_log": "/home/billy/25-1kp/MoNaVLA/logs/exp24_pure_hf_head_only_objective_tmp.log",
+  "models": [
+    "exp28"
+  ],
+  "pm_eval_runs": [
+    {
+      "model": "exp28",
+      "ckpt": "/home/billy/25-1kp/MoNaVLA/runs/v5_nav/kosmos/mobile_vla_v5_exp28/2026-04-23/v5-exp28-step3-objective-grounding-turnboost/epoch_epoch=epoch=13-val_loss=val_loss=8.708.ckpt",
+      "config": "configs/mobile_vla_v5_exp28_step3_balanced_objective_grounding_turnboost.json"
+    }
+  ]
+}

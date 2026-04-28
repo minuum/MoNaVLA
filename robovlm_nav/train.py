@@ -13,6 +13,7 @@ RoboVLM-Nav Training Entry Point
 import sys
 import os
 import atexit
+import datetime
 from pathlib import Path
 
 # ── MPI hang 방지: mpi4py가 설치된 환경에서 Lightning이 orted 데몬을 spawn해 블로킹됨
@@ -101,7 +102,13 @@ class TeeStream:
 
 def setup_stdio_logging(configs):
     rank = int(os.environ.get("RANK", "0"))
-    log_dir = Path(configs["log_dir"])
+    log_dir_value = configs.get("log_dir")
+    if log_dir_value is None:
+        # Bootstrap a deterministic log dir before main.experiment() expands log_root/output_root.
+        log_root = Path(configs["log_root"])
+        log_dir_value = log_root / datetime.date.today().isoformat() / configs["exp_name"]
+        configs["log_dir"] = str(log_dir_value)
+    log_dir = Path(log_dir_value)
     log_dir.mkdir(parents=True, exist_ok=True)
     log_name = "train.log" if rank == 0 else f"train.rank{rank}.log"
     log_path = log_dir / log_name
