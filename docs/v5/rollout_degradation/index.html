@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>V5 Rollout Degradation</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 32px; color: #111827; background: #f8fafc; }
+    h1 { margin-bottom: 8px; }
+    .sub { color: #4b5563; margin-bottom: 20px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 16px; }
+    .card { background: white; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { border-bottom: 1px solid #e5e7eb; padding: 8px; text-align: right; }
+    th:first-child, td:first-child { text-align: left; }
+    code { background: #f3f4f6; padding: 2px 6px; border-radius: 6px; }
+  </style>
+</head>
+<body>
+  <h1>V5 Policy Degradation</h1>
+  <div class="sub">Shared episode split. Compare frame-level accuracy, short prefix rollout, and full closed-loop drift.</div>
+  <div class="grid">
+    
+        <section class="card">
+          <h2>Exp28</h2>
+          <div class="meta"><code>exp28</code></div>
+          <table>
+            <tr><th>Metric</th><th>Frame Acc</th><th>Success</th><th>FPE</th><th>TLD</th></tr>
+            <tr><th>Frame Acc</th><td>5.6%</td><td>-</td><td>-</td><td>-</td></tr><tr><th>Prefix @5</th><td>17.8%</td><td>22.2%</td><td>0.775</td><td>1.105</td></tr><tr><th>Prefix @10</th><td>10.0%</td><td>11.1%</td><td>1.210</td><td>1.156</td></tr><tr><th>Prefix @15</th><td>6.7%</td><td>11.1%</td><td>1.327</td><td>1.210</td></tr><tr><th>Full</th><td>5.6%</td><td>0.0%</td><td>1.605</td><td>1.241</td></tr>
+          </table>
+          <h3>Path-wise Full</h3>
+          <table>
+            <tr><th>Path</th><th>Frame Acc</th><th>Success</th><th>FPE</th><th>TLD</th></tr>
+            <tr><td>center_left</td><td>0.0%</td><td>0.0%</td><td>1.222</td><td>1.019</td></tr><tr><td>center_right</td><td>0.0%</td><td>0.0%</td><td>0.700</td><td>1.172</td></tr><tr><td>center_straight</td><td>0.0%</td><td>0.0%</td><td>1.610</td><td>1.414</td></tr><tr><td>left_left</td><td>0.0%</td><td>0.0%</td><td>1.800</td><td>1.146</td></tr><tr><td>left_right</td><td>31.6%</td><td>0.0%</td><td>1.495</td><td>1.251</td></tr><tr><td>left_straight</td><td>0.0%</td><td>0.0%</td><td>2.024</td><td>1.497</td></tr><tr><td>right_left</td><td>0.0%</td><td>0.0%</td><td>2.057</td><td>1.081</td></tr><tr><td>right_right</td><td>18.8%</td><td>0.0%</td><td>1.270</td><td>1.288</td></tr><tr><td>right_straight</td><td>0.0%</td><td>0.0%</td><td>2.266</td><td>1.302</td></tr>
+          </table>
+          <h3>Top Predicted Transitions</h3>
+          <ul><li><code>FWD+R -&gt; FWD+R</code>: 89</li><li><code>RIGHT -&gt; RIGHT</code>: 28</li><li><code>FWD+L -&gt; FWD+L</code>: 19</li><li><code>FWD+L -&gt; FWD+R</code>: 4</li><li><code>RIGHT -&gt; FWD+L</code>: 2</li><li><code>RIGHT -&gt; FWD+R</code>: 2</li><li><code>LEFT -&gt; LEFT</code>: 1</li><li><code>LEFT -&gt; FWD+L</code>: 1</li></ul>
+        </section>
+        
+  </div>
+</body>
+</html>

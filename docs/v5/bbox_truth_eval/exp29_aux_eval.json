@@ -1,0 +1,823 @@
+{
+  "label": "exp29",
+  "config": "configs/mobile_vla_v5_exp29_step3_grounding_turnboost_bboxcoarse_5ep.json",
+  "ckpt": "runs/v5_nav/kosmos/mobile_vla_v5_exp29/2026-04-23/v5-exp29-step3-grounding-turnboost-coarseonly-5ep/epoch_epoch=epoch=04-val_loss=val_loss=10.745.ckpt",
+  "summary": {
+    "n": 36,
+    "mean_iou": 0.0,
+    "iou_at_0_3": 0.0,
+    "mean_center_l1": 0.1969649793836806,
+    "coarse_acc": 0.5833333333333334,
+    "by_coarse": {
+      "left": {
+        "n": 7,
+        "acc": 0.14285714285714285,
+        "mean_iou": 0.0
+      },
+      "center": {
+        "n": 22,
+        "acc": 0.9090909090909091,
+        "mean_iou": 0.0
+      },
+      "right": {
+        "n": 7,
+        "acc": 0.0,
+        "mean_iou": 0.0
+      }
+    }
+  },
+  "rows": [
+    {
+      "episode": "episode_260408_123008_target_center_straight_path__core__fixed_center",
+      "frame_idx": 2,
+      "path_type": "center_straight",
+      "split": "train",
+      "gt_coarse": "center",
+      "pred_coarse": "center",
+      "gt_bbox": [
+        0.43,
+        0.474,
+        0.58,
+        0.729
+      ],
+      "pred_bbox": [
+        0.49853515625,
+        0.501953125,
+        0.492431640625,
+        0.49951171875
+      ],
+      "pred_iou": 0.0,
+      "pred_center_l1": 0.11028417968749993
+    },
+    {
+      "episode": "episode_260408_123008_target_center_straight_path__core__fixed_center",
+      "frame_idx": 5,
+      "path_type": "center_straight",
+      "split": "train",
+      "gt_coarse": "center",
+      "pred_coarse": "center",
+      "gt_bbox": [
+        0.4,
+        0.472,
+        0.588,
+        0.79
+      ],
+      "pred_bbox": [
+        0.488525390625,
+        0.51171875,
+        0.4990234375,
+        0.494384765625
+      ],
+      "pred_iou": 0.0,
+      "pred_center_l1": 0.128173828125
+    },
+    {
+      "episode": "episode_260408_123008_target_center_straight_path__core__fixed_center",
+      "frame_idx": 9,
+      "path_type": "center_straight",
+      "split": "train",
+      "gt_coarse": "center",
+      "pred_coarse": "center",
+      "gt_bbox": [
+        0.285,
+        0.448,
+        0.569,
+        0.926
+      ],
+      "pred_bbox": [
+        0.486328125,
+        0.517578125,
+        0.5068359375,
+        0.494873046875
+      ],
+      "pred_iou": 0.0,
+      "pred_center_l1": 0.2503564453125001
+    },
+    {
+      "episode": "episode_260408_130141_target_center_straight_path__core__fixed_center",
+      "frame_idx": 2,
+      "path_type": "center_straight",
+      "split": "train",
+      "gt_coarse": "center",
+      "pred_coarse": "center",
+      "gt_bbox": [
+        0.409,
+        0.478,
+        0.567,
+        0.731
+      ],
+      "pred_bbox": [
+        0.498291015625,
+        0.50244140625,
+        0.4921875,
+        0.499755859375
+      ],
+      "pred_iou": 0.0,
+      "pred_center_l1": 0.11064062500000005
+    },
+    {
+      "episode": "episode_260408_130141_target_center_straight_path__core__fixed_center",
+      "frame_idx": 5,
+      "path_type": "center_straight",
+      "split": "train",
+      "gt_coarse": "center",
+      "pred_coarse": "center",
+      "gt_bbox": [
+        0.387,
+        0.472,
+        0.578,
+        0.8
+      ],
+      "pred_bbox": [
+        0.488525390625,
+        0.51171875,
+        0.4990234375,
+        0.494384765625
+      ],
+      "pred_iou": 0.0,
+      "pred_center_l1": 0.14422265625000003
+    },
+    {
+      "episode": "episode_260408_130141_target_center_straight_path__core__fixed_center",
+      "frame_idx": 9,
+      "path_type": "center_straight",
+      "split": "train",
+      "gt_coarse": "center",
+      "pred_coarse": "center",
+      "gt_bbox": [
+        0.311,
+        0.443,
+        0.626,
+        0.96
+      ],
+      "pred_bbox": [
+        0.486328125,
+        0.517578125,
+        0.5068359375,
+        0.494873046875
+      ],
+      "pred_iou": 0.0,
+      "pred_center_l1": 0.22335644531249998
+    },
+    {
+      "episode": "episode_260408_175129_target_center_left_path__core__fixed_center",
+      "frame_idx": 3,
+      "path_type": "center_left",
+      "split": "train",
+      "gt_coarse": "right",
+      "pred_coarse": "left",
+      "gt_bbox": [
+        0.504,
+        0.469,
+        0.646,
+        0.707
+      ],
+      "pred_bbox": [
+        0.49755859375,
+        0.5029296875,
+        0.49169921875,
+        0.5
+      ],
+      "pred_iou": 0.0,
+      "pred_center_l1": 0.16690624999999992
+    },
+    {
+      "episode": "episode_260408_175129_target_center_left_path__core__fixed_center",
+      "frame_idx": 7,
+      "path_type": "center_left",
+      "split": "train",
+      "gt_coarse": "center",
+      "pred_coarse": "left",
+      "gt_bbox": [
+        0.347,
+        0.481,
+        0.537,
+        0.778
+      ],
+      "pred_bbox": [
+        0.49755859375,
+        0.5029296875,
+        0.49169921875,
+        0.5
+      ],
+      "pred_iou": 0.0,
+      "pred_center_l1": 0.18066406249999994
+    },
+    {
+      "episode": "episode_260408_175129_target_center_left_path__core__fixed_center",
+      "frame_idx": 12,
+      "path_type": "center_left",
+      "split": "train",
+      "gt_coarse": "left",
+      "pred_coarse": "center",
+      "gt_bbox": [
+        0.296,
+        0.456,
+        0.566,
+        0.91
+      ],
+      "pred_bbox": [
+        0.487060546875,
+        0.51025390625,
+        0.5009765625,
+        0.492919921875
+      ],
+      "pred_iou": 0.0,
+      "pred_center_l1": 0.2444316406250001
+    },
+    {
+      "episode": "episode_260408_185014_target_center_right_path__core__fixed_center",
+      "frame_idx": 3,
+      "path_type": "center_right",
+      "split": "train",
+      "gt_coarse": "left",
+      "pred_coarse": "center",
+      "gt_bbox": [
+        0.384,
+        0.466,
+        0.526,
+        0.709
+      ],
+      "pred_bbox": [
+        0.49755859375,
+        0.5029296875,
+        0.49169921875,
+        0.5
+      ],
+      "pred_iou": 0.0,
+      "pred_center_l1": 0.1256640625
+    },
+    {
+      "episode": "episode_260408_185014_target_center_right_path__core__fixed_center",
+      "frame_idx": 7,
+      "path_type": "center_right",
+      "split": "train",
+      "gt_coarse": "right",
+      "pred_coarse": "left",
+      "gt_bbox": [
+        0.481,
+        0.481,
+        0.677,
+        0.789
+      ],
+      "pred_bbox": [
+        0.49853515625,
+        0.501953125,
+        0.491943359375,
+        0.49951171875
+      ],
+      "pred_iou": 0.0,
+      "pred_center_l1": 0.21802832031249997
+    },
+    {
+      "episode": "episode_260408_185014_target_center_right_path__core__fixed_center",
+      "frame_idx": 12,
+      "path_type": "center_right",
+      "split": "train",
+      "gt_coarse": "right",
+      "pred_coarse": "center",
+      "gt_bbox": [
+        0.404,
+        0.45,
+        0.699,
+        0.914
+      ],
+      "pred_bbox": [
+        0.486328125,
+        0.51123046875,
+        0.4970703125,
+        0.50048828125
+      ],
+      "pred_iou": 0.0,
+      "pred_center_l1": 0.23594140625000004
+    },
+    {
+      "episode": "episode_260408_193251_target_center_right_path__core__fixed_center",
+      "frame_idx": 3,
+      "path_type": "center_right",
+      "split": "train",
+      "gt_coarse": "left",
+      "pred_coarse": "left",
+      "gt_bbox": [
+        0.39,
+        0.468,
+        0.547,
+        0.714
+      ],
+      "pred_bbox": [
+        0.49755859375,
+        0.5029296875,
+        0.49169921875,
+        0.499755859375
+      ],
+      "pred_iou": 0.0,
+      "pred_center_l1": 0.11578613281249994
+    },
+    {
+      "episode": "episode_260408_193251_target_center_right_path__core__fixed_center",
+      "frame_idx": 7,
+      "path_type": "center_right",
+      "split": "train",
+      "gt_coarse": "center",
+      "pred_coarse": "left",
+      "gt_bbox": [
+        0.467,
+        0.478,
+        0.673,
+        0.806
+      ],
+      "pred_bbox": [
+        0.498291015625,
+        0.50244140625,
+        0.491943359375,
+        0.49951171875
+      ],
+      "pred_iou": 0.0,
+      "pred_center_l1": 0.21590625000000008
+    },
+    {
+      "episode": "episode_260408_193251_target_center_right_path__core__fixed_center",
+      "frame_idx": 12,
+      "path_type": "center_right",
+      "split": "train",
+      "gt_coarse": "center",
+      "pred_coarse": "center",
+      "gt_bbox": [
+        0.36,
+        0.446,
+        0.664,
+        0.947
+      ],
+      "pred_bbox": [
+        0.48583984375,
+        0.5087890625,
+        0.497314453125,
+        0.499267578125
+      ],
+      "pred_iou": 0.0,
+      "pred_center_l1": 0.21289453125000002
+    },
+    {
+      "episode": "episode_260409_072214_target_left_straight_path__core__fixed_center",
+      "frame_idx": 3,
+      "path_type": "left_straight",
+      "split": "train",
+      "gt_coarse": "center",
+      "pred_coarse": "center",
+      "gt_bbox": [
+        0.419,
+        0.478,
+        0.573,
+        0.723
+      ],
+      "pred_bbox": [
+        0.498291015625,
+        0.501953125,
+        0.492431640625,
+        0.49951171875
+      ],
+      "pred_iou": 0.0,
+      "pred_center_l1": 0.10040625000000003
+    },
+    {
+      "episode": "episode_260409_072214_target_left_straight_path__core__fixed_center",
+      "frame_idx": 7,
+      "path_type": "left_straight",
+      "split": "train",
+      "gt_coarse": "center",
+      "pred_coarse": "center",
+      "gt_bbox": [
+        0.433,
+        0.468,
+        0.64,
+        0.795
+      ],
+      "pred_bbox": [
+        0.49853515625,
+        0.501953125,
+        0.49267578125,
+        0.49951171875
+      ],
+      "pred_iou": 0.0,
+      "pred_center_l1": 0.17166210937500004
+    },
+    {
+      "episode": "episode_260409_072214_target_left_straight_path__core__fixed_center",
+      "frame_idx": 12,
+      "path_type": "left_straight",
+      "split": "train",
+      "gt_coarse": "center",
+      "pred_coarse": "center",
+      "gt_bbox": [
+        0.412,
+        0.442,
+        0.709,
+        0.948
+      ],
+      "pred_bbox": [
+        0.486572265625,
+        0.51708984375,
+        0.50634765625,
+        0.494873046875
+      ],
+      "pred_iou": 0.0,
+      "pred_center_l1": 0.25305859374999995
+    },
+    {
+      "episode": "episode_260409_114531_target_left_straight_path__core__fixed_center",
+      "frame_idx": 3,
+      "path_type": "left_straight",
+      "split": "train",
+      "gt_coarse": "center",
+      "pred_coarse": "center",
+      "gt_bbox": [
+        0.472,
+        0.46,
+        0.642,
+        0.723
+      ],
+      "pred_bbox": [
+        0.49853515625,
+        0.501953125,
+        0.49267578125,
+        0.49951171875
+      ],
+      "pred_iou": 0.0,
+      "pred_center_l1": 0.15216210937499997
+    },
+    {
+      "episode": "episode_260409_114531_target_left_straight_path__core__fixed_center",
+      "frame_idx": 7,
+      "path_type": "left_straight",
+      "split": "train",
+      "gt_coarse": "center",
+      "pred_coarse": "center",
+      "gt_bbox": [
+        0.511,
+        0.468,
+        0.73,
+        0.824
+      ],
+      "pred_bbox": [
+        0.49853515625,
+        0.501953125,
+        0.492431640625,
+        0.49951171875
+      ],
+      "pred_iou": 0.0,
+      "pred_center_l1": 0.27028417968750007
+    },
+    {
+      "episode": "episode_260409_114531_target_left_straight_path__core__fixed_center",
+      "frame_idx": 12,
+      "path_type": "left_straight",
+      "split": "train",
+      "gt_coarse": "right",
+      "pred_coarse": "center",
+      "gt_bbox": [
+        0.476,
+        0.417,
+        0.871,
+        0.988
+      ],
+      "pred_bbox": [
+        0.486572265625,
+        0.5166015625,
+        0.50634765625,
+        0.494873046875
+      ],
+      "pred_iou": 0.0,
+      "pred_center_l1": 0.373802734375
+    },
+    {
+      "episode": "episode_260409_123044_target_left_right_path__core__fixed_center",
+      "frame_idx": 3,
+      "path_type": "left_right",
+      "split": "train",
+      "gt_coarse": "left",
+      "pred_coarse": "center",
+      "gt_bbox": [
+        0.29,
+        0.474,
+        0.435,
+        0.711
+      ],
+      "pred_bbox": [
+        0.498046875,
+        0.50244140625,
+        0.491943359375,
+        0.5
+      ],
+      "pred_iou": 0.0,
+      "pred_center_l1": 0.22377441406250004
+    },
+    {
+      "episode": "episode_260409_123044_target_left_right_path__core__fixed_center",
+      "frame_idx": 7,
+      "path_type": "left_right",
+      "split": "train",
+      "gt_coarse": "center",
+      "pred_coarse": "center",
+      "gt_bbox": [
+        0.376,
+        0.468,
+        0.573,
+        0.768
+      ],
+      "pred_bbox": [
+        0.49853515625,
+        0.501953125,
+        0.492431640625,
+        0.49951171875
+      ],
+      "pred_iou": 0.0,
+      "pred_center_l1": 0.13825097656250002
+    },
+    {
+      "episode": "episode_260409_123044_target_left_right_path__core__fixed_center",
+      "frame_idx": 13,
+      "path_type": "left_right",
+      "split": "train",
+      "gt_coarse": "center",
+      "pred_coarse": "center",
+      "gt_bbox": [
+        0.385,
+        0.439,
+        0.713,
+        0.96
+      ],
+      "pred_bbox": [
+        0.48681640625,
+        0.5166015625,
+        0.505859375,
+        0.494873046875
+      ],
+      "pred_iou": 0.0,
+      "pred_center_l1": 0.24642480468749994
+    },
+    {
+      "episode": "episode_260409_124157_target_left_left_path__core__fixed_center",
+      "frame_idx": 3,
+      "path_type": "left_left",
+      "split": "train",
+      "gt_coarse": "left",
+      "pred_coarse": "center",
+      "gt_bbox": [
+        0.371,
+        0.471,
+        0.544,
+        0.727
+      ],
+      "pred_bbox": [
+        0.498291015625,
+        0.501953125,
+        0.492431640625,
+        0.49951171875
+      ],
+      "pred_iou": 0.0,
+      "pred_center_l1": 0.13612890624999996
+    },
+    {
+      "episode": "episode_260409_124157_target_left_left_path__core__fixed_center",
+      "frame_idx": 7,
+      "path_type": "left_left",
+      "split": "train",
+      "gt_coarse": "center",
+      "pred_coarse": "center",
+      "gt_bbox": [
+        0.464,
+        0.436,
+        0.657,
+        0.743
+      ],
+      "pred_bbox": [
+        0.49853515625,
+        0.501953125,
+        0.49267578125,
+        0.499267578125
+      ],
+      "pred_iou": 0.0,
+      "pred_center_l1": 0.15378417968750002
+    },
+    {
+      "episode": "episode_260409_124157_target_left_left_path__core__fixed_center",
+      "frame_idx": 13,
+      "path_type": "left_left",
+      "split": "train",
+      "gt_coarse": "left",
+      "pred_coarse": "center",
+      "gt_bbox": [
+        0.217,
+        0.454,
+        0.506,
+        0.935
+      ],
+      "pred_bbox": [
+        0.486572265625,
+        0.5166015625,
+        0.505859375,
+        0.494873046875
+      ],
+      "pred_iou": 0.0,
+      "pred_center_l1": 0.323478515625
+    },
+    {
+      "episode": "episode_260409_131126_target_right_left_path__core__fixed_center",
+      "frame_idx": 3,
+      "path_type": "right_left",
+      "split": "train",
+      "gt_coarse": "right",
+      "pred_coarse": "center",
+      "gt_bbox": [
+        0.548,
+        0.464,
+        0.696,
+        0.7
+      ],
+      "pred_bbox": [
+        0.497802734375,
+        0.50244140625,
+        0.491943359375,
+        0.5
+      ],
+      "pred_iou": 0.0,
+      "pred_center_l1": 0.20790624999999996
+    },
+    {
+      "episode": "episode_260409_131126_target_right_left_path__core__fixed_center",
+      "frame_idx": 7,
+      "path_type": "right_left",
+      "split": "train",
+      "gt_coarse": "center",
+      "pred_coarse": "center",
+      "gt_bbox": [
+        0.414,
+        0.475,
+        0.598,
+        0.768
+      ],
+      "pred_bbox": [
+        0.49853515625,
+        0.501953125,
+        0.49267578125,
+        0.499267578125
+      ],
+      "pred_iou": 0.0,
+      "pred_center_l1": 0.13128417968749995
+    },
+    {
+      "episode": "episode_260409_131126_target_right_left_path__core__fixed_center",
+      "frame_idx": 12,
+      "path_type": "right_left",
+      "split": "train",
+      "gt_coarse": "center",
+      "pred_coarse": "center",
+      "gt_bbox": [
+        0.35,
+        0.455,
+        0.642,
+        0.931
+      ],
+      "pred_bbox": [
+        0.486572265625,
+        0.51708984375,
+        0.50634765625,
+        0.494873046875
+      ],
+      "pred_iou": 0.0,
+      "pred_center_l1": 0.18747851562500006
+    },
+    {
+      "episode": "episode_260409_172906_target_right_right_path__core__fixed_center",
+      "frame_idx": 2,
+      "path_type": "right_right",
+      "split": "val",
+      "gt_coarse": "center",
+      "pred_coarse": "center",
+      "gt_bbox": [
+        0.405,
+        0.482,
+        0.539,
+        0.696
+      ],
+      "pred_bbox": [
+        0.49853515625,
+        0.501953125,
+        0.49267578125,
+        0.499267578125
+      ],
+      "pred_iou": 0.0,
+      "pred_center_l1": 0.11199511718749994
+    },
+    {
+      "episode": "episode_260409_172906_target_right_right_path__core__fixed_center",
+      "frame_idx": 6,
+      "path_type": "right_right",
+      "split": "val",
+      "gt_coarse": "center",
+      "pred_coarse": "center",
+      "gt_bbox": [
+        0.397,
+        0.478,
+        0.551,
+        0.723
+      ],
+      "pred_bbox": [
+        0.49853515625,
+        0.501953125,
+        0.49267578125,
+        0.49951171875
+      ],
+      "pred_iou": 0.0,
+      "pred_center_l1": 0.121373046875
+    },
+    {
+      "episode": "episode_260409_172906_target_right_right_path__core__fixed_center",
+      "frame_idx": 11,
+      "path_type": "right_right",
+      "split": "val",
+      "gt_coarse": "left",
+      "pred_coarse": "center",
+      "gt_bbox": [
+        0.255,
+        0.474,
+        0.476,
+        0.828
+      ],
+      "pred_bbox": [
+        0.486572265625,
+        0.51708984375,
+        0.50634765625,
+        0.494873046875
+      ],
+      "pred_iou": 0.0,
+      "pred_center_l1": 0.27597851562500003
+    },
+    {
+      "episode": "episode_260409_194325_target_right_left_path__core__fixed_center",
+      "frame_idx": 3,
+      "path_type": "right_left",
+      "split": "train",
+      "gt_coarse": "right",
+      "pred_coarse": "center",
+      "gt_bbox": [
+        0.585,
+        0.467,
+        0.732,
+        0.703
+      ],
+      "pred_bbox": [
+        0.49755859375,
+        0.5029296875,
+        0.49169921875,
+        0.5
+      ],
+      "pred_iou": 0.0,
+      "pred_center_l1": 0.24740624999999994
+    },
+    {
+      "episode": "episode_260409_194325_target_right_left_path__core__fixed_center",
+      "frame_idx": 7,
+      "path_type": "right_left",
+      "split": "train",
+      "gt_coarse": "center",
+      "pred_coarse": "center",
+      "gt_bbox": [
+        0.464,
+        0.481,
+        0.647,
+        0.764
+      ],
+      "pred_bbox": [
+        0.49853515625,
+        0.501953125,
+        0.49267578125,
+        0.499267578125
+      ],
+      "pred_iou": 0.0,
+      "pred_center_l1": 0.18178417968750005
+    },
+    {
+      "episode": "episode_260409_194325_target_right_left_path__core__fixed_center",
+      "frame_idx": 13,
+      "path_type": "right_left",
+      "split": "train",
+      "gt_coarse": "right",
+      "pred_coarse": "center",
+      "gt_bbox": [
+        0.55,
+        0.45,
+        0.842,
+        0.961
+      ],
+      "pred_bbox": [
+        0.486572265625,
+        0.51708984375,
+        0.50634765625,
+        0.494873046875
+      ],
+      "pred_iou": 0.0,
+      "pred_center_l1": 0.39905859374999997
+    }
+  ]
+}

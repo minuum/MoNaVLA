@@ -1,0 +1,3 @@
+display_name: Robot Local API Handoff
+short_description: Minimal local FastAPI contract for robot-side MoNaVLA servers that must stay compatible with vla-inference-gradio and existing API clients.
+default_prompt: Prepare or verify the robot-local /predict, /reset, and /health API contract for vla-inference-gradio compatibility.

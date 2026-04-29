@@ -1,0 +1,5 @@
+{
+    "_comment": "Resume config for Exp21 after checkpoint save failure. Resume from best available epoch=02 checkpoint in the same run directory.",
+    "parent": "configs/mobile_vla_v5_exp21_pure_hf_head_only.json",
+    "resume": "/home/billy/25-1kp/MoNaVLA/runs/v5_nav/kosmos/mobile_vla_v5_exp21/2026-04-21/v5-exp21-pure-hf-head-only/epoch_epoch=epoch=02-val_loss=val_loss=2.871.ckpt"
+}

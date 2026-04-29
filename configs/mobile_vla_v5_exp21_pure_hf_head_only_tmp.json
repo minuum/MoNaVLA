@@ -1,0 +1,8 @@
+{
+    "_comment": "Fresh restart config for Exp21 using /tmp for checkpoints/logs/cache to avoid repeated save failures under the project run directory.",
+    "parent": "configs/mobile_vla_v5_exp21_pure_hf_head_only.json",
+    "output_root": "/tmp/monavla_resume_runs",
+    "log_root": "/tmp/monavla_resume_runs",
+    "cache_root": "/tmp/monavla_resume_cache",
+    "resume": null
+}

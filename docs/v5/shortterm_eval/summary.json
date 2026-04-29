@@ -1,0 +1,40 @@
+{
+  "dataset_note": "V5 core-only route dataset",
+  "source": "/home/billy/25-1kp/MoNaVLA/docs/v5/rollout_degradation/degradation_summary.json",
+  "models": [
+    {
+      "model": "exp28",
+      "label": "Exp28",
+      "n_episodes": 9,
+      "closed_loop_success": 0.0,
+      "closed_loop_mean_fpe": 1.605030041754665,
+      "closed_loop_mean_tld": 1.2411931681367079,
+      "prefix_horizon": 5,
+      "non_straight_prefix_success": 0.3333333333333333,
+      "macro_per_path_frame_acc": 0.05592105263157895,
+      "macro_per_path_closed_loop": 0.0,
+      "by_path_frame_acc": {
+        "center_left": 0.0,
+        "center_right": 0.0,
+        "center_straight": 0.0,
+        "left_left": 0.0,
+        "left_right": 0.3157894736842105,
+        "left_straight": 0.0,
+        "right_left": 0.0,
+        "right_right": 0.1875,
+        "right_straight": 0.0
+      },
+      "by_path_closed_loop": {
+        "center_left": 0.0,
+        "center_right": 0.0,
+        "center_straight": 0.0,
+        "left_left": 0.0,
+        "left_right": 0.0,
+        "left_straight": 0.0,
+        "right_left": 0.0,
+        "right_right": 0.0,
+        "right_straight": 0.0
+      }
+    }
+  ]
+}

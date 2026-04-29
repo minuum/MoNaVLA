@@ -1,0 +1,10 @@
+{
+  "truth_path": "docs/v5/bbox_truth_initial18.json",
+  "n_annotations_total": 18,
+  "n_annotations_completed": 0,
+  "n_annotations_pending": 18,
+  "status": "pending_human_review",
+  "overall": null,
+  "by_path": {},
+  "rows": []
+}
