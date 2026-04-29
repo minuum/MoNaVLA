@@ -1,0 +1,30 @@
+{
+    "_comment": "V5 Exp15: 3-way ablation — Head-only. LoRA disabled, mm_projector frozen, text_embedding frozen. Only action head trains. Tests whether VLM's text attention path is preserved when the VLM is fully frozen.",
+    "parent": "configs/mobile_vla_v5_exp11_google_robot_8cls.json",
+    "exp_name": "v5-exp15-head-only",
+    "task_name": "mobile_vla_v5_exp15",
+
+    "learning_rate": 5e-5,
+    "max_epochs": 20,
+
+    "train_setup": {
+        "precision": "16-mixed",
+        "predict_action": true,
+        "predict_forward": false,
+        "predict_forward_hand": false,
+        "predict_caption": false,
+        "train_vision": false,
+        "bits": -1,
+        "freeze_mm_mlp_adapter": true,
+        "freeze_backbone": true,
+        "freeze_resampler": true,
+        "tune_mm_mlp_adapter": false,
+        "tune_mm_projector": false,
+        "mm_use_im_start_end": false,
+        "mm_use_im_patch_token": false,
+        "gradient_checkpointing": true,
+        "lora_enable": false,
+        "mm_projector_lr": 5e-05,
+        "train_text_embedding": false
+    }
+}

@@ -1,0 +1,111 @@
+{
+  "generated_at": "2026-04-23",
+  "purpose": "Robot server deployment prep for current V5 end-to-end policy candidates.",
+  "selection_policy": {
+    "primary_metric": "closed-loop success on held-out V5 core episodes",
+    "secondary_metric": "full rollout FPE",
+    "note": "Offline PM/DM is included as supporting evidence only. Exp29/Exp30 are excluded because training/eval is still in progress."
+  },
+  "server_requirements": {
+    "needs_checkpoint": true,
+    "needs_config": true,
+    "server_env_keys": [
+      "VLA_CHECKPOINT_PATH",
+      "VLA_CONFIG_PATH"
+    ],
+    "inference_entrypoints": [
+      "robovlm_nav/serve/inference_server.py",
+      "robovlm_nav/serve/inference_server_v2.py",
+      "robovlm_nav/serve/inference_server_dual.py"
+    ]
+  },
+  "in_progress_models": [
+    {
+      "model": "exp29",
+      "status": "training",
+      "reason_excluded": "5-epoch coarse-only smoke run still running"
+    },
+    {
+      "model": "exp30",
+      "status": "queued_after_exp29",
+      "reason_excluded": "5-epoch bbox+coarse smoke run not evaluated yet"
+    }
+  ],
+  "top3_candidates": [
+    {
+      "rank": 1,
+      "model": "exp25",
+      "verdict": "current_best_practical_baseline",
+      "checkpoint": "/home/billy/25-1kp/MoNaVLA/runs/v5_nav/kosmos/mobile_vla_v5_exp25/2026-04-22/v5-exp25-step3-balanced-objective/epoch_epoch=epoch=02-val_loss=val_loss=10.117.ckpt",
+      "config": "/home/billy/25-1kp/MoNaVLA/configs/mobile_vla_v5_exp25_step3_balanced_objective.json",
+      "checkpoint_size_mb": 8328.65,
+      "metrics": {
+        "closed_loop_success": 0.556,
+        "closed_loop_mean_fpe": 0.382,
+        "closed_loop_mean_tld": 0.936,
+        "pm_dm": 0.5238
+      },
+      "why_keep": [
+        "Highest current closed-loop success among recent end-to-end candidates",
+        "Lowest full-rollout FPE among exp25/26/27",
+        "Best deployment-first choice despite imperfect turning-family behavior"
+      ],
+      "server_env": {
+        "VLA_CHECKPOINT_PATH": "runs/v5_nav/kosmos/mobile_vla_v5_exp25/2026-04-22/v5-exp25-step3-balanced-objective/epoch_epoch=epoch=02-val_loss=val_loss=10.117.ckpt",
+        "VLA_CONFIG_PATH": "configs/mobile_vla_v5_exp25_step3_balanced_objective.json"
+      }
+    },
+    {
+      "rank": 2,
+      "model": "exp27",
+      "verdict": "secondary_rollout_candidate_only",
+      "checkpoint": "/home/billy/25-1kp/MoNaVLA/runs/v5_nav/kosmos/mobile_vla_v5_exp27/2026-04-23/v5-exp27-step3-objective-letterbox224/epoch_epoch=epoch=08-val_loss=val_loss=7.932.ckpt",
+      "config": "/home/billy/25-1kp/MoNaVLA/configs/mobile_vla_v5_exp27_step3_objective_letterbox224.json",
+      "checkpoint_size_mb": 8328.65,
+      "metrics": {
+        "closed_loop_success": 0.333,
+        "closed_loop_mean_fpe": 0.932,
+        "pm_dm": 0.1548
+      },
+      "why_keep": [
+        "Second-best rollout success among current end-to-end exp25/26/27 set",
+        "Useful ablation reference for letterbox geometry path",
+        "Not preferred over exp25 for deployment"
+      ],
+      "server_env": {
+        "VLA_CHECKPOINT_PATH": "runs/v5_nav/kosmos/mobile_vla_v5_exp27/2026-04-23/v5-exp27-step3-objective-letterbox224/epoch_epoch=epoch=08-val_loss=val_loss=7.932.ckpt",
+        "VLA_CONFIG_PATH": "configs/mobile_vla_v5_exp27_step3_objective_letterbox224.json"
+      }
+    },
+    {
+      "rank": 3,
+      "model": "exp26",
+      "verdict": "offline_strong_but_rollout_fail_reference",
+      "checkpoint": "/home/billy/25-1kp/MoNaVLA/runs/v5_nav/kosmos/mobile_vla_v5_exp26/2026-04-22/v5-exp26-step3-objective-direct224/epoch_epoch=epoch=14-val_loss=val_loss=7.036.ckpt",
+      "config": "/home/billy/25-1kp/MoNaVLA/configs/mobile_vla_v5_exp26_step3_objective_direct224.json",
+      "checkpoint_size_mb": 8328.65,
+      "metrics": {
+        "closed_loop_success": 0.0,
+        "closed_loop_mean_fpe": 1.189,
+        "pm_dm": 0.7024
+      },
+      "why_keep": [
+        "Strongest offline PM/DM among exp25/26/27",
+        "Important counterexample showing offline gains can still destroy rollout",
+        "Reference/debug model only, not a deployment-first pick"
+      ],
+      "server_env": {
+        "VLA_CHECKPOINT_PATH": "runs/v5_nav/kosmos/mobile_vla_v5_exp26/2026-04-22/v5-exp26-step3-objective-direct224/epoch_epoch=epoch=14-val_loss=val_loss=7.036.ckpt",
+        "VLA_CONFIG_PATH": "configs/mobile_vla_v5_exp26_step3_objective_direct224.json"
+      }
+    }
+  ],
+  "recommended_default": {
+    "model": "exp25",
+    "reason": "Best current practical baseline for robot-server deployment."
+  },
+  "evidence_sources": [
+    "/home/billy/25-1kp/MoNaVLA/docs/v5/PROF_MEETING_BRIEF_20260424.md",
+    "/home/billy/25-1kp/MoNaVLA/robovlm_nav/serve/inference_server.py"
+  ]
+}

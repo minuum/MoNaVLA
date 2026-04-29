@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Exp14 Step 2: BBox + Image Feature MLP</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin: 0; padding: 24px; background: #0f172a; color: #e2e8f0; }
+  h1 { font-size: 2rem; margin-bottom: 8px; }
+  .sub { color: #94a3b8; margin-bottom: 24px; max-width: 900px; line-height: 1.6; }
+  .back { color: #60a5fa; text-decoration: none; display: inline-block; margin-bottom: 16px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px; }
+  .box { background: #1e293b; padding: 16px 20px; border-radius: 10px; }
+  .num { font-size: 2.5rem; font-weight: 800; }
+  .good { color: #22c55e; } .warn { color: #fbbf24; } .blue { color: #60a5fa; }
+  table { border-collapse: collapse; background: #1e293b; border-radius: 8px; overflow: hidden; width: 100%; }
+  th, td { padding: 8px 14px; border-bottom: 1px solid #334155; text-align: left; }
+  th { background: #0b1220; }
+  .diag { background: #172554; border-left: 4px solid #60a5fa; padding: 14px 18px; border-radius: 6px; color: #dbeafe; margin-top: 20px; line-height: 1.7; }
+</style>
+</head>
+<body>
+  <a class="back" href="../../index.html">← Back to main</a>
+  <h1>Exp14 Step 2: BBox + Image Feature MLP</h1>
+  <p class="sub">
+    Step 1의 BBox history feature에 16x16 grayscale image feature를 추가한 경량 MLP입니다.
+    목적은 center_left / center_right 같은 애매한 장면에서 bbox만으로 부족한 시각 정보를 보완하는 것입니다.
+  </p>
+
+  <div class="grid3">
+    <div class="box">
+      <div style="color:#94a3b8; font-size:0.85rem; text-transform:uppercase;">Rule on test split</div>
+      <div class="num warn">32.9%</div>
+      <div>Step 1 split 기준</div>
+    </div>
+    <div class="box">
+      <div style="color:#94a3b8; font-size:0.85rem; text-transform:uppercase;">Step 1 MLP</div>
+      <div class="num blue">68.4%</div>
+      <div>BBox only reference</div>
+    </div>
+    <div class="box">
+      <div style="color:#94a3b8; font-size:0.85rem; text-transform:uppercase;">Step 2 MLP</div>
+      <div class="num good">75.9%</div>
+      <div>(119/158)</div>
+    </div>
+  </div>
+
+  <h2>PM per Path Type (test split)</h2>
+  <table>
+    <tr><th>Path Type</th><th>Correct/Total</th><th>PM</th></tr>
+    <tr><td>center_straight</td><td>12/14</td><td><strong>85.7%</strong></td></tr><tr><td>center_left</td><td>12/18</td><td><strong>66.7%</strong></td></tr><tr><td>center_right</td><td>8/18</td><td><strong>44.4%</strong></td></tr><tr><td>left_straight</td><td>16/18</td><td><strong>88.9%</strong></td></tr><tr><td>left_left</td><td>15/19</td><td><strong>78.9%</strong></td></tr><tr><td>left_right</td><td>16/19</td><td><strong>84.2%</strong></td></tr><tr><td>right_straight</td><td>16/18</td><td><strong>88.9%</strong></td></tr><tr><td>right_left</td><td>15/18</td><td><strong>83.3%</strong></td></tr><tr><td>right_right</td><td>10/16</td><td><strong>62.5%</strong></td></tr>
+  </table>
+
+  <div class="diag">
+    <strong>설정</strong><br>
+    입력: recent 3 frame bbox history + current frame 16x16 grayscale image feature.<br>
+    출력: 8-class discrete action.<br>
+    기준 비교값: Step 1 bbox-only MLP 68.4%.
+  </div>
+</body>
+</html>

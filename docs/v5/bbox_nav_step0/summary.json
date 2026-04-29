@@ -1,0 +1,65 @@
+{
+  "overall_pm": 0.3111111111111111,
+  "total": 90,
+  "correct": 28,
+  "pm_by_path": {
+    "center_straight": {
+      "correct": 6,
+      "total": 10
+    },
+    "center_left": {
+      "correct": 4,
+      "total": 10
+    },
+    "center_right": {
+      "correct": 1,
+      "total": 10
+    },
+    "left_straight": {
+      "correct": 4,
+      "total": 10
+    },
+    "left_left": {
+      "correct": 3,
+      "total": 10
+    },
+    "left_right": {
+      "correct": 0,
+      "total": 10
+    },
+    "right_straight": {
+      "correct": 4,
+      "total": 10
+    },
+    "right_left": {
+      "correct": 4,
+      "total": 10
+    },
+    "right_right": {
+      "correct": 2,
+      "total": 10
+    }
+  },
+  "confusion": {
+    "FORWARD->FORWARD": 24,
+    "FORWARD->STOP": 26,
+    "LEFT->FORWARD": 1,
+    "FWD+L->FORWARD": 3,
+    "FWD+R->FWD+R": 2,
+    "LEFT->STOP": 1,
+    "FWD+L->FWD+R": 3,
+    "FORWARD->FWD+R": 3,
+    "RIGHT->FORWARD": 2,
+    "FWD+R->FORWARD": 5,
+    "FWD+L->STOP": 3,
+    "ROT_R->RIGHT": 1,
+    "FORWARD->FWD+L": 5,
+    "ROT_R->FWD+L": 1,
+    "FWD+L->LEFT": 2,
+    "FWD+L->FWD+L": 1,
+    "FWD+R->FWD+L": 1,
+    "FWD+R->STOP": 3,
+    "ROT_L->STOP": 2,
+    "RIGHT->RIGHT": 1
+  }
+}

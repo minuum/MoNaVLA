@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Exp14 Step 2 Repro Check</title>
+<style>
+ body { font-family:-apple-system,BlinkMacSystemFont,sans-serif; margin:0; padding:24px; background:#0f172a; color:#e2e8f0; }
+ h1 { font-size:2rem; margin-bottom:8px; }
+ .sub { color:#94a3b8; line-height:1.6; max-width:960px; margin-bottom:24px; }
+ .grid { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:24px; }
+ .box { background:#1e293b; padding:16px 20px; border-radius:10px; }
+ .lbl { color:#94a3b8; text-transform:uppercase; font-size:.85rem; }
+ .num { font-size:2.2rem; font-weight:800; margin-top:6px; }
+ .good { color:#22c55e; } .blue { color:#60a5fa; } .warn { color:#fbbf24; }
+ table { width:100%; border-collapse:collapse; background:#1e293b; border-radius:8px; overflow:hidden; }
+ th, td { padding:9px 14px; border-bottom:1px solid #334155; text-align:left; vertical-align:top; }
+ th { background:#0b1220; }
+</style>
+</head>
+<body>
+ <a href="../bbox_nav_step2/index.html" style="color:#60a5fa; text-decoration:none;">← Back to Step 2</a>
+ <h1>Exp14 Step 2 Repro Check</h1>
+ <p class="sub">Different split seeds에 대해 Step 2를 다시 학습해 held-out PM 분산을 확인했습니다.</p>
+ <div class="grid">
+   <div class="box"><div class="lbl">Mean PM</div><div class="num good">76.6%</div></div>
+   <div class="box"><div class="lbl">Std</div><div class="num blue">1.6%</div></div>
+   <div class="box"><div class="lbl">Min</div><div class="num warn">74.8%</div></div>
+   <div class="box"><div class="lbl">Max</div><div class="num good">79.1%</div></div>
+ </div>
+ <table>
+   <tr><th>Split Seed</th><th>Rule</th><th>Step 2</th><th>Test Frames</th><th>Held-out Episodes</th></tr>
+   <tr><td>0</td><td>32.1%</td><td>74.8%</td><td>159</td><td>episode_260408_124918_target_center_straight_path__core__fixed_center, episode_260408_175129_target_center_left_path__core__fixed_center, episode_260408_185014_target_center_right_path__core__fixed_center, episode_260409_072932_target_left_straight_path__core__fixed_center, episode_260409_195531_target_left_left_path__core__fixed_center, episode_260409_123501_target_left_right_path__core__fixed_center, episode_260409_163701_target_right_straight_path__core__fixed_center, episode_260409_194038_target_right_left_path__core__fixed_center, episode_260409_192131_target_right_right_path__core__fixed_center</td></tr><tr><td>1</td><td>34.2%</td><td>79.1%</td><td>158</td><td>episode_260408_130141_target_center_straight_path__core__fixed_center, episode_260408_175031_target_center_left_path__core__fixed_center, episode_260408_190853_target_center_right_path__core__fixed_center, episode_260409_072407_target_left_straight_path__core__fixed_center, episode_260409_195440_target_left_left_path__core__fixed_center, episode_260409_123235_target_left_right_path__core__fixed_center, episode_260409_164320_target_right_straight_path__core__fixed_center, episode_260409_131126_target_right_left_path__core__fixed_center, episode_260409_192014_target_right_right_path__core__fixed_center</td></tr><tr><td>2</td><td>37.1%</td><td>74.8%</td><td>159</td><td>episode_260408_124918_target_center_straight_path__core__fixed_center, episode_260408_174944_target_center_left_path__core__fixed_center, episode_260408_193251_target_center_right_path__core__fixed_center, episode_260409_114531_target_left_straight_path__core__fixed_center, episode_260409_195440_target_left_left_path__core__fixed_center, episode_260409_123322_target_left_right_path__core__fixed_center, episode_260409_163530_target_right_straight_path__core__fixed_center, episode_260409_131239_target_right_left_path__core__fixed_center, episode_260409_172906_target_right_right_path__core__fixed_center</td></tr><tr><td>3</td><td>33.3%</td><td>77.4%</td><td>159</td><td>episode_260408_130141_target_center_straight_path__core__fixed_center, episode_260408_175031_target_center_left_path__core__fixed_center, episode_260408_185014_target_center_right_path__core__fixed_center, episode_260409_114531_target_left_straight_path__core__fixed_center, episode_260409_195531_target_left_left_path__core__fixed_center, episode_260409_123322_target_left_right_path__core__fixed_center, episode_260409_164320_target_right_straight_path__core__fixed_center, episode_260409_194325_target_right_left_path__core__fixed_center, episode_260409_192014_target_right_right_path__core__fixed_center</td></tr><tr><td>4</td><td>30.2%</td><td>76.7%</td><td>159</td><td>episode_260408_124918_target_center_straight_path__core__fixed_center, episode_260408_174654_target_center_left_path__core__fixed_center, episode_260408_185117_target_center_right_path__core__fixed_center, episode_260409_072507_target_left_straight_path__core__fixed_center, episode_260409_124157_target_left_left_path__core__fixed_center, episode_260409_123407_target_left_right_path__core__fixed_center, episode_260409_163701_target_right_straight_path__core__fixed_center, episode_260409_193911_target_right_left_path__core__fixed_center, episode_260409_173030_target_right_right_path__core__fixed_center</td></tr>
+ </table>
+</body>
+</html>

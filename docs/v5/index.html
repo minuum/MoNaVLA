@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MoNaVLA V5 Experiment Dashboard</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --mona-blue: #3273dc;
+            --mona-dark: #363636;
+            --mona-success: #48c78e;
+        }
+        body { font-family: 'Inter', 'Pretendard', sans-serif; background-color: #f5f8fa; }
+        .hero.is-info { background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); }
+        .card { border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); transition: transform 0.2s; }
+        .card:hover { transform: translateY(-5px); }
+        .tag.is-exp { font-weight: bold; min-width: 80px; }
+        .metrics-table { font-size: 0.95rem; }
+        .metrics-table th { background-color: #f1f5f9; text-align: center !important; }
+        .metrics-table td { vertical-align: middle !important; text-align: center !important; }
+        .highlight-row { background-color: #f0f9ff; font-weight: 600; }
+        .breakthrough { background-color: #fffbeb !important; border: 2px solid #f59e0b; }
+        .status-badge { display: inline-flex; align-items: center; gap: 5px; }
+    </style>
+</head>
+<body>
+    <section class="hero is-info is-bold">
+        <div class="hero-body">
+            <div class="container">
+                <h1 class="title"><i class="fas fa-microscope mr-3"></i>V5 실험 종합 대시보드</h1>
+                <h2 class="subtitle">MoNaVLA: Navigation Accuracy & Instruction Compliance</h2>
+            </div>
+        </div>
+    </section>
+
+    <div class="container mt-6">
+        <div class="columns is-multiline">
+            <!-- Phase 1 Summary -->
+            <div class="column is-12">
+                <div class="card">
+                    <header class="card-header">
+                        <p class="card-header-title"><i class="fas fa-list-ol mr-2"></i>종합 실험 매트릭스 (Phase 2 Focus)</p>
+                    </header>
+                    <div class="card-content">
+                        <div class="table-container">
+                            <table class="table is-bordered is-striped is-narrow is-hoverable is-fullwidth metrics-table">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>핵심 설명 (Technical Theme)</th>
+                                        <th>기반 모델</th>
+                                        <th>액션 체계</th>
+                                        <th>Val Loss</th>
+                                        <th>상태</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td><span class="tag is-light is-exp">Exp 01</span></td>
+                                        <td>초기 이산(Discrete) 모델 베이스라인</td>
+                                        <td>V4 Reg.</td>
+                                        <td>6-Class</td>
+                                        <td>2.270</td>
+                                        <td><span class="status-badge has-text-warning"><i class="fas fa-exclamation-triangle"></i> Bias (직진 편향)</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td><span class="tag is-light is-exp">Exp 02</span></td>
+                                        <td>직진 데이터 제거 및 회전 웨이트 강화</td>
+                                        <td>V4 Reg.</td>
+                                        <td>6-Class</td>
+                                        <td>2.210</td>
+                                        <td><span class="status-badge has-text-link"><i class="fas fa-arrow-up"></i> Improved</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td><span class="tag is-light is-exp">Exp 03</span></td>
+                                        <td>지시문 일관성을 위한 <strong>CLIP Norm Loss</strong> 도입</td>
+                                        <td>Exp 02</td>
+                                        <td>6-Class</td>
+                                        <td>1.784</td>
+                                        <td><span class="status-badge has-text-success"><i class="fas fa-check-circle"></i> Semantic Sync</span></td>
+                                    </tr>
+                                    <tr class="breakthrough">
+                                        <td><span class="tag is-warning is-exp">Exp 04</span></td>
+                                        <td><strong>Google-Robot Foundation</strong>으로 전면 교체</td>
+                                        <td>Google</td>
+                                        <td>6-Class</td>
+                                        <td><strong>0.776</strong></td>
+                                        <td><span class="status-badge has-text-danger"><i class="fas fa-bolt"></i> Breakthrough</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td><span class="tag is-light is-exp">Exp 05</span></td>
+                                        <td>Action-Aware Context Prompting</td>
+                                        <td>Google</td>
+                                        <td>6-Class</td>
+                                        <td>-</td>
+                                        <td><span class="status-badge has-text-success"><i class="fas fa-history"></i> Contextual</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td><span class="tag is-light is-exp">Exp 06</span></td>
+                                        <td>Pure HuggingFace Tokenizer Alignment</td>
+                                        <td>Google</td>
+                                        <td>6-Class</td>
+                                        <td>-</td>
+                                        <td><span class="status-badge has-text-success"><i class="fas fa-link"></i> HF Sync</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td><span class="tag is-light is-exp">Exp 07</span></td>
+                                        <td>Path-Type Grounding (Explicit Turn logic)</td>
+                                        <td>Google</td>
+                                        <td>6-Class</td>
+                                        <td>-</td>
+                                        <td><span class="status-badge has-text-success"><i class="fas fa-map-marked-alt"></i> Grounded</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td><span class="tag is-info is-exp">Exp 08</span></td>
+                                        <td>"Center-Goal" 목표 지향형 지시문 적용</td>
+                                        <td>Google</td>
+                                        <td>6-Class</td>
+                                        <td>-</td>
+                                        <td><span class="status-badge has-text-success"><i class="fas fa-bullseye"></i> Goal-Centric</span></td>
+                                    </tr>
+                                    <tr class="highlight-row">
+                                        <td><span class="tag is-success is-exp">Exp 09</span></td>
+                                        <td><strong>8-Class 통합 시스템</strong> (3DOF: lx, ly, az)</td>
+                                        <td>Google</td>
+                                        <td>8-Class</td>
+                                        <td><strong>1.203</strong></td>
+                                        <td><span class="status-badge has-text-warning"><i class="fas fa-exclamation-circle"></i> Forward Bias</span></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p class="is-size-7 mt-2">* Exp 09는 전체 데이터셋(직진 포함) 기준이며, Exp 04 대비 훨씬 복잡한 태스크를 수행 중입니다.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analysis Cards -->
+            <div class="column is-6">
+                <div class="notification is-white card">
+                    <h3 class="title is-4 has-text-info"><i class="fas fa-lightbulb mr-2"></i>핵심 돌파구: Exp 04</h3>
+                    <p>V4 체크포인트의 시각 오염(Backbone Blindness)을 해결하기 위해 Google-Robot 사전학습 가중치를 도입했습니다. 그 결과 <strong>Val Loss가 1/3 수준으로 감소</strong>하며 시각 정보 기반의 경로 생성이 정상화되었습니다.</p>
+                    <a href="../reports/viewer.html?file=../v5/exp04/report.md" class="button is-small is-info is-outlined mt-3">상세 리포트 보기</a>
+                </div>
+            </div>
+
+            <div class="column is-6">
+                <div class="notification is-danger is-light card">
+                    <h3 class="title is-4 has-text-danger"><i class="fas fa-exclamation-triangle mr-2"></i>발견된 당면 과제: 편향성</h3>
+                    <p>Exp 09의 Val Accuracy는 83%로 높으나, 실제 행동 예측은 <strong>직진(Forward)에 100% 쏠리는 현상</strong>이 관찰되었습니다. 이는 데이터 불균형으로 인한 국소 최적점(Local Minimum)에 빠진 것으로 분석됩니다.</p>
+                    <a href="../reports/viewer.html?file=../v5/exp09/report.md" class="button is-small is-danger is-outlined mt-3">편향성 분석 리포트</a>
+                </div>
+            </div>
+            <div class="column is-6">
+                <div class="notification is-link is-light card">
+                    <h3 class="title is-4 has-text-link"><i class="fas fa-scale-balanced mr-2"></i>Exp14 BBox Navigation Track</h3>
+                    <p>정정 후 기준으로 Pure HF rule은 31.1%, Exp10 grounding + rule은 34.4%에 그쳤고, Step 1은 68.4%, Step 2(BBox + low-res image feature)는 75.9%까지 올라갔습니다. 현재 가장 강한 실용 baseline은 Exp14 Step 2입니다.</p>
+                    <a href="bbox_nav_comparison.html" class="button is-small is-link is-outlined mt-3">Exp14 Comparison</a>
+                </div>
+            </div>
+            <div class="column is-6">
+                <div class="notification is-warning is-light card">
+                    <h3 class="title is-4 has-text-warning-dark"><i class="fas fa-gauge-high mr-2"></i>End-to-End Gate Results</h3>
+                    <p>Exp17은 <strong>PM 76.95% / closed-loop 11.1%</strong>, Exp18은 <strong>PM 27.62% / closed-loop 11.1%</strong>이었습니다. 즉 최신 end-to-end branch 둘 다 Exp14 Step2 기준선(<strong>66.7%</strong>)을 넘지 못했습니다.</p>
+                    <a href="../reports/viewer.html?file=../v5/STATUS_20260421_EXP18.md" class="button is-small is-warning is-outlined mt-3">Exp18 상태 리포트</a>
+                </div>
+            </div>
+            <div class="column is-6">
+                <div class="notification is-success is-light card">
+                    <h3 class="title is-4 has-text-success-dark"><i class="fas fa-file-lines mr-2"></i>Paper-Ready Results</h3>
+                    <p>논문 본문에 바로 옮길 수 있도록 V5 주요 결과 표, booktabs LaTeX, 한국어 캡션, Experimental Results 초안을 한 페이지로 정리했습니다. Exp18은 이제 <strong>evaluation failed</strong> 상태로 반영했습니다.</p>
+                    <a href="paper_results.html" class="button is-small is-success is-outlined mt-3">Paper Results Page</a>
+                </div>
+            </div>
+            <div class="column is-6">
+                <div class="notification is-info is-light card">
+                    <h3 class="title is-4 has-text-info-dark"><i class="fas fa-wave-square mr-2"></i>Proxy Follow-up (Exp19 / Exp20)</h3>
+                    <p>Exp19는 <strong>PM 76.58% / closed-loop 55.6%</strong>로 end-to-end보다는 확실히 강했지만, Step2 기준선 <strong>66.7%</strong>은 넘지 못했습니다. Exp20 auxiliary head는 <strong>75.32%</strong>로 더 약했습니다.</p>
+                    <a href="../reports/viewer.html?file=../v5/CURRENT_RESEARCH_PLAN_20260421.md" class="button is-small is-info is-outlined mt-3">현재 계획 보기</a>
+                </div>
+            </div>
+            <div class="column is-6">
+                <div class="notification is-primary is-light card">
+                    <h3 class="title is-4 has-text-primary-dark"><i class="fas fa-magnifying-glass-chart mr-2"></i>Root-Cause Update</h3>
+                    <p>Pure HF Kosmos는 text attention이 약 <strong>22.6%</strong> 살아 있지만, Google-Robot policy track은 <strong>Exp11</strong>뿐 아니라 <strong>head-only Exp15</strong>에서도 text attention이 <strong>0.000%</strong>입니다. 즉 LoRA가 없어도 collapse가 관측됩니다.</p>
+                    <a href="../reports/viewer.html?file=../v5/TEXT_IGNORE_ROOTCAUSE_20260424.md" class="button is-small is-primary is-outlined mt-3">Root-Cause 문서</a>
+                </div>
+            </div>
+            <div class="column is-6">
+                <div class="notification is-link is-light card">
+                    <h3 class="title is-4 has-text-link-dark"><i class="fas fa-flask-vial mr-2"></i>Pure HF Controlled Ablation</h3>
+                    <p>`Exp21/22/23`로 raw HF Kosmos 기준 `head-only / LoRA / both` 3축을 같은 8-class V5 조건으로 다시 돌릴 준비를 마쳤습니다. 다음 root-cause 분기점은 이 통제 실험입니다.</p>
+                    <a href="../reports/viewer.html?file=../v5/PURE_HF_CONTROLLED_ABLATION_20260421.md" class="button is-small is-link is-outlined mt-3">Ablation Runbook</a>
+                </div>
+            </div>
+            <div class="column is-6">
+                <div class="notification is-dark is-light card">
+                    <h3 class="title is-4 has-text-dark"><i class="fas fa-sitemap mr-2"></i>Exp01~24 Reasoning Map</h3>
+                    <p>`Exp01~24`를 실험 나열이 아니라, 어떤 가설이 생겼고 무엇이 반박됐으며 왜 현재 practical baseline과 root-cause 방향이 이렇게 정리됐는지의 추론선으로 다시 묶었습니다.</p>
+                    <div class="buttons mt-3">
+                        <a href="../reports/viewer.html?file=../v5/EXP01_24_REASONING_MAP_20260422.md" class="button is-small is-dark is-outlined">내부 정리본</a>
+                        <a href="../reports/viewer.html?file=../v5/PROF_REPORT_EXP01_24_20260422.md" class="button is-small is-dark">교수님 요약본</a>
+                    </div>
+                </div>
+            </div>
+            <div class="column is-6">
+                <div class="notification is-primary is-light card">
+                    <h3 class="title is-4 has-text-primary-dark"><i class="fas fa-code-commit mr-2"></i>Commit Timeline & Talk Track</h3>
+                    <p>`2026-04-18 ~ 2026-04-23` 핵심 커밋을 기준으로, 각 커밋에서 무엇을 했고 교수님께는 어떤 문장으로 설명하면 되는지까지 한 번에 정리했습니다.</p>
+                    <div class="buttons mt-3">
+                        <a href="../reports/viewer.html?file=../v5/COMMIT_SUMMARY_20260424.md" class="button is-small is-primary">커밋 요약 보기</a>
+                        <a href="../reports/viewer.html?file=../v5/EXP_STATUS_20260424.md" class="button is-small is-primary is-outlined">현재 exp 상태</a>
+                    </div>
+                </div>
+            </div>
+            <div class="column is-6">
+                <div class="notification is-warning is-light card">
+                    <h3 class="title is-4 has-text-warning-dark"><i class="fas fa-route mr-2"></i>4/27 Proof Pack</h3>
+                    <p>4/24 대면 미팅 후속으로, 초기 18프레임 grounding 증명과 left-only action 검증, pure Kosmos last-4 LoRA 상태 문서를 월요일 실험 축 기준으로 새로 묶었습니다.</p>
+                    <div class="buttons mt-3">
+                        <a href="../reports/viewer.html?file=../v5/INITIAL_GROUNDING_PROOF_20260427.md" class="button is-small is-warning">Grounding Proof</a>
+                        <a href="grounding_initial18_debug/index.html" class="button is-small is-warning is-light">Initial18 Debug HTML</a>
+                        <a href="../reports/viewer.html?file=../v5/INITIAL_GROUNDING_DEBUG_RESULT_20260424.md" class="button is-small is-warning is-outlined">Grounding Result</a>
+                        <a href="../reports/viewer.html?file=../v5/LEFT_ONLY_ACTION_PROOF_20260427.md" class="button is-small is-warning is-outlined">Left-only Proof</a>
+                        <a href="../reports/viewer.html?file=../v5/PURE_KOSMOS_LAST4_LORA_STATUS_20260427.md" class="button is-small is-warning is-outlined">Last-4 LoRA</a>
+                        <a href="../reports/viewer.html?file=../v5/TRAINING_ANOMALY_CHECK_20260424.md" class="button is-small is-warning is-outlined">Training Anomaly</a>
+                    </div>
+                </div>
+            </div>
+            <!-- Behavioral Analysis Section -->
+            <div class="column is-12 mt-4">
+                <div class="card Breakthrough">
+                    <header class="card-header">
+                        <p class="card-header-title has-text-danger"><i class="fas fa-chart-pie mr-2"></i>Exp 09 행동 예측 정밀 분석 (Behavioral Analysis)</p>
+                    </header>
+                    <div class="card-content">
+                        <div class="columns">
+                            <div class="column is-6">
+                                <h4 class="subtitle is-5">오차 행렬 (Confusion Matrix)</h4>
+                                <div class="table-container">
+                                    <table class="table is-narrow is-fullwidth is-bordered" style="font-size: 0.8rem;">
+                                        <thead>
+                                            <tr>
+                                                <th>GT \ Pred</th>
+                                                <th>Stop</th>
+                                                <th>Fwd</th>
+                                                <th>Left</th>
+                                                <th>Right</th>
+                                                <th>FL</th>
+                                                <th>FR</th>
+                                                <th>TL</th>
+                                                <th>TR</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr><td>Stop</td><td class="has-background-danger-light">0</td><td>1</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+                                            <tr class="is-selected"><td>Forward</td><td>0</td><td>42</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+                                            <tr><td>Left</td><td>0</td><td class="has-background-danger-light">4</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+                                            <tr><td>Right</td><td>0</td><td class="has-background-danger-light">1</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+                                            <tr><td>FL</td><td>0</td><td class="has-background-danger-light">1</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <p class="help is-danger"><strong>판단:</strong> 가중치 조정에도 불구하고 모델이 Forward로 수렴함. 데이터의 절대적 빈도가 학습을 지배하고 있음.</p>
+                            </div>
+                            <div class="column is-6">
+                                <h4 class="subtitle is-5">Pages-safe Reading Guide</h4>
+                                <div class="notification is-light" style="border-radius: 12px; text-align: left;">
+                                    <p><strong>GitHub Pages에서는 로컬 실험 이미지 경로를 직접 노출하지 않습니다.</strong></p>
+                                    <p class="mt-3">대신 아래 문서에서 실제 failure pattern과 최근 판정을 바로 확인할 수 있게 정리했습니다.</p>
+                                    <div class="buttons mt-4">
+                                        <a href="devlog.html" class="button is-warning is-light">V5 Dev Log</a>
+                                        <a href="sanity.html" class="button is-danger is-light">LEFT/RIGHT Sanity</a>
+                                        <a href="analysis.html" class="button is-info is-light">Exp01~11 Analysis</a>
+                                    </div>
+                                    <p class="is-size-7 mt-2">Exp09의 핵심 패턴은 forward-biased policy collapse, Exp11의 핵심 패턴은 left-family to right-family collapse로 요약됩니다.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer mt-6">
+        <div class="content has-text-centered">
+            <p><strong>MoNaVLA Project Docs</strong> by Advanced Agentic Coding Team. <a href="../index.html" class="has-text-link">← Return to Hub</a></p>
+        </div>
+    </footer>
+</body>
+</html>

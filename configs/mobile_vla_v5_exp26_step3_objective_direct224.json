@@ -1,0 +1,17 @@
+{
+    "_comment": "V5 Exp26: RoboVLMs-faithful 224 direct-resize ablation on top of Exp25. Keep the same objective/data regime, but remove train-time crop/jitter so resize behaviour matches the original simple 224 baseline more closely.",
+    "parent": "configs/mobile_vla_v5_exp25_step3_balanced_objective.json",
+    "exp_name": "v5-exp26-step3-objective-direct224",
+    "task_name": "mobile_vla_v5_exp26",
+
+    "train_dataset": {
+        "use_color_jitter": false,
+        "use_random_crop": false,
+        "resize_mode": "direct"
+    },
+    "val_dataset": {
+        "use_color_jitter": false,
+        "use_random_crop": false,
+        "resize_mode": "direct"
+    }
+}

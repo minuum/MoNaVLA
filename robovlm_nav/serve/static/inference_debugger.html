@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MoNaVLA Inference Debugger</title>
+  <style>
+    :root {
+      --bg: #f4f1ea;
+      --panel: #fffdf8;
+      --border: #d7cdbf;
+      --text: #1d1b19;
+      --muted: #6e665d;
+      --accent: #9b5d2e;
+      --accent-2: #2f6f62;
+      --danger: #9b2c2c;
+      --shadow: 0 10px 30px rgba(60, 44, 26, 0.08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Pretendard", "Noto Sans KR", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(155,93,46,0.08), transparent 28%),
+        linear-gradient(180deg, #f7f3ec 0%, var(--bg) 100%);
+    }
+    .shell { max-width: 1480px; margin: 0 auto; padding: 28px 20px 40px; }
+    .hero, .grid, .split, .status-grid { display: grid; gap: 18px; }
+    .hero { grid-template-columns: 1.2fr 0.8fr; margin-bottom: 20px; }
+    .grid { grid-template-columns: 420px minmax(0, 1fr); gap: 20px; }
+    .split { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+    .status-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      box-shadow: var(--shadow);
+    }
+    .hero-main { padding: 28px; }
+    .hero-side { padding: 22px; background: linear-gradient(135deg, #fffaf2 0%, #f4ede2 100%); }
+    .controls { padding: 20px; position: sticky; top: 16px; align-self: start; }
+    h1 { margin: 0 0 10px; font-size: 32px; line-height: 1.05; }
+    .sub { color: var(--muted); line-height: 1.5; margin: 0; }
+    .section-title {
+      font-size: 14px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin: 0 0 10px;
+    }
+    .status, .step { padding: 18px 20px; }
+    .step-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .step-header h2 { margin: 0; font-size: 22px; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      background: #efe5d6;
+      color: #6e4c25;
+    }
+    .card {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 14px;
+      background: #fff;
+    }
+    .card h3 { margin: 0 0 10px; font-size: 15px; }
+    label { display: block; font-size: 13px; font-weight: 700; margin: 14px 0 6px; }
+    input[type="text"], textarea, select {
+      width: 100%;
+      border: 1px solid var(--border);
+      background: #fff;
+      border-radius: 14px;
+      padding: 12px 14px;
+      font: inherit;
+    }
+    textarea { min-height: 120px; resize: vertical; }
+    .button-row { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+    button {
+      border: 0;
+      border-radius: 999px;
+      padding: 12px 18px;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 0.16s ease, opacity 0.16s ease;
+    }
+    button:hover { transform: translateY(-1px); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .primary { background: var(--accent); color: #fff; }
+    .secondary { background: #ece4d7; color: var(--text); }
+    .note {
+      margin-top: 14px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: #f7efe3;
+      color: #5e5143;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+    .metric {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 14px;
+      background: #fffcf7;
+    }
+    .metric .k { display: block; color: var(--muted); font-size: 12px; margin-bottom: 4px; }
+    .metric .v { font-size: 18px; font-weight: 800; }
+    .preview {
+      width: 100%;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: #f4efe7;
+      aspect-ratio: 4 / 3;
+      object-fit: contain;
+    }
+    .kv { display: grid; gap: 8px; }
+    .kv-row {
+      display: grid;
+      grid-template-columns: 160px 1fr;
+      gap: 10px;
+      align-items: start;
+      font-size: 14px;
+    }
+    .kv-row .key { color: var(--muted); font-weight: 700; }
+    .tokens { display: flex; flex-wrap: wrap; gap: 6px; }
+    .token {
+      font-size: 12px;
+      padding: 6px 8px;
+      border-radius: 999px;
+      background: #f1ece4;
+      border: 1px solid #ded4c7;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td {
+      text-align: left;
+      padding: 9px 10px;
+      border-bottom: 1px solid #eadfce;
+      vertical-align: top;
+    }
+    th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; }
+    pre {
+      margin: 0;
+      padding: 14px;
+      border-radius: 14px;
+      background: #1f1d1b;
+      color: #f8f2e7;
+      overflow: auto;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    .list-wrap {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .server-list {
+      max-height: 240px;
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: #fff;
+      padding: 8px;
+    }
+    .server-item {
+      display: block;
+      width: 100%;
+      text-align: left;
+      border-radius: 10px;
+      padding: 10px 12px;
+      background: transparent;
+      color: var(--text);
+    }
+    .server-item:hover { background: #f5ede2; }
+    .server-item.active { background: #ead8c1; }
+    .path-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+    .empty { color: var(--muted); font-size: 13px; padding: 8px 4px; }
+    @media (max-width: 1100px) {
+      .hero, .grid, .split, .status-grid { grid-template-columns: 1fr; }
+      .controls { position: static; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <section class="hero">
+      <div class="panel hero-main">
+        <h1>Inference Debugger</h1>
+        <p class="sub">
+          서버 안에 있는 이미지 파일을 직접 골라서 `predict_debug_path`를 호출합니다.
+          원본 이미지, 224 입력 이미지, prompt, tokenization, raw chunk, class top-k, smoothing, final action을 한 화면에서 확인합니다.
+        </p>
+      </div>
+      <div class="panel hero-side">
+        <p class="section-title">Operational Note</p>
+        <p class="sub">
+          reset 직후 첫 호출은 의도적으로 `0 action`을 반환하면서 history를 prime합니다.
+          같은 프레임을 한 번 더 넣으면 실제 action 출력 과정을 바로 비교할 수 있습니다.
+        </p>
+      </div>
+    </section>
+
+    <div class="grid">
+      <aside class="panel controls">
+        <p class="section-title">Server Image Debug</p>
+
+        <label for="rootSelect">Server Root</label>
+        <select id="rootSelect"></select>
+
+        <label for="currentPath">Current Path</label>
+        <div class="path-row">
+          <input id="currentPath" type="text" placeholder="/server/path">
+          <button id="loadPathBtn" class="secondary" type="button">Load</button>
+        </div>
+
+        <div class="button-row">
+          <button id="upBtn" class="secondary" type="button">Up</button>
+          <button id="refreshBtn" class="secondary" type="button">Refresh Dir</button>
+        </div>
+
+        <div class="list-wrap">
+          <div>
+            <label>Folders</label>
+            <div id="dirList" class="server-list"></div>
+          </div>
+          <div>
+            <label>Images</label>
+            <div id="fileList" class="server-list"></div>
+          </div>
+        </div>
+
+        <label for="selectedImagePath">Selected Image Path</label>
+        <input id="selectedImagePath" type="text" placeholder="/server/path/to/frame_0000.png">
+
+        <div class="button-row">
+          <button id="prevFrameBtn" class="secondary" type="button">Prev Frame</button>
+          <button id="nextFrameBtn" class="secondary" type="button">Next Frame</button>
+        </div>
+
+        <label for="modelSelect">Debug Model</label>
+        <select id="modelSelect"></select>
+
+        <div class="button-row">
+          <button id="reloadModelBtn" class="secondary" type="button">Reload Model</button>
+        </div>
+
+        <label for="instruction">Instruction</label>
+        <textarea id="instruction">Navigate to the gray basket on the left.</textarea>
+
+        <div class="button-row">
+          <button id="runBtn" class="primary" type="button">Run Debug</button>
+          <button id="resetBtn" class="secondary" type="button">Reset History</button>
+          <button id="healthBtn" class="secondary" type="button">Refresh Health</button>
+        </div>
+
+        <div class="note">
+          추천 순서:
+          1. dataset image root에서 frame 선택
+          2. `Reset History`
+          3. 같은 frame으로 `Run Debug` 1회
+          4. 같은 frame으로 `Run Debug` 2회
+        </div>
+      </aside>
+
+      <main class="content">
+        <section class="panel status">
+          <div class="step-header">
+            <h2>Server Status</h2>
+            <span id="healthBadge" class="badge">Not checked</span>
+          </div>
+          <div id="healthGrid" class="status-grid"></div>
+        </section>
+
+        <section class="steps">
+          <article class="panel step">
+            <div class="step-header">
+              <h2>Step 1. Session / Prompt</h2>
+              <span id="sourceBadge" class="badge">No result</span>
+            </div>
+            <div class="split">
+              <div class="card">
+                <h3>Session State</h3>
+                <div id="sessionKv" class="kv"></div>
+              </div>
+              <div class="card">
+                <h3>Prompt</h3>
+                <div id="promptKv" class="kv"></div>
+              </div>
+            </div>
+          </article>
+
+          <article class="panel step">
+            <div class="step-header">
+              <h2>Step 2. Image Path</h2>
+              <span class="badge">Original vs 224 Input</span>
+            </div>
+            <div class="split">
+              <div class="card">
+                <h3>Original Image</h3>
+                <img id="originalPreview" class="preview" alt="Original image preview">
+              </div>
+              <div class="card">
+                <h3>Model Input Preview</h3>
+                <img id="resizedPreview" class="preview" alt="Resized image preview">
+              </div>
+            </div>
+            <div class="card" style="margin-top:16px;">
+              <h3>Tensor Stats</h3>
+              <div id="tensorKv" class="kv"></div>
+            </div>
+          </article>
+
+          <article class="panel step">
+            <div class="step-header">
+              <h2>Step 3. Tokenization</h2>
+              <span class="badge">Prompt to Tokens</span>
+            </div>
+            <div class="card">
+              <div id="tokenMeta" class="kv"></div>
+              <div id="tokensWrap" class="tokens" style="margin-top:12px;"></div>
+            </div>
+          </article>
+
+          <article class="panel step">
+            <div class="step-header">
+              <h2>Step 4. Model Output</h2>
+              <span class="badge">Raw Chunk / Top-K</span>
+            </div>
+            <div class="split">
+              <div class="card">
+                <h3>Raw Chunk</h3>
+                <div id="chunkShape" class="sub" style="margin-bottom:10px;"></div>
+                <pre id="rawChunkJson">{}</pre>
+              </div>
+              <div class="card">
+                <h3>Classification / Regression Summary</h3>
+                <div id="postKv" class="kv"></div>
+              </div>
+            </div>
+            <div class="card" style="margin-top:16px;">
+              <h3>Top Classes</h3>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Idx</th>
+                    <th>Class</th>
+                    <th>Score</th>
+                    <th>Mapped Action</th>
+                  </tr>
+                </thead>
+                <tbody id="topClassBody"></tbody>
+              </table>
+            </div>
+          </article>
+
+          <article class="panel step">
+            <div class="step-header">
+              <h2>Step 5. Final Action</h2>
+              <span id="latencyBadge" class="badge">Latency -</span>
+            </div>
+            <div id="finalActionGrid" class="status-grid"></div>
+          </article>
+
+          <article class="panel step">
+            <div class="step-header">
+              <h2>Raw JSON</h2>
+              <span class="badge">Full Response</span>
+            </div>
+            <pre id="rawResponse">No result yet.</pre>
+          </article>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    const rootSelect = document.getElementById("rootSelect");
+    const currentPathInput = document.getElementById("currentPath");
+    const selectedImagePathInput = document.getElementById("selectedImagePath");
+    const instructionInput = document.getElementById("instruction");
+    const runBtn = document.getElementById("runBtn");
+    const resetBtn = document.getElementById("resetBtn");
+    const healthBtn = document.getElementById("healthBtn");
+    const loadPathBtn = document.getElementById("loadPathBtn");
+    const refreshBtn = document.getElementById("refreshBtn");
+    const upBtn = document.getElementById("upBtn");
+    const prevFrameBtn = document.getElementById("prevFrameBtn");
+    const nextFrameBtn = document.getElementById("nextFrameBtn");
+    const modelSelect = document.getElementById("modelSelect");
+    const reloadModelBtn = document.getElementById("reloadModelBtn");
+    const dirList = document.getElementById("dirList");
+    const fileList = document.getElementById("fileList");
+
+    const healthBadge = document.getElementById("healthBadge");
+    const healthGrid = document.getElementById("healthGrid");
+    const sourceBadge = document.getElementById("sourceBadge");
+    const latencyBadge = document.getElementById("latencyBadge");
+    const sessionKv = document.getElementById("sessionKv");
+    const promptKv = document.getElementById("promptKv");
+    const tensorKv = document.getElementById("tensorKv");
+    const tokenMeta = document.getElementById("tokenMeta");
+    const tokensWrap = document.getElementById("tokensWrap");
+    const chunkShape = document.getElementById("chunkShape");
+    const rawChunkJson = document.getElementById("rawChunkJson");
+    const postKv = document.getElementById("postKv");
+    const topClassBody = document.getElementById("topClassBody");
+    const finalActionGrid = document.getElementById("finalActionGrid");
+    const rawResponse = document.getElementById("rawResponse");
+    const originalPreview = document.getElementById("originalPreview");
+    const resizedPreview = document.getElementById("resizedPreview");
+
+    let currentParentPath = null;
+    let currentDirEntries = [];
+    let currentFileEntries = [];
+    let currentImageContext = null;
+    let currentModels = [];
+
+    function setBusy(busy) {
+      [runBtn, resetBtn, healthBtn, loadPathBtn, refreshBtn, upBtn, rootSelect].forEach(el => {
+        el.disabled = busy;
+      });
+      [prevFrameBtn, nextFrameBtn, modelSelect, reloadModelBtn].forEach(el => {
+        el.disabled = busy;
+      });
+    }
+
+    function renderKv(target, rows) {
+      target.innerHTML = "";
+      rows.forEach(([key, value]) => {
+        const row = document.createElement("div");
+        row.className = "kv-row";
+        row.innerHTML = `<div class="key">${escapeHtml(String(key))}</div><div>${escapeHtml(String(value))}</div>`;
+        target.appendChild(row);
+      });
+    }
+
+    function renderMetrics(target, metrics) {
+      target.innerHTML = "";
+      metrics.forEach(([k, v]) => {
+        const el = document.createElement("div");
+        el.className = "metric";
+        el.innerHTML = `<span class="k">${escapeHtml(String(k))}</span><span class="v">${escapeHtml(String(v))}</span>`;
+        target.appendChild(el);
+      });
+    }
+
+    function escapeHtml(text) {
+      return text
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function renderList(target, items, onClick, activePath) {
+      target.innerHTML = "";
+      if (!items.length) {
+        target.innerHTML = `<div class="empty">No items</div>`;
+        return;
+      }
+      items.forEach(item => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = `server-item${item.path === activePath ? " active" : ""}`;
+        btn.textContent = item.name;
+        btn.addEventListener("click", () => onClick(item));
+        target.appendChild(btn);
+      });
+    }
+
+    function updateSelectedPreview(path) {
+      if (!path) {
+        originalPreview.removeAttribute("src");
+        resizedPreview.removeAttribute("src");
+        currentImageContext = null;
+        prevFrameBtn.disabled = true;
+        nextFrameBtn.disabled = true;
+        return;
+      }
+      const encoded = encodeURIComponent(path);
+      const stamp = `t=${Date.now()}`;
+      originalPreview.src = `/debug/image?path=${encoded}&${stamp}`;
+      resizedPreview.src = `/debug/image?path=${encoded}&resize=224&${stamp}`;
+      loadImageContext(path).catch(() => {});
+    }
+
+    function selectImagePath(path) {
+      selectedImagePathInput.value = path;
+      renderList(fileList, currentFileEntries, (item) => selectImagePath(item.path), path);
+      updateSelectedPreview(path);
+    }
+
+    async function loadImageContext(path) {
+      if (!path) {
+        currentImageContext = null;
+        prevFrameBtn.disabled = true;
+        nextFrameBtn.disabled = true;
+        return;
+      }
+      const data = await fetchJson(`/debug/path_context?path=${encodeURIComponent(path)}`);
+      currentImageContext = data;
+      prevFrameBtn.disabled = !data.prev_path;
+      nextFrameBtn.disabled = !data.next_path;
+    }
+
+    async function loadModels() {
+      const data = await fetchJson("/debug/models");
+      currentModels = data.candidates || [];
+      modelSelect.innerHTML = "";
+      currentModels.forEach(item => {
+        const opt = document.createElement("option");
+        opt.value = item.name;
+        opt.textContent = item.name;
+        if (data.current && item.config_path === data.current.config_path) {
+          opt.selected = true;
+        }
+        modelSelect.appendChild(opt);
+      });
+    }
+
+    async function reloadModel() {
+      const candidateName = modelSelect.value;
+      if (!candidateName) {
+        alert("Reload할 모델을 먼저 선택하세요.");
+        return;
+      }
+      setBusy(true);
+      try {
+        const data = await fetchJson("/debug/model/reload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ candidate_name: candidateName }),
+        });
+        await refreshHealth();
+        alert(`Reloaded: ${data.model_name}`);
+      } catch (err) {
+        alert(`Model reload failed: ${err.message}`);
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function fetchJson(url, options = {}) {
+      const res = await fetch(url, options);
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `HTTP ${res.status}`);
+      }
+      return res.json();
+    }
+
+    async function loadRoots() {
+      const data = await fetchJson("/debug/roots");
+      rootSelect.innerHTML = "";
+      (data.roots || []).forEach(root => {
+        const opt = document.createElement("option");
+        opt.value = root.path;
+        opt.textContent = `${root.name}: ${root.path}`;
+        rootSelect.appendChild(opt);
+      });
+      if (rootSelect.value) {
+        currentPathInput.value = rootSelect.value;
+      }
+    }
+
+    async function loadDirectory(path) {
+      setBusy(true);
+      try {
+        const query = path ? `?path=${encodeURIComponent(path)}` : "";
+        const data = await fetchJson(`/debug/files${query}`);
+        currentPathInput.value = data.path || "";
+        currentParentPath = data.parent || null;
+        currentDirEntries = data.dirs || [];
+        currentFileEntries = data.files || [];
+
+        renderList(dirList, currentDirEntries, (item) => {
+          loadDirectory(item.path);
+        }, null);
+
+        const currentSelected = currentFileEntries.some(item => item.path === selectedImagePathInput.value)
+          ? selectedImagePathInput.value
+          : "";
+        renderList(fileList, currentFileEntries, (item) => selectImagePath(item.path), currentSelected);
+        if (currentSelected) {
+          updateSelectedPreview(currentSelected);
+        }
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function refreshHealth() {
+      setBusy(true);
+      try {
+        const data = await fetchJson("/health");
+        healthBadge.textContent = data.status || "unknown";
+        renderMetrics(healthGrid, [
+          ["Model Loaded", String(data.model_loaded)],
+          ["Model Name", data.model_name || "-"],
+          ["Device", data.device || "-"],
+          ["GPU", data.gpu_memory?.device_name || "CPU / N/A"],
+        ]);
+        renderKv(promptKv, [
+          ["Current checkpoint", data.checkpoint_path || "-"],
+          ["Current config", data.config_path || "-"],
+        ]);
+      } catch (err) {
+        healthBadge.textContent = "Health failed";
+        healthGrid.innerHTML = `<div class="metric"><span class="k">Error</span><span class="v">${escapeHtml(err.message)}</span></div>`;
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function resetHistory() {
+      setBusy(true);
+      try {
+        const data = await fetchJson("/debug/reset", { method: "POST" });
+        alert(data.message || data.status || "reset done");
+      } catch (err) {
+        alert(err.message);
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    function renderDebug(data) {
+      const debug = data.debug || {};
+      const history = debug.history || {};
+      const image = debug.image || {};
+      const tokenization = debug.tokenization || {};
+      const post = debug.postprocess || {};
+      const classification = post.classification || {};
+
+      sourceBadge.textContent = data.source || "unknown";
+      latencyBadge.textContent = `Latency ${Number(data.latency_ms || 0).toFixed(1)} ms`;
+
+      renderKv(sessionKv, [
+        ["Image path", debug.image_path || selectedImagePathInput.value || "-"],
+        ["Image index", currentImageContext ? `${(currentImageContext.index ?? -1) + 1} / ${currentImageContext.count ?? "-"}` : "-"],
+        ["Inference mode", debug.inference_mode || "-"],
+        ["Window size", debug.window_size ?? "-"],
+        ["First-frame enforced", String(debug.first_frame_enforced)],
+        ["Inference count before", history.inference_count_before ?? "-"],
+        ["Inference count after", history.inference_count_after ?? "-"],
+        ["History before", history.history_before ?? "-"],
+        ["History after", history.history_after ?? "-"],
+      ]);
+
+      renderKv(promptKv, [
+        ["Instruction", debug.instruction || "-"],
+        ["Full prompt", debug.full_prompt || "-"],
+        ["Current checkpoint", debug.checkpoint_path || "-"],
+        ["Current config", debug.config_path || "-"],
+      ]);
+
+      originalPreview.src = image.original_base64_png ? `data:image/png;base64,${image.original_base64_png}` : "";
+      resizedPreview.src = image.resized_base64_png ? `data:image/png;base64,${image.resized_base64_png}` : "";
+
+      renderKv(tensorKv, [
+        ["Original size", `${image.original_size?.width || "-"} x ${image.original_size?.height || "-"}`],
+        ["Model input size", `${image.model_input_size?.width || "-"} x ${image.model_input_size?.height || "-"}`],
+        ["Tensor shape", JSON.stringify(image.tensor_stats?.shape || [])],
+        ["Tensor dtype", image.tensor_stats?.dtype || "-"],
+        ["Tensor mean", image.tensor_stats?.mean ?? "-"],
+        ["Tensor std", image.tensor_stats?.std ?? "-"],
+        ["Tensor min", image.tensor_stats?.min ?? "-"],
+        ["Tensor max", image.tensor_stats?.max ?? "-"],
+      ]);
+
+      renderKv(tokenMeta, [
+        ["Token count", tokenization.token_count ?? "-"],
+        ["Max text len", tokenization.max_text_len ?? "-"],
+        ["Token ids preview", JSON.stringify(tokenization.active_token_ids_preview || [])],
+      ]);
+
+      tokensWrap.innerHTML = "";
+      (tokenization.tokens_preview || []).forEach(token => {
+        const span = document.createElement("span");
+        span.className = "token";
+        span.textContent = token;
+        tokensWrap.appendChild(span);
+      });
+
+      chunkShape.textContent = `shape: ${JSON.stringify(debug.raw_chunk_shape || [])}`;
+      rawChunkJson.textContent = JSON.stringify(debug.raw_chunk || [], null, 2);
+
+      const postRows = [
+        ["Raw output type", post.raw_output_type || "-"],
+        ["Smoothing applied", String(post.smoothing_applied)],
+        ["Action before smoothing", JSON.stringify(post.action_before_smoothing || [])],
+        ["Final action", JSON.stringify(post.final_action || data.action || [])],
+      ];
+      if (post.message) postRows.push(["Message", post.message]);
+      if (classification.predicted_class_idx !== undefined && classification.predicted_class_idx !== null) {
+        postRows.push(["Predicted class idx", classification.predicted_class_idx]);
+        postRows.push(["Predicted class name", classification.predicted_class_name || "-"]);
+      }
+      renderKv(postKv, postRows);
+
+      topClassBody.innerHTML = "";
+      const topClasses = classification.top_classes || [];
+      if (!topClasses.length) {
+        topClassBody.innerHTML = `<tr><td colspan="4">No top-k classes for this run.</td></tr>`;
+      } else {
+        topClasses.forEach(item => {
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td>${escapeHtml(String(item.class_idx))}</td>
+            <td>${escapeHtml(String(item.class_name))}</td>
+            <td>${escapeHtml(Number(item.score).toFixed(4))}</td>
+            <td>${escapeHtml(JSON.stringify(item.mapped_action || []))}</td>
+          `;
+          topClassBody.appendChild(tr);
+        });
+      }
+
+      renderMetrics(finalActionGrid, (data.action || []).map((v, idx) => [`Action[${idx}]`, Number(v).toFixed(4)]));
+      rawResponse.textContent = JSON.stringify(data, null, 2);
+    }
+
+    async function runDebug() {
+      const imagePath = selectedImagePathInput.value.trim();
+      if (!imagePath) {
+        alert("서버 이미지 경로를 먼저 선택하세요.");
+        return;
+      }
+
+      setBusy(true);
+      try {
+        const data = await fetchJson("/predict_debug_path", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            image_path: imagePath,
+            instruction: instructionInput.value.trim(),
+          }),
+        });
+        renderDebug(data);
+      } catch (err) {
+        alert(`Debug run failed: ${err.message}`);
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    rootSelect.addEventListener("change", () => {
+      currentPathInput.value = rootSelect.value;
+      loadDirectory(rootSelect.value);
+    });
+    selectedImagePathInput.addEventListener("change", () => updateSelectedPreview(selectedImagePathInput.value.trim()));
+    loadPathBtn.addEventListener("click", () => loadDirectory(currentPathInput.value.trim()));
+    refreshBtn.addEventListener("click", () => loadDirectory(currentPathInput.value.trim()));
+    upBtn.addEventListener("click", () => {
+      if (currentParentPath) {
+        loadDirectory(currentParentPath);
+      }
+    });
+    prevFrameBtn.addEventListener("click", () => {
+      if (currentImageContext?.prev_path) {
+        selectImagePath(currentImageContext.prev_path);
+      }
+    });
+    nextFrameBtn.addEventListener("click", () => {
+      if (currentImageContext?.next_path) {
+        selectImagePath(currentImageContext.next_path);
+      }
+    });
+    reloadModelBtn.addEventListener("click", reloadModel);
+    runBtn.addEventListener("click", runDebug);
+    resetBtn.addEventListener("click", resetHistory);
+    healthBtn.addEventListener("click", refreshHealth);
+
+    (async function init() {
+      await loadModels();
+      await loadRoots();
+      if (currentPathInput.value.trim()) {
+        await loadDirectory(currentPathInput.value.trim());
+      }
+      await refreshHealth();
+    })().catch(err => {
+      alert(`Init failed: ${err.message}`);
+    });
+  </script>
+</body>
+</html>

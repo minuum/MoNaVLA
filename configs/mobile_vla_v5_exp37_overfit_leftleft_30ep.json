@@ -1,0 +1,35 @@
+{
+    "_comment": "V5 Exp37: overfit diagnostic. left_left family only, 30 epochs, head-only, no class weights, fwd_pred_next_n=1 in both head and dataset. Tests whether the action head can learn non-FORWARD classes at all. Clean CE (no weights) makes loss interpretable: random=2.08, any learning visible.",
+    "parent": "configs/mobile_vla_v5_exp21_pure_hf_head_only.json",
+    "exp_name": "v5-exp37-overfit-leftleft-30ep",
+    "task_name": "mobile_vla_v5_exp37",
+
+    "max_epochs": 30,
+    "learning_rate": 1e-3,
+
+    "trainer": {
+        "max_epochs": 30
+    },
+
+    "fwd_pred_next_n": 1,
+
+    "act_head": {
+        "type": "MobileVLAClassificationDecoder",
+        "num_classes": 8,
+        "action_dim": 8,
+        "hidden_size": 1024,
+        "class_weights": null
+    },
+
+    "train_dataset": {
+        "include_path_families": ["left_left"],
+        "fwd_pred_next_n": 1,
+        "exclude_path_types": null
+    },
+
+    "val_dataset": {
+        "include_path_families": ["left_left"],
+        "fwd_pred_next_n": 1,
+        "exclude_path_types": null
+    }
+}

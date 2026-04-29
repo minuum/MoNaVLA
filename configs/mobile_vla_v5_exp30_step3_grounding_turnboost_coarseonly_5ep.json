@@ -1,0 +1,11 @@
+{
+    "_comment": "V5 Exp30: 5-epoch smoke run of Exp28 grounding turnboost setup. Keeps both bbox and coarse auxiliary losses enabled after the coarse-only run.",
+    "parent": "configs/mobile_vla_v5_exp28_step3_balanced_objective_grounding_turnboost.json",
+    "exp_name": "v5-exp30-step3-grounding-turnboost-bboxcoarse-5ep",
+    "task_name": "mobile_vla_v5_exp30",
+    "max_epochs": 5,
+
+    "trainer": {
+        "max_epochs": 5
+    }
+}

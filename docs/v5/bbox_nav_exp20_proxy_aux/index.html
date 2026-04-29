@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Exp20: Proxy + Auxiliary Head</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin: 0; padding: 24px; background: #0f172a; color: #e2e8f0; }
+  h1 { font-size: 2rem; margin-bottom: 8px; }
+  .sub { color: #94a3b8; margin-bottom: 24px; max-width: 940px; line-height: 1.6; }
+  .back { color: #60a5fa; text-decoration: none; display: inline-block; margin-bottom: 16px; }
+  .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 20px; }
+  .box { background: #1e293b; padding: 16px 20px; border-radius: 10px; }
+  .num { font-size: 2.2rem; font-weight: 800; }
+  .good { color: #22c55e; } .blue { color: #60a5fa; }
+  table { border-collapse: collapse; background: #1e293b; border-radius: 8px; overflow: hidden; width: 100%; }
+  th, td { padding: 8px 14px; border-bottom: 1px solid #334155; text-align: left; }
+  th { background: #0b1220; }
+  .diag { background: #172554; border-left: 4px solid #60a5fa; padding: 14px 18px; border-radius: 6px; color: #dbeafe; margin-top: 20px; line-height: 1.7; }
+</style>
+</head>
+<body>
+  <a class="back" href="../../index.html">← Back to main</a>
+  <h1>Exp20: Step2 + Proxy + Goal-Near Auxiliary</h1>
+  <p class="sub">
+    Exp19의 proxy concat 입력 위에 <code>goal_near_v0</code> binary auxiliary head를 추가한 실험입니다.
+    action PM과 auxiliary precision/recall을 함께 기록합니다.
+  </p>
+
+  <div class="grid4">
+    <div class="box"><div style="color:#94a3b8; font-size:0.85rem; text-transform:uppercase;">Exp19 Ref</div><div class="num blue">76.6%</div></div>
+    <div class="box"><div style="color:#94a3b8; font-size:0.85rem; text-transform:uppercase;">Exp20 PM</div><div class="num good">75.3%</div></div>
+    <div class="box"><div style="color:#94a3b8; font-size:0.85rem; text-transform:uppercase;">Aux Precision</div><div class="num good">90.8%</div></div>
+    <div class="box"><div style="color:#94a3b8; font-size:0.85rem; text-transform:uppercase;">Aux Recall</div><div class="num good">100.0%</div></div>
+  </div>
+
+  <h2>PM per Path Type (test split)</h2>
+  <table>
+    <tr><th>Path Type</th><th>Correct/Total</th><th>PM</th></tr>
+    <tr><td>center_straight</td><td>10/14</td><td><strong>71.4%</strong></td></tr><tr><td>center_left</td><td>11/18</td><td><strong>61.1%</strong></td></tr><tr><td>center_right</td><td>9/18</td><td><strong>50.0%</strong></td></tr><tr><td>left_straight</td><td>16/18</td><td><strong>88.9%</strong></td></tr><tr><td>left_left</td><td>16/19</td><td><strong>84.2%</strong></td></tr><tr><td>left_right</td><td>15/19</td><td><strong>78.9%</strong></td></tr><tr><td>right_straight</td><td>16/18</td><td><strong>88.9%</strong></td></tr><tr><td>right_left</td><td>16/18</td><td><strong>88.9%</strong></td></tr><tr><td>right_right</td><td>10/16</td><td><strong>62.5%</strong></td></tr>
+  </table>
+
+  <div class="diag">
+    <strong>Auxiliary target</strong><br>
+    goal_near_v0 = has_bbox AND area ≥ 0.27 AND center_error_x ≤ 0.03125.<br>
+    Total loss = action CE + 0.25 × goal-near BCE.
+  </div>
+</body>
+</html>

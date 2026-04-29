@@ -1,0 +1,119 @@
+{
+  "dataset_note": "V5 core-only route dataset",
+  "bbox_truth_eval": {
+    "truth_path": "/home/billy/25-1kp/MoNaVLA/docs/v5/bbox_truth_mini.json",
+    "n_annotations_total": 72,
+    "n_annotations_completed": 0,
+    "n_annotations_pending": 72,
+    "status": "pending_human_review",
+    "overall": null,
+    "by_path": {},
+    "rows": []
+  },
+  "bbox_step1_baseline": {
+    "overall_pm_mlp": 0.5504761934280396,
+    "overall_pm_rule": 0.3504761904761905,
+    "total_train": 2101,
+    "total_test": 525,
+    "pm_by_path": {
+      "center_straight": {
+        "correct": 50,
+        "total": 56
+      },
+      "center_left": {
+        "correct": 22,
+        "total": 54
+      },
+      "center_right": {
+        "correct": 24,
+        "total": 54
+      },
+      "left_straight": {
+        "correct": 39,
+        "total": 72
+      },
+      "left_left": {
+        "correct": 30,
+        "total": 55
+      },
+      "left_right": {
+        "correct": 16,
+        "total": 57
+      },
+      "right_straight": {
+        "correct": 42,
+        "total": 72
+      },
+      "right_left": {
+        "correct": 40,
+        "total": 57
+      },
+      "right_right": {
+        "correct": 26,
+        "total": 48
+      }
+    }
+  },
+  "models": [
+    {
+      "model": "exp24",
+      "closed_loop_success": 0.0,
+      "non_straight_prefix_success": 0.5,
+      "macro_per_path_frame_acc": 0.11147660818713451,
+      "full_fpe": 2.025015218573356,
+      "full_tld": 1.3236504113598395,
+      "pm_percent": 17.86,
+      "k5_success": 0.3333333333333333,
+      "k10_success": 0.2222222222222222,
+      "provisional_bottleneck": "late_drift_or_action_collapse"
+    },
+    {
+      "model": "exp21",
+      "closed_loop_success": 0.0,
+      "non_straight_prefix_success": 0.5,
+      "macro_per_path_frame_acc": 0.10428849902534114,
+      "full_fpe": 1.9825715844955718,
+      "full_tld": 1.2651415791870997,
+      "pm_percent": 0.0,
+      "k5_success": 0.3333333333333333,
+      "k10_success": 0.2222222222222222,
+      "provisional_bottleneck": "late_drift_or_action_collapse"
+    },
+    {
+      "model": "exp18",
+      "closed_loop_success": 0.1111111111111111,
+      "non_straight_prefix_success": 0.16666666666666666,
+      "macro_per_path_frame_acc": 0.043209876543209874,
+      "full_fpe": 1.0447772745014623,
+      "full_tld": 1.0844220011416454,
+      "pm_percent": 26.38,
+      "k5_success": 0.1111111111111111,
+      "k10_success": 0.1111111111111111,
+      "provisional_bottleneck": "closed_loop_best_but_offline_alignment_weak"
+    },
+    {
+      "model": "exp17",
+      "closed_loop_success": 0.1111111111111111,
+      "non_straight_prefix_success": 0.16666666666666666,
+      "macro_per_path_frame_acc": 0.043209876543209874,
+      "full_fpe": 1.0447772745014623,
+      "full_tld": 1.0844220011416454,
+      "pm_percent": 26.38,
+      "k5_success": 0.1111111111111111,
+      "k10_success": 0.1111111111111111,
+      "provisional_bottleneck": "closed_loop_best_but_offline_alignment_weak"
+    },
+    {
+      "model": "exp11",
+      "closed_loop_success": 0.0,
+      "non_straight_prefix_success": 0.3333333333333333,
+      "macro_per_path_frame_acc": 0.2823667966211826,
+      "full_fpe": 1.4543713976332293,
+      "full_tld": 1.026144172779369,
+      "pm_percent": 62.55,
+      "k5_success": 0.2222222222222222,
+      "k10_success": 0.0,
+      "provisional_bottleneck": "teacher_forced_ok_but_rollout_breakdown"
+    }
+  ]
+}

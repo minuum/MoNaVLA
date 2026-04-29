@@ -1,0 +1,15 @@
+{
+    "_comment": "V5 Exp29: 5-epoch smoke run of Exp28 grounding turnboost setup with bbox regression disabled. Coarse left/center/right auxiliary supervision runs first for quick isolation.",
+    "parent": "configs/mobile_vla_v5_exp28_step3_balanced_objective_grounding_turnboost.json",
+    "exp_name": "v5-exp29-step3-grounding-turnboost-coarseonly-5ep",
+    "task_name": "mobile_vla_v5_exp29",
+    "max_epochs": 5,
+
+    "trainer": {
+        "max_epochs": 5
+    },
+
+    "grounding_aux": {
+        "lambda_bbox": 0.0
+    }
+}

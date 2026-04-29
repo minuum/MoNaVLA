@@ -1,0 +1,35 @@
+{
+    "_comment": "V5 Exp38: real sanity check. All 150 episodes, head-only, LR=1e-3, no class weights, fwd_pred_next_n=1. Tests whether the model can visually distinguish left/straight/right scenes and output the correct action. Evaluate per path-family PM breakdown.",
+    "parent": "configs/mobile_vla_v5_exp21_pure_hf_head_only.json",
+    "exp_name": "v5-exp38-allpath-head-only-20ep",
+    "task_name": "mobile_vla_v5_exp38",
+
+    "max_epochs": 20,
+    "learning_rate": 1e-3,
+
+    "trainer": {
+        "max_epochs": 20
+    },
+
+    "fwd_pred_next_n": 1,
+
+    "act_head": {
+        "type": "MobileVLAClassificationDecoder",
+        "num_classes": 8,
+        "action_dim": 8,
+        "hidden_size": 1024,
+        "class_weights": null
+    },
+
+    "train_dataset": {
+        "exclude_path_types": null,
+        "include_path_families": null,
+        "fwd_pred_next_n": 1
+    },
+
+    "val_dataset": {
+        "exclude_path_types": null,
+        "include_path_families": null,
+        "fwd_pred_next_n": 1
+    }
+}

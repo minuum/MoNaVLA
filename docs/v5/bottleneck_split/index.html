@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>V5 Bottleneck Split</title>
+  <style>
+    :root {
+      --bg: #f4f1e8;
+      --card: #fffdf7;
+      --line: #d7d1c3;
+      --fg: #1c2217;
+      --muted: #5b6354;
+      --accent: #2f5d50;
+    }
+    body {
+      margin: 0;
+      padding: 28px;
+      background: linear-gradient(180deg, #f7f5ee, #ece8dc);
+      color: var(--fg);
+      font-family: Georgia, "Times New Roman", serif;
+    }
+    h1 { margin: 0 0 8px 0; }
+    .sub { color: var(--muted); margin-bottom: 18px; max-width: 900px; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: 0 8px 28px rgba(30, 40, 20, 0.05);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.95rem;
+    }
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 10px 8px;
+      text-align: left;
+    }
+    th { color: var(--accent); }
+    .meta { margin-bottom: 12px; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <h1>V5 Bottleneck Split</h1>
+  <div class="sub">
+    Current summary merges short-term rollout, degradation, PM, and bbox-truth status.
+    BBox truth status: <strong>pending_human_review</strong>.
+  </div>
+  <div class="card">
+    <div class="meta">Pseudo bbox baseline PM: 55.0%</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Model</th>
+          <th>Closed-loop</th>
+          <th>Prefix@5</th>
+          <th>Macro Frame</th>
+          <th>FPE</th>
+          <th>TLD</th>
+          <th>PM</th>
+          <th>Provisional Bottleneck</th>
+        </tr>
+      </thead>
+      <tbody>
+            <tr>
+              <td>exp24</td>
+              <td>0.0%</td>
+              <td>50.0%</td>
+              <td>11.1%</td>
+              <td>2.025</td>
+              <td>1.324</td>
+              <td>17.86%</td>
+              <td>late_drift_or_action_collapse</td>
+            </tr>
+            
+            <tr>
+              <td>exp21</td>
+              <td>0.0%</td>
+              <td>50.0%</td>
+              <td>10.4%</td>
+              <td>1.983</td>
+              <td>1.265</td>
+              <td>0.00%</td>
+              <td>late_drift_or_action_collapse</td>
+            </tr>
+            
+            <tr>
+              <td>exp18</td>
+              <td>11.1%</td>
+              <td>16.7%</td>
+              <td>4.3%</td>
+              <td>1.045</td>
+              <td>1.084</td>
+              <td>26.38%</td>
+              <td>closed_loop_best_but_offline_alignment_weak</td>
+            </tr>
+            
+            <tr>
+              <td>exp17</td>
+              <td>11.1%</td>
+              <td>16.7%</td>
+              <td>4.3%</td>
+              <td>1.045</td>
+              <td>1.084</td>
+              <td>26.38%</td>
+              <td>closed_loop_best_but_offline_alignment_weak</td>
+            </tr>
+            
+            <tr>
+              <td>exp11</td>
+              <td>0.0%</td>
+              <td>33.3%</td>
+              <td>28.2%</td>
+              <td>1.454</td>
+              <td>1.026</td>
+              <td>62.55%</td>
+              <td>teacher_forced_ok_but_rollout_breakdown</td>
+            </tr>
+            </tbody>
+    </table>
+  </div>
+</body>
+</html>

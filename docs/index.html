@@ -116,52 +116,209 @@
         transform: scale(1.02);
         box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
     }
+    .status-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 24px;
+    }
+    .status-card {
+      background: rgba(255,255,255,0.92);
+      border: 1px solid #dbeafe;
+      border-radius: 14px;
+      padding: 18px 18px 16px;
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+    }
+    .status-card .eyebrow {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #475569;
+      margin-bottom: 8px;
+      font-weight: 700;
+    }
+    .status-card .metric {
+      font-size: 1.45rem;
+      font-weight: 800;
+      color: #0f172a;
+      line-height: 1.25;
+    }
+    .status-card .detail {
+      margin-top: 8px;
+      color: #334155;
+      line-height: 1.55;
+      font-size: 0.96rem;
+    }
+    .reading-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 20px;
+    }
+    .reading-card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 20px;
+      box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+    }
+    .reading-card .step {
+      display: inline-block;
+      font-size: 0.78rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      color: #1d4ed8;
+      background: #dbeafe;
+      border-radius: 999px;
+      padding: 4px 10px;
+      margin-bottom: 12px;
+    }
+    .reading-card p {
+      color: #475569;
+      line-height: 1.65;
+    }
+    @media (max-width: 960px) {
+      .status-grid,
+      .reading-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+    @media (max-width: 640px) {
+      .status-grid,
+      .reading-grid {
+        grid-template-columns: 1fr;
+      }
+    }
   </style>
 </head>
 <body>
 
-<section class="hero">
-  <div class="hero-body">
+<section class="hero is-fullheight-with-navbar" style="background: url('assets/hero_robot.png') no-repeat center center; background-size: cover; position: relative;">
+  <div class="overlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(to right, rgba(15, 23, 42, 0.95) 0%, rgba(15, 23, 42, 0.4) 100%);"></div>
+  <div class="hero-body" style="position: relative; z-index: 10;">
     <div class="container is-max-desktop">
-      <div class="columns is-centered">
-        <div class="column has-text-centered">
-          <h1 class="title is-1 publication-title">MoNaVLA: Advanced Vision-Language-Action Models for Precise Robot Navigation</h1>
-          <div class="is-size-5 publication-authors">
-            <span class="author-block">Advanced Agentic Robotics Team</span>
+      <div class="columns is-vcentered">
+        <div class="column is-7 has-text-left">
+          <h1 class="title is-1 has-text-white mb-6" style="font-size: 3.5rem; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);">
+            MoNaVLA: <span class="has-text-info">Mobile Navigation</span><br>
+            Vision-Language-Action Models
+          </h1>
+          <p class="subtitle is-4 has-text-grey-lighter mb-6">
+            Advanced agentic robotics for precise mobile navigation.
+            Current public takeaway: decomposition with explicit grounding is stronger than the latest checked end-to-end policy.
+          </p>
+          <div class="publication-links" style="justify-content: flex-start;">
+            <span class="link-block">
+              <a href="v5/bbox_nav_step1/index.html" class="button is-success is-rounded">
+                <span class="icon"><i class="fas fa-brain"></i></span>
+                <span>Exp14 Step 1 (MLP 68.4%)</span>
+              </a>
+            </span>
+            <span class="link-block">
+              <a href="v5/bbox_nav_step2/index.html" class="button is-warning is-rounded">
+                <span class="icon"><i class="fas fa-microchip"></i></span>
+                <span>Exp14 Step 2 (75.9%)</span>
+              </a>
+            </span>
+            <span class="link-block">
+              <a href="v5/bbox_nav_step3/index.html" class="button is-info is-rounded">
+                <span class="icon"><i class="fas fa-filter"></i></span>
+                <span>BBox Track Step 3 (77.0%)</span>
+              </a>
+            </span>
+            <span class="link-block">
+              <a href="v5/bbox_nav_comparison.html" class="button is-link is-rounded">
+                <span class="icon"><i class="fas fa-scale-balanced"></i></span>
+                <span>Exp14 Comparison</span>
+              </a>
+            </span>
+            <span class="link-block">
+              <a href="v5/exp11_vs_step2_same_split/index.html" class="button is-dark is-rounded">
+                <span class="icon"><i class="fas fa-balance-scale-right"></i></span>
+                <span>Exp11 vs Step2 Same-Split</span>
+              </a>
+            </span>
+            <span class="link-block">
+              <a href="reports/viewer.html?file=v5/STATUS_20260421_EXP18.md" class="button is-primary is-rounded">
+                <span class="icon"><i class="fas fa-clock"></i></span>
+                <span>Exp18 Gate Result</span>
+              </a>
+            </span>
+            <span class="link-block">
+              <a href="reports/viewer.html?file=v5/PROF_MEETING_BRIEF_20260424.md" class="button is-danger is-rounded">
+                <span class="icon"><i class="fas fa-person-chalkboard"></i></span>
+                <span>Prof Meeting Brief</span>
+              </a>
+            </span>
+            <span class="link-block">
+              <a href="reports/viewer.html?file=v5/PROF_MEETING_SLIDES_20260424.md" class="button is-info is-rounded">
+                <span class="icon"><i class="fas fa-display"></i></span>
+                <span>Prof Meeting Slides</span>
+              </a>
+            </span>
+            <span class="link-block">
+              <a href="reports/viewer.html?file=v5/COMMIT_SUMMARY_20260424.md" class="button is-link is-rounded">
+                <span class="icon"><i class="fas fa-code-commit"></i></span>
+                <span>Commit Timeline & Talk Track</span>
+              </a>
+            </span>
+            <span class="link-block">
+              <a href="v5/devlog.html" class="button is-warning is-rounded">
+                <span class="icon"><i class="fas fa-stream"></i></span>
+                <span>V5 Dev Log</span>
+              </a>
+            </span>
+            <span class="link-block">
+              <a href="v5/closed_loop_eval/index.html" class="button is-danger is-rounded">
+                <span class="icon"><i class="fas fa-route"></i></span>
+                <span>Closed-Loop: Step2 66.7% vs Exp11 0%</span>
+              </a>
+            </span>
+            <span class="link-block">
+              <a href="v5/paper_results.html" class="button is-success is-outlined is-rounded">
+                <span class="icon"><i class="fas fa-file-lines"></i></span>
+                <span>Paper-Ready Results</span>
+              </a>
+            </span>
+            <span class="link-block">
+              <a href="v5/attention_analysis/index.html" class="button is-warning is-outlined is-rounded">
+                <span class="icon"><i class="fas fa-chart-bar"></i></span>
+                <span>Attention Analysis</span>
+              </a>
+            </span>
+            <span class="link-block">
+              <a href="v5/bbox_nav_feature_ablation/index.html" class="button is-info is-outlined is-rounded">
+                <span class="icon"><i class="fas fa-vials"></i></span>
+                <span>Feature Ablation</span>
+              </a>
+            </span>
+            <span class="link-block">
+              <a href="https://github.com/minuum/MoNaVLA" class="button is-white is-outlined is-rounded">
+                <span class="icon"><i class="fab fa-github"></i></span>
+                <span>Source Code</span>
+              </a>
+            </span>
           </div>
-
-          <div class="column has-text-centered" style="margin-top: 10px;">
-            <div class="publication-links">
-              <!-- Code Link. -->
-              <span class="link-block">
-                <a href="https://github.com/minuum/MoNaVLA"
-                   class="button is-dark">
-                  <span class="icon">
-                      <i class="fab fa-github"></i>
-                  </span>
-                  <span>Code Repo</span>
-                  </a>
-              </span>
-              <!-- Features / Report Link. -->
-              <span class="link-block">
-                <a href="sensitivity_report.html"
-                   class="button is-link is-light">
-                  <span class="icon">
-                      <i class="fas fa-file-alt"></i>
-                  </span>
-                  <span>Sensitivity Report</span>
-                  </a>
-              </span>
-              <!-- V5 Experiments Link. -->
-              <span class="link-block">
-                <a href="v5/index.md"
-                   class="button is-success is-light">
-                  <span class="icon">
-                      <i class="fas fa-chart-line"></i>
-                  </span>
-                  <span>V5 Exp Comparison</span>
-                  </a>
-              </span>
+          <div class="status-grid">
+            <div class="status-card">
+              <div class="eyebrow">Strongest Practical Baseline</div>
+              <div class="metric">Exp14 Step 2<br>PM 75.9%</div>
+              <div class="detail">BBox history + low-res image feature. Closed-loop success is 66.7%, currently the clearest public baseline.</div>
+            </div>
+            <div class="status-card">
+              <div class="eyebrow">Best End-to-End Checked</div>
+              <div class="metric">Exp17<br>PM 76.95%</div>
+              <div class="detail">Highest checked PM among end-to-end runs, but closed-loop stayed at 11.1%.</div>
+            </div>
+            <div class="status-card">
+              <div class="eyebrow">Latest End-to-End Track</div>
+              <div class="metric">Exp18<br>Gate Failed</div>
+              <div class="detail">Text-fusion run finished with best val_loss 1.325, but PM was 27.62% and closed-loop stayed at 11.1%.</div>
+            </div>
+            <div class="status-card">
+              <div class="eyebrow">Main Technical Reading</div>
+              <div class="metric">Loss Down,<br>Policy Fails</div>
+              <div class="detail">Exp18 strengthened the evidence that lower val loss still does not guarantee stable rollout behavior.</div>
             </div>
           </div>
         </div>
@@ -172,21 +329,20 @@
 
 <section class="section">
   <div class="container is-max-desktop">
-    <!-- Abstract. -->
     <div class="columns is-centered has-text-centered">
       <div class="column is-four-fifths">
-        <h2 class="title is-3">Abstract</h2>
+        <h2 class="title is-3">Current Public Reading</h2>
         <div class="content abstract-content">
           <p>
-            <strong>MoNaVLA</strong>는 로봇의 동적 네비게이션을 위해 설계된 차세대 Vision-Language-Action 모델입니다. 
-            시각적 편향(Visual Bias) 문제를 해결하기 위해 텍스트-로짓 민감도 분석을 수행하였으며, 
-            가장 최신화된 <strong>Exp 09</strong>에서는 8-Class Discretization과 Counterfactual Bootstrapping 기법을 적용하여 
-            제자리 회전(Turn-in-place)과 같은 미세한 기동을 극적으로 향상시켰습니다.
+            <strong>MoNaVLA</strong>는 모바일 로봇 내비게이션을 위한 vision-language-action 연구 트랙입니다.
+            현재 공개 결과 기준으로는, 거대한 end-to-end policy를 직접 학습시키는 것보다
+            <strong>grounding을 명시적으로 꺼내고 작은 action head로 연결하는 decomposition 접근</strong>이 더 안정적으로 작동합니다.
+            따라서 메인 baseline은 현재 <strong>Exp14 Step 2</strong>이며, 최신 gate 실험인 <strong>Exp18</strong>도
+            <strong>PM 27.62% / closed-loop 11.1%</strong>로 실패했습니다. 즉 현재 공개 기준에서는 decomposition 쪽 결론이 더 강해졌습니다.
           </p>
         </div>
       </div>
     </div>
-    <!--/ Abstract. -->
   </div>
 </section>
 
@@ -194,35 +350,39 @@
   <div class="container is-max-desktop">
     <div class="columns is-centered">
       <div class="column is-full-width">
-        <h2 class="title is-3 has-text-centered">Methodology: Optimizing Action Policies (Exp 09)</h2>
+        <h2 class="title is-3 has-text-centered">Reading Path</h2>
         <div class="methodology-box">
-          <h3 class="title is-4"><i class="fas fa-bolt has-text-warning"></i> Counterfactual Bootstrapping</h3>
-          <p>
-            제자리 회전(Class 6, 7)은 에피소드 극초반에만 짧게 발생하여 데이터 불균형을 야기합니다.
-            이를 해결하기 위해 데이터로더 수준에서 <strong>15% 확률로 "제자리 회전 명령 + 회전 액션"을 강제로 주입</strong>하여, 명령어와 액션 간의 Grounding 결합도를 물리적으로 강화합니다.
-          </p>
-          <br>
-          <h3 class="title is-4"><i class="fas fa-sitemap has-text-info"></i> 8-Class Discretization</h3>
-          <p>
-            기존의 좌/우 이동(Strafe)과 제자리 회전(Turn-in-place)을 분리하여 더욱 정밀한 3DOF 기동을 구현합니다.
-          </p>
-          <div class="table-container">
-            <table class="table is-bordered is-striped is-narrow is-hoverable is-fullwidth">
-              <thead>
-                <tr>
-                  <th>Class ID</th>
-                  <th>Action Name</th>
-                  <th>Target Instruction (Example)</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr><td>0</td><td>STOP</td><td>"Halt in front of the gray basket."</td></tr>
-                <tr><td>1</td><td>Forward</td><td>"Navigate straight forward."</td></tr>
-                <tr><td>2 / 3</td><td>Strafe (L/R)</td><td>"Move left to the obstacle."</td></tr>
-                <tr><td>4 / 5</td><td>Diagonal</td><td>"Angle toward left-front side."</td></tr>
-                <tr><td><span class="highlight">6 / 7</span></td><td><span class="highlight">Turn (L/R)</span></td><td><span class="highlight">"Rotate toward the basket in place."</span></td></tr>
-              </tbody>
-            </table>
+          <div class="reading-grid">
+            <div class="reading-card">
+              <span class="step">1. Current Status</span>
+              <h3 class="title is-5">Start with the current snapshot</h3>
+              <p>Read the latest gate result first. This tells you why Exp18 did not promote itself beyond a branch despite the improved validation loss.</p>
+              <a href="reports/viewer.html?file=v5/STATUS_20260421_EXP18.md" class="button is-small is-link is-light mt-3">Open Exp18 Status</a>
+            </div>
+            <div class="reading-card">
+              <span class="step">2. Strongest Baseline</span>
+              <h3 class="title is-5">Read the decomposition track</h3>
+              <p>Exp14 comparison is the current public baseline story: Step 1, Step 2, Step 3, same-split, and why Step 2 matters.</p>
+              <a href="v5/bbox_nav_comparison.html" class="button is-small is-link is-light mt-3">Open Exp14 Comparison</a>
+            </div>
+            <div class="reading-card">
+              <span class="step">3. Why It Happens</span>
+              <h3 class="title is-5">Check the causal analyses</h3>
+              <p>Use attention analysis and feature ablation to understand why image-only signals dominate and why text conditioning collapses.</p>
+              <a href="v5/attention_analysis/index.html" class="button is-small is-link is-light mt-3">Open Attention Analysis</a>
+            </div>
+            <div class="reading-card">
+              <span class="step">4. Paper-Ready Summary</span>
+              <h3 class="title is-5">Use a paper-safe result page</h3>
+              <p>Open the consolidated page for booktabs LaTeX tables, Korean captions, and the current Experimental Results draft. Exp18 is now marked as evaluation failed.</p>
+              <a href="v5/paper_results.html" class="button is-small is-link is-light mt-3">Open Paper Results</a>
+            </div>
+            <div class="reading-card">
+              <span class="step">5. Next Mainline</span>
+              <h3 class="title is-5">Track the proxy branch</h3>
+              <p>Exp19 reached 76.58% PM and 55.6% closed-loop, so it is clearly better than end-to-end but still below Step2. Exp20 auxiliary training dropped back to 75.32% PM.</p>
+              <a href="reports/viewer.html?file=v5/CURRENT_RESEARCH_PLAN_20260421.md" class="button is-small is-link is-light mt-3">Open Current Plan</a>
+            </div>
           </div>
         </div>
       </div>
@@ -234,35 +394,35 @@
   <div class="container is-max-desktop">
     <div class="columns is-centered">
       <div class="column is-full-width">
-        <h2 class="title is-3 has-text-centered">Experimental Progress & Roadmap</h2>
+        <h2 class="title is-3 has-text-centered">Current Technical Interpretation</h2>
         <div class="content methodology-box" style="margin-top: 20px;">
           <ul class="roadmap-list">
             <li>
                 <i class="fas fa-check-circle has-text-success"></i>
                 <div>
-                    <strong>Dataset V5 Compilation</strong><br>
-                    <span class="is-size-6 has-text-grey">150 Episodes, 9 Scenarios (Balanced)</span>
+                    <strong>Decomposition currently beats checked end-to-end policy</strong><br>
+                    <span class="is-size-6 has-text-grey">Exp14 Step 2: PM 75.9%, closed-loop 66.7% vs Exp11: PM 58.6%, closed-loop 0%</span>
                 </div>
             </li>
             <li>
-                <i class="fas fa-sync-alt has-text-info fa-spin"></i>
+                <i class="fas fa-check-circle has-text-success"></i>
                 <div>
-                    <strong>Exp 09 Training</strong><br>
-                    <span class="is-size-6 has-text-grey">8-Class Action Model Optimization (Status: RUNNING)</span>
+                    <strong>Image features are doing most of the useful work</strong><br>
+                    <span class="is-size-6 has-text-grey">Feature ablation shows image-only is nearly as strong as bbox+image, while bbox-only is weaker and unstable.</span>
                 </div>
             </li>
             <li>
-                <i class="far fa-circle has-text-grey-light"></i>
+                <i class="fas fa-exclamation-triangle has-text-warning"></i>
                 <div>
-                    <strong>Real-robot Validation</strong><br>
-                    <span class="is-size-6 has-text-grey">Hardware test using Gradio-based interface and deployment</span>
+                    <strong>Text attention remains the main failure mode</strong><br>
+                    <span class="is-size-6 has-text-grey">Pure HF Kosmos keeps about 22.6% text attention, but Google-robot policy variants including head-only Exp15 still collapse to near-zero text attention.</span>
                 </div>
             </li>
             <li>
-                <i class="far fa-circle has-text-grey-light"></i>
+                <i class="fas fa-wave-square has-text-info"></i>
                 <div>
-                    <strong>BBox Grounding Integration</strong><br>
-                    <span class="is-size-6 has-text-grey">Enhancing spatial awareness with bounding box prompts</span>
+                    <strong>Proxy branch is the only live challenger right now</strong><br>
+                    <span class="is-size-6 has-text-grey">Exp19 reached 76.58% PM and 55.6% closed-loop, so it clearly beats recent end-to-end branches but still remains below Step2 at 66.7%.</span>
                 </div>
             </li>
           </ul>
@@ -284,6 +444,25 @@
     </div>
 
     <div class="columns is-multiline">
+      <!-- Category: V5 Progress -->
+      <div class="column is-12">
+        <h4 class="title is-4 has-text-success border-bottom-thick">
+          <i class="fas fa-rocket mr-2"></i>V5 Training & Progress
+        </h4>
+      <div class="column is-one-third">
+        <div class="card methodology-box" style="padding: 20px;">
+          <div class="mb-2">
+            <span class="tag is-primary">2026.04.15</span>
+            <span class="tag is-light is-info">V5 Progress</span>
+          </div>
+          <p class="title is-5">V5 Exp10 BBox Training Report</p>
+          <p class="subtitle is-6">Backbone fix for Kosmos-2 & Track 2 initial progress</p>
+          <a href="reports/viewer.html?file=v5_experiment_report_20260415.md" class="button is-small is-fullwidth is-outlined is-link">View Report</a>
+        </div>
+      </div>
+
+      </div>
+
       <!-- Category: Sensitivity Analysis -->
       <div class="column is-12">
         <h4 class="title is-4 has-text-info border-bottom-thick">

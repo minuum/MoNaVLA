@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MoNaVLA V5 Paper-Ready Results</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.9.4/css/bulma.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <style>
+    body { background: #f7f9fc; color: #14213d; }
+    .hero.is-paper {
+      background: linear-gradient(135deg, #14213d 0%, #1f4e79 45%, #d97706 100%);
+    }
+    .hero.is-paper .title,
+    .hero.is-paper .subtitle,
+    .hero.is-paper .tagline { color: #fff; }
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+    .summary-card {
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 16px;
+      padding: 1.1rem 1.2rem;
+      backdrop-filter: blur(8px);
+    }
+    .summary-card .eyebrow {
+      font-size: 0.8rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.8);
+    }
+    .summary-card .metric {
+      font-size: 1.45rem;
+      font-weight: 700;
+      line-height: 1.2;
+      margin-top: 0.4rem;
+      color: #fff;
+    }
+    .summary-card .detail {
+      margin-top: 0.55rem;
+      font-size: 0.95rem;
+      color: rgba(255, 255, 255, 0.88);
+    }
+    .panel-card {
+      background: #fff;
+      border-radius: 18px;
+      box-shadow: 0 10px 30px rgba(20, 33, 61, 0.08);
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .table th { white-space: nowrap; }
+    pre {
+      background: #0f172a;
+      color: #e2e8f0;
+      border-radius: 14px;
+      padding: 1rem;
+      overflow-x: auto;
+      font-size: 0.86rem;
+    }
+    .callout {
+      border-left: 5px solid #d97706;
+      background: #fff7ed;
+      padding: 1rem 1.2rem;
+      border-radius: 10px;
+    }
+  </style>
+</head>
+<body>
+  <section class="hero is-paper">
+    <div class="hero-body">
+      <div class="container is-max-desktop">
+        <p class="tagline is-size-7 has-text-weight-semibold">MoNaVLA / V5 / Paper-Ready Summary</p>
+        <h1 class="title is-1">Experimental Results Tables</h1>
+        <p class="subtitle is-5">
+          Paper-ready tables, Korean captions, and an Experimental Results draft built only from currently checked V5 documents.
+        </p>
+        <div class="summary-grid">
+          <div class="summary-card">
+            <div class="eyebrow">Strongest Baseline</div>
+            <div class="metric">Exp14 Step 2</div>
+            <div class="detail">PM 75.9%, closed-loop 66.7%. Current practical baseline.</div>
+          </div>
+          <div class="summary-card">
+            <div class="eyebrow">Best Checked End-to-End</div>
+            <div class="metric">Exp17</div>
+            <div class="detail">PM 76.95%, closed-loop 11.1%. PM improved, rollout still weak.</div>
+          </div>
+          <div class="summary-card">
+            <div class="eyebrow">Exp18 Status</div>
+            <div class="metric">Gate Failed</div>
+            <div class="detail">Best val loss 1.325, but PM 27.62% and closed-loop 11.1%.</div>
+          </div>
+          <div class="summary-card">
+            <div class="eyebrow">Current Conclusion</div>
+            <div class="metric">Decomposition &gt; End-to-End</div>
+            <div class="detail">On V5, decomposition remains the strongest practical route until a single-stage policy beats 66.7% closed-loop.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container is-max-desktop">
+      <div class="panel-card">
+        <h2 class="title is-3">Representative Results Table</h2>
+        <div class="table-container">
+          <table class="table is-fullwidth is-striped is-hoverable">
+            <thead>
+              <tr>
+                <th>Exp / Method</th>
+                <th>Family</th>
+                <th>PM (%)</th>
+                <th>Closed-loop (%)</th>
+                <th>Main Interpretation</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Exp04</td>
+                <td>End-to-end VLM</td>
+                <td>0.0</td>
+                <td>N/A</td>
+                <td>Loss improved, but inference collapsed.</td>
+              </tr>
+              <tr>
+                <td>Exp10 + rule</td>
+                <td>Grounding proxy</td>
+                <td>34.4</td>
+                <td>N/A</td>
+                <td>Perception was strong, but policy transfer remained weak.</td>
+              </tr>
+              <tr>
+                <td>Exp11</td>
+                <td>End-to-end VLM</td>
+                <td>58.6</td>
+                <td>0.0</td>
+                <td>Current policy baseline, but real rollout failed.</td>
+              </tr>
+              <tr>
+                <td>Exp14 Step1</td>
+                <td>Decomposition</td>
+                <td>68.4</td>
+                <td>N/A</td>
+                <td>BBox history alone beat Exp11 in PM.</td>
+              </tr>
+              <tr>
+                <td>Exp14 Step2</td>
+                <td>Decomposition</td>
+                <td>75.9</td>
+                <td>66.7</td>
+                <td>Current strongest practical baseline.</td>
+              </tr>
+              <tr>
+                <td>Exp17</td>
+                <td>End-to-end VLM</td>
+                <td>76.95</td>
+                <td>11.1</td>
+                <td>PM improved, but rollout still failed.</td>
+              </tr>
+              <tr>
+                <td>Exp18</td>
+                <td>End-to-end VLM + text fusion</td>
+                <td>27.62</td>
+                <td>11.1</td>
+                <td>Lower val loss did not translate to rollout improvement.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel-card">
+        <h2 class="title is-3">1. Booktabs LaTeX Version</h2>
+        <pre><code>\begin{table}[t]
+\centering
+\caption{Main experimental results on V5 navigation. PM denotes frame-level Perfect Match, while Closed-loop denotes episode-level navigation success rate.}
+\begin{tabular}{l l c c l}
+\toprule
+Method & Family & PM (\%) & Closed-loop (\%) & Interpretation \\
+\midrule
+Exp04 & End-to-end VLM & 0.0 & N/A & Loss improved, but inference collapsed \\
+Exp10 + rule & Grounding proxy & 34.4 & N/A & Perception strong, transfer weak \\
+Exp11 & End-to-end VLM & 58.6 & 0.0 & Current policy baseline, rollout failure \\
+Exp14 Step1 & Decomposition & 68.4 & N/A & BBox history alone outperforms Exp11 in PM \\
+Exp14 Step2 & Decomposition & 75.9 & 66.7 & Strongest practical baseline \\
+Exp17 & End-to-end VLM & 76.95 & 11.1 & PM improved, but rollout still failed \\
+Exp18 & End-to-end VLM + text fusion & 27.62 & 11.1 & Lower val loss, but rollout still failed \\
+\bottomrule
+\end{tabular}
+\end{table}</code></pre>
+
+        <div class="notification is-warning is-light mt-4">
+          <strong>Root-cause update.</strong> Pure HF Kosmos-2 keeps about <strong>22.6\%</strong> text attention, while Google-Robot policy variants including <strong>head-only Exp15</strong> collapse to <strong>0.000\%</strong>. This means LoRA is not a necessary condition for the observed text-path collapse.
+        </div>
+
+        <pre><code>\begin{table}[t]
+\centering
+\caption{Representative design differences of the main V5 experiments. Only settings directly supported by configs/docs are reported.}
+\begin{tabular}{l l c l l}
+\toprule
+Method & Backbone / Core & LoRA & Text conditioning & Notes \\
+\midrule
+Exp11 & Google-Robot pretrained Kosmos-2 & Yes & Raw instruction tokens & Current policy baseline \\
+Exp14 Step2 & BBox history + 16x16 image MLP & No & None (explicitly bypassed) & Strongest practical baseline \\
+Exp15 & Frozen Google-Robot VLM + action head & No & Frozen text path & Head-only control ablation \\
+Exp17 & Exp11 line + balanced 33/33/34 sampling & Yes & Raw instruction tokens & Professor Step-3 test \\
+Exp18 & Google-Robot Kosmos-2 + text embedding fusion & Yes & Raw text + frozen text embedding & Gate evaluation failed \\
+\bottomrule
+\end{tabular}
+\end{table}</code></pre>
+
+        <pre><code>\begin{table}[t]
+\centering
+\caption{Evidence supporting the current working conclusion.}
+\begin{tabular}{l l l}
+\toprule
+Claim & Status & Direct evidence \\
+\midrule
+PM alone is insufficient for model selection & Strongly supported & Exp17: 76.95 PM vs 11.1 Closed-loop \\
+Decomposition is the strongest practical route & Supported & Exp14 Step2: 66.7 Closed-loop \\
+End-to-end VLM still suffers rollout instability & Supported & Exp11: 0.0, Exp17: 11.1 Closed-loop \\
+V5 does not directly supervise STOP & Supported & Raw V5 action count: STOP = 0 \\
+Goal-near / stop-near is a proxy-signal problem & Supported & V5 proxy analysis documents \\
+Text-path collapse is real & Strongly supported & Attention analysis in root-cause document \\
+\bottomrule
+\end{tabular}
+\end{table}</code></pre>
+
+        <pre><code>\begin{table}[t]
+\centering
+\caption{Current research decision table.}
+\begin{tabular}{l l}
+\toprule
+Decision item & Current decision \\
+\midrule
+Mainline baseline & Exp14 Step2 \\
+Promotion criterion for end-to-end VLM & Must exceed 66.7\% Closed-loop \\
+Role of Exp18 & Gate evaluation branch \\
+Next mainline training & Exp19 = Step2 + proxy features \\
+If Exp19 is insufficient & Exp20 = Step2 + proxy auxiliary head \\
+Use goal\_near\_v0 as hard stop rule now? & No \\
+\bottomrule
+\end{tabular}
+\end{table}</code></pre>
+      </div>
+
+      <div class="panel-card">
+        <h2 class="title is-3">2. Korean Caption Version</h2>
+        <pre><code>\caption{V5 내비게이션 실험의 주요 결과. PM은 프레임 단위 Perfect Match를, Closed-loop는 에피소드 단위 주행 성공률을 의미한다.}
+
+\caption{주요 V5 실험들의 대표 설계 차이. 표에는 config와 문서에서 직접 확인 가능한 설정만 포함했다.}
+
+\caption{현재 중간 결론을 지지하는 근거 요약.}
+
+\caption{현재 시점 연구 의사결정 표.}</code></pre>
+      </div>
+
+      <div class="panel-card">
+        <h2 class="title is-3">3. Experimental Results Draft</h2>
+        <pre><code>Although end-to-end VLM training improved frame-level PM in some cases, it did not reliably translate into successful closed-loop navigation. Exp17 is the clearest example: it reached 76.95\% PM, but only 11.1\% closed-loop success. In contrast, the decomposition-based policy in Exp14 Step2 achieved 75.9\% PM and 66.7\% closed-loop success, making it the strongest practical baseline on V5 at the current stage.
+
+This gap indicates that frame-level action matching is not sufficient for model selection in mobile navigation. The result is consistent with the root-cause analyses: the current end-to-end policy remains heavily image-dominant, while the text pathway often collapses during fine-tuning. In parallel, the V5 dataset analysis shows that STOP is not directly supervised in the raw action distribution, which suggests that late-phase stopping behavior is better treated as a proxy-signal problem than as a naturally emergent property of the current end-to-end objective.
+
+Accordingly, our current research direction keeps Exp14 Step2 as the mainline baseline, while Exp18 is now treated as a failed gate branch. Although Exp18 reached a best validation loss of 1.325, its PM was only 27.62\% and its closed-loop success remained 11.1\%. Until a single-stage policy exceeds the 66.7\% closed-loop result of Exp14 Step2, decomposition remains the most defensible practical approach.</code></pre>
+      </div>
+
+      <div class="callout">
+        <strong>Current paper-safe takeaway:</strong> on V5, decomposition is still the strongest public result, and Exp18 should now be reported as <em>training finished, evaluation failed</em>.
+      </div>
+    </div>
+  </section>
+</body>
+</html>

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Exp11 vs Step2 Same Split</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin:0; padding:24px; background:#0f172a; color:#e2e8f0; }
+  h1 { font-size:2rem; margin-bottom:8px; }
+  .sub { color:#94a3b8; line-height:1.6; max-width:980px; margin-bottom:24px; }
+  .back { color:#60a5fa; text-decoration:none; display:inline-block; margin-bottom:16px; }
+  .grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:16px; margin-bottom:24px; }
+  .box { background:#1e293b; border-radius:10px; padding:16px 20px; }
+  .lbl { color:#94a3b8; text-transform:uppercase; font-size:.85rem; }
+  .num { font-size:2.3rem; font-weight:800; margin-top:6px; }
+  .good { color:#22c55e; } .blue { color:#60a5fa; } .warn { color:#fbbf24; }
+  table { width:100%; border-collapse:collapse; background:#1e293b; border-radius:8px; overflow:hidden; }
+  th, td { padding:9px 14px; border-bottom:1px solid #334155; text-align:left; }
+  th { background:#0b1220; }
+  .diag { background:#172554; border-left:4px solid #60a5fa; color:#dbeafe; padding:14px 18px; border-radius:6px; margin-top:20px; line-height:1.7; }
+</style>
+</head>
+<body>
+  <a class="back" href="../bbox_nav_comparison.html">← Back to Exp14 Comparison</a>
+  <h1>Exp11 vs Exp14 Step 2 on Same Split</h1>
+  <p class="sub">Step 2의 held-out 9 episode split을 그대로 쓰고, Exp11이 실제로 예측 가능한 공통 valid window subset 50개에서 직접 비교했습니다.</p>
+
+  <div class="grid">
+    <div class="box">
+      <div class="lbl">Exp11</div>
+      <div class="num blue">50.0%</div>
+      <div>25/50</div>
+    </div>
+    <div class="box">
+      <div class="lbl">Step 2</div>
+      <div class="num good">34.0%</div>
+      <div>17/50</div>
+    </div>
+    <div class="box">
+      <div class="lbl">Delta</div>
+      <div class="num warn">-16.0%</div>
+      <div>Step 2 - Exp11</div>
+    </div>
+  </div>
+
+  <h2>Per Path Type</h2>
+  <table>
+    <tr><th>Path</th><th>Exp11</th><th>Step 2</th><th>Delta</th></tr>
+    <tr><td>center_straight</td><td>0/2 (0.0%)</td><td>0/2 (0.0%)</td><td>+0.0%</td></tr><tr><td>center_left</td><td>0/6 (0.0%)</td><td>0/6 (0.0%)</td><td>+0.0%</td></tr><tr><td>center_right</td><td>6/6 (100.0%)</td><td>4/6 (66.7%)</td><td>-33.3%</td></tr><tr><td>left_straight</td><td>5/6 (83.3%)</td><td>5/6 (83.3%)</td><td>+0.0%</td></tr><tr><td>left_left</td><td>2/7 (28.6%)</td><td>1/7 (14.3%)</td><td>-14.3%</td></tr><tr><td>left_right</td><td>4/7 (57.1%)</td><td>3/7 (42.9%)</td><td>-14.3%</td></tr><tr><td>right_straight</td><td>5/6 (83.3%)</td><td>4/6 (66.7%)</td><td>-16.7%</td></tr><tr><td>right_left</td><td>1/6 (16.7%)</td><td>0/6 (0.0%)</td><td>-16.7%</td></tr><tr><td>right_right</td><td>2/4 (50.0%)</td><td>0/4 (0.0%)</td><td>-50.0%</td></tr>
+  </table>
+
+  <div class="diag">
+    <strong>Notes</strong><br>
+    - Exp11은 `window_size=8`, `fwd_pred_next_n=5` 기준의 valid window에서만 예측 가능하므로 공통 subset으로 정렬했습니다.<br>
+    - Step 2는 같은 train/test episode split에서 다시 학습한 뒤 같은 subset에서 평가했습니다.<br>
+    - 이 페이지의 수치는 기존 Step 2 전체-frame 75.9%와 직접 같은 분모가 아닙니다.
+  </div>
+</body>
+</html>

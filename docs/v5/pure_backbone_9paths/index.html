@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Pure Kosmos-2 on 9 Path Types</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin: 0; padding: 24px; background: #f8fafc; color: #1e293b; }
+  h1 { font-size: 1.8rem; margin-bottom: 8px; }
+  .subtitle { color: #64748b; margin-bottom: 24px; max-width: 800px; line-height: 1.6; }
+  .back-link { display: inline-block; margin-bottom: 16px; color: #3b82f6; text-decoration: none; }
+  .back-link:hover { text-decoration: underline; }
+  .path-row { background: white; border: 1px solid #e2e8f0; border-radius: 12px; margin-bottom: 20px; overflow: hidden; }
+  .path-header { padding: 12px 16px; background: #1e293b; color: white; font-size: 1.05rem; }
+  .path-header .ep { color: #94a3b8; font-size: 0.8rem; margin-left: 8px; }
+  .path-body { display: grid; grid-template-columns: 320px 1fr; gap: 16px; padding: 16px; }
+  .img-wrap img { width: 100%; border-radius: 8px; }
+  .prompts-wrap { display: flex; flex-direction: column; gap: 10px; }
+  .prompt-cell { border-left: 3px solid #3b82f6; padding: 8px 12px; background: #f1f5f9; border-radius: 4px; }
+  .tag-label { font-size: 0.7rem; text-transform: uppercase; color: #64748b; font-weight: 600; letter-spacing: 0.5px; }
+  .prompt-text { font-family: monospace; font-size: 0.85rem; color: #0f172a; margin: 4px 0; }
+  .generated-text { font-size: 0.95rem; color: #059669; font-weight: 500; }
+  @media (max-width: 768px) { .path-body { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+  <a class="back-link" href="../../index.html">← Back to main</a>
+  <h1>Pure HF Kosmos-2 on V5 9 Path Types</h1>
+  <p class="subtitle">
+    학습 전 Kosmos-2 백본이 9가지 경로 유형 에피소드의 첫 프레임을 어떻게 인식하는지 비교.
+    모든 path_type에서 응답이 비슷하면 → foundation 자체가 좌/우 구별 능력 부족.
+    path_type에 따라 응답이 달라지면 → 학습 과정이 구별 능력을 망침.
+  </p>
+  
+          <div class="path-row">
+            <div class="path-header"><strong>center_straight</strong> <span class="ep">(episode_260408_123008_target_center_straight_path__core__fixed_center.h5)</span></div>
+            <div class="path-body">
+              <div class="img-wrap"><img src="images/center_straight.jpg" alt="center_straight"></div>
+              <div class="prompts-wrap">
+              <div class="prompt-cell">
+                <div class="tag-label">grounding</div>
+                <div class="prompt-text"><grounding>The gray basket is at</div>
+                <div class="generated-text">the center of the image, with<phrase> the white wall</phrase><object><patch_index_0000><patch_index_0671></object> and<phrase> the window</phrase><object><patch_index_0007><patch_index_0183></object> in the background.</div>
+              </div>
+              <div class="prompt-cell">
+                <div class="tag-label">side</div>
+                <div class="prompt-text"><grounding>The basket is on the</div>
+                <div class="generated-text">floor of the church, with<phrase> the wall</phrase><object><patch_index_0000><patch_index_0671></object> and<phrase> the window</phrase><object><patch_index_0007><patch_index_0183></object> in the background</div>
+              </div>
+              <div class="prompt-cell">
+                <div class="tag-label">intent</div>
+                <div class="prompt-text"><grounding>To reach the basket, the robot should</div>
+                <div class="generated-text">first move to the left of the image, then turn around and move to<phrase> the right wall</phrase><object><patch_index_0000><patch_index_0671></object>.</div>
+              </div></div>
+            </div>
+          </div>
+          <div class="path-row">
+            <div class="path-header"><strong>center_left</strong> <span class="ep">(episode_260408_174654_target_center_left_path__core__fixed_center.h5)</span></div>
+            <div class="path-body">
+              <div class="img-wrap"><img src="images/center_left.jpg" alt="center_left"></div>
+              <div class="prompts-wrap">
+              <div class="prompt-cell">
+                <div class="tag-label">grounding</div>
+                <div class="prompt-text"><grounding>The gray basket is at</div>
+                <div class="generated-text">the center of the image, with<phrase> the gray air conditioner</phrase><object><patch_index_0493><patch_index_0722></object> sitting on<phrase> the floor</phrase><object><patch_index_0608><patch_index_1023></object> in front of it.</div>
+              </div>
+              <div class="prompt-cell">
+                <div class="tag-label">side</div>
+                <div class="prompt-text"><grounding>The basket is on the</div>
+                <div class="generated-text">floor, and<phrase> the air conditioner</phrase><object><patch_index_0493><patch_index_0722></object> is on<phrase> the wall</phrase><object><patch_index_0000><patch_index_0671></object>.</div>
+              </div>
+              <div class="prompt-cell">
+                <div class="tag-label">intent</div>
+                <div class="prompt-text"><grounding>To reach the basket, the robot should</div>
+                <div class="generated-text">first move to the left of the wall, then turn around and move to<phrase> the right wall</phrase><object><patch_index_0000><patch_index_0671></object>.</div>
+              </div></div>
+            </div>
+          </div>
+          <div class="path-row">
+            <div class="path-header"><strong>center_right</strong> <span class="ep">(episode_260408_185014_target_center_right_path__core__fixed_center.h5)</span></div>
+            <div class="path-body">
+              <div class="img-wrap"><img src="images/center_right.jpg" alt="center_right"></div>
+              <div class="prompts-wrap">
+              <div class="prompt-cell">
+                <div class="tag-label">grounding</div>
+                <div class="prompt-text"><grounding>The gray basket is at</div>
+                <div class="generated-text">the center of the image, with<phrase> the white wall</phrase><object><patch_index_0000><patch_index_0671></object> and<phrase> the window</phrase><object><patch_index_0006><patch_index_0182></object> in the background.</div>
+              </div>
+              <div class="prompt-cell">
+                <div class="tag-label">side</div>
+                <div class="prompt-text"><grounding>The basket is on the</div>
+                <div class="generated-text">floor, and<phrase> the air conditioner</phrase><object><patch_index_0461><patch_index_0721></object> is in the corner of the room.</div>
+              </div>
+              <div class="prompt-cell">
+                <div class="tag-label">intent</div>
+                <div class="prompt-text"><grounding>To reach the basket, the robot should</div>
+                <div class="generated-text">first move<phrase> the trash can</phrase><object><patch_index_0461><patch_index_0721></object> to the left of the wall.</div>
+              </div></div>
+            </div>
+          </div>
+          <div class="path-row">
+            <div class="path-header"><strong>left_straight</strong> <span class="ep">(episode_260409_072214_target_left_straight_path__core__fixed_center.h5)</span></div>
+            <div class="path-body">
+              <div class="img-wrap"><img src="images/left_straight.jpg" alt="left_straight"></div>
+              <div class="prompts-wrap">
+              <div class="prompt-cell">
+                <div class="tag-label">grounding</div>
+                <div class="prompt-text"><grounding>The gray basket is at</div>
+                <div class="generated-text">the end of the room, and<phrase> the chair</phrase><object><patch_index_0156><patch_index_0735></object> is in the middle of the image.</div>
+              </div>
+              <div class="prompt-cell">
+                <div class="tag-label">side</div>
+                <div class="prompt-text"><grounding>The basket is on the</div>
+                <div class="generated-text">floor, and<phrase> the chair</phrase><object><patch_index_0156><patch_index_0735></object> is on<phrase> the floor</phrase><object><patch_index_0608><patch_index_1023></object>, with<phrase> the power cord</phrase><object><patch_index_0435><patch_index_0696></object> running along the wall.</div>
+              </div>
+              <div class="prompt-cell">
+                <div class="tag-label">intent</div>
+                <div class="prompt-text"><grounding>To reach the basket, the robot should</div>
+                <div class="generated-text">first move<phrase> the trash can</phrase><object><patch_index_0485><patch_index_0713></object> to the left, then move<phrase> a chair</phrase><object><patch_index_0156><patch_index_0735></object> to its right, and finally, move<phrase> another chair</phrase></delimiter_of_multi_objects/><patch_index_0188><patch_index_0735></div>
+              </div></div>
+            </div>
+          </div>
+          <div class="path-row">
+            <div class="path-header"><strong>left_left</strong> <span class="ep">(episode_260409_124157_target_left_left_path__core__fixed_center.h5)</span></div>
+            <div class="path-body">
+              <div class="img-wrap"><img src="images/left_left.jpg" alt="left_left"></div>
+              <div class="prompts-wrap">
+              <div class="prompt-cell">
+                <div class="tag-label">grounding</div>
+                <div class="prompt-text"><grounding>The gray basket is at</div>
+                <div class="generated-text">the far left of the image.<phrase> The white wall</phrase><object><patch_index_0000><patch_index_0671></object> is the background.<phrase> A window</phrase><object><patch_index_0005><patch_index_0149></object> is above the basket.</div>
+              </div>
+              <div class="prompt-cell">
+                <div class="tag-label">side</div>
+                <div class="prompt-text"><grounding>The basket is on the</div>
+                <div class="generated-text">floor,<phrase> the trash can</phrase><object><patch_index_0486><patch_index_0714></object> is on<phrase> the floor</phrase><object><patch_index_0608><patch_index_1023></object>, and<phrase> the window</phrase><object><patch_index_0005><patch_index_0181></object> is open.</div>
+              </div>
+              <div class="prompt-cell">
+                <div class="tag-label">intent</div>
+                <div class="prompt-text"><grounding>To reach the basket, the robot should</div>
+                <div class="generated-text">first move to the left side of the room, then turn around and move to<phrase> the right side of a trash can</phrase><object><patch_index_0486><patch_index_0714></object>.</div>
+              </div></div>
+            </div>
+          </div>
+          <div class="path-row">
+            <div class="path-header"><strong>left_right</strong> <span class="ep">(episode_260409_123044_target_left_right_path__core__fixed_center.h5)</span></div>
+            <div class="path-body">
+              <div class="img-wrap"><img src="images/left_right.jpg" alt="left_right"></div>
+              <div class="prompts-wrap">
+              <div class="prompt-cell">
+                <div class="tag-label">grounding</div>
+                <div class="prompt-text"><grounding>The gray basket is at</div>
+                <div class="generated-text">the far end of the room, and<phrase> the gray trash can</phrase><object><patch_index_0486><patch_index_0715></object> is in the middle.</div>
+              </div>
+              <div class="prompt-cell">
+                <div class="tag-label">side</div>
+                <div class="prompt-text"><grounding>The basket is on the</div>
+                <div class="generated-text">floor,<phrase> the trash can</phrase><object><patch_index_0486><patch_index_0715></object> is on<phrase> the floor</phrase><object><patch_index_0608><patch_index_1023></object>, and<phrase> the window</phrase><object><patch_index_0006><patch_index_0150></object> is in the background.</div>
+              </div>
+              <div class="prompt-cell">
+                <div class="tag-label">intent</div>
+                <div class="prompt-text"><grounding>To reach the basket, the robot should</div>
+                <div class="generated-text">first move<phrase> the trash can</phrase><object><patch_index_0486><patch_index_0715></object> to the left of the wall.</div>
+              </div></div>
+            </div>
+          </div>
+          <div class="path-row">
+            <div class="path-header"><strong>right_straight</strong> <span class="ep">(episode_260409_134030_target_right_straight_path__core__fixed_center.h5)</span></div>
+            <div class="path-body">
+              <div class="img-wrap"><img src="images/right_straight.jpg" alt="right_straight"></div>
+              <div class="prompts-wrap">
+              <div class="prompt-cell">
+                <div class="tag-label">grounding</div>
+                <div class="prompt-text"><grounding>The gray basket is at</div>
+                <div class="generated-text">the end of the room, and<phrase> the white wall</phrase><object><patch_index_0000><patch_index_0671></object> is behind it.</div>
+              </div>
+              <div class="prompt-cell">
+                <div class="tag-label">side</div>
+                <div class="prompt-text"><grounding>The basket is on the</div>
+                <div class="generated-text">floor,<phrase> the trash can</phrase><object><patch_index_0468><patch_index_0729></object> is on<phrase> the floor</phrase><object><patch_index_0608><patch_index_1023></object>, and<phrase> the window</phrase><object><patch_index_0006><patch_index_0151></object> is open.</div>
+              </div>
+              <div class="prompt-cell">
+                <div class="tag-label">intent</div>
+                <div class="prompt-text"><grounding>To reach the basket, the robot should</div>
+                <div class="generated-text">first climb up<phrase> the wall</phrase><object><patch_index_0000><patch_index_0671></object> and then use<phrase> the trash can</phrase><object><patch_index_0468><patch_index_0729></object> to reach the top.</div>
+              </div></div>
+            </div>
+          </div>
+          <div class="path-row">
+            <div class="path-header"><strong>right_left</strong> <span class="ep">(episode_260409_131126_target_right_left_path__core__fixed_center.h5)</span></div>
+            <div class="path-body">
+              <div class="img-wrap"><img src="images/right_left.jpg" alt="right_left"></div>
+              <div class="prompts-wrap">
+              <div class="prompt-cell">
+                <div class="tag-label">grounding</div>
+                <div class="prompt-text"><grounding>The gray basket is at</div>
+                <div class="generated-text">the bottom of the image, and<phrase> the gray trash can</phrase><object><patch_index_0468><patch_index_0729></object> is at<phrase> the top of the frame</phrase><object><patch_index_0006><patch_index_0151></object>.</div>
+              </div>
+              <div class="prompt-cell">
+                <div class="tag-label">side</div>
+                <div class="prompt-text"><grounding>The basket is on the</div>
+                <div class="generated-text">floor of the room, and<phrase> the trash can</phrase><object><patch_index_0468><patch_index_0729></object> is on<phrase> the floor</phrase><object><patch_index_0608><patch_index_1023></object>.</div>
+              </div>
+              <div class="prompt-cell">
+                <div class="tag-label">intent</div>
+                <div class="prompt-text"><grounding>To reach the basket, the robot should</div>
+                <div class="generated-text">first climb up<phrase> the wall</phrase><object><patch_index_0000><patch_index_0671></object> and then drop down to<phrase> the trash can</phrase><object><patch_index_0468><patch_index_0729></object>.</div>
+              </div></div>
+            </div>
+          </div>
+          <div class="path-row">
+            <div class="path-header"><strong>right_right</strong> <span class="ep">(episode_260409_172906_target_right_right_path__core__fixed_center.h5)</span></div>
+            <div class="path-body">
+              <div class="img-wrap"><img src="images/right_right.jpg" alt="right_right"></div>
+              <div class="prompts-wrap">
+              <div class="prompt-cell">
+                <div class="tag-label">grounding</div>
+                <div class="prompt-text"><grounding>The gray basket is at</div>
+                <div class="generated-text">the far right of the image.<phrase> The white wall</phrase><object><patch_index_0000><patch_index_0671></object> is the background.</div>
+              </div>
+              <div class="prompt-cell">
+                <div class="tag-label">side</div>
+                <div class="prompt-text"><grounding>The basket is on the</div>
+                <div class="generated-text">floor of the room, and<phrase> the trash can</phrase><object><patch_index_0468><patch_index_0729></object> is on<phrase> the floor</phrase><object><patch_index_0608><patch_index_1023></object>.</div>
+              </div>
+              <div class="prompt-cell">
+                <div class="tag-label">intent</div>
+                <div class="prompt-text"><grounding>To reach the basket, the robot should</div>
+                <div class="generated-text">first climb up<phrase> the wall</phrase><object><patch_index_0000><patch_index_0671></object> and then use<phrase> the trash can</phrase><object><patch_index_0468><patch_index_0729></object> to reach the top.</div>
+              </div></div>
+            </div>
+          </div>
+</body>
+</html>

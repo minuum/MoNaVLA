@@ -1,0 +1,14 @@
+{
+    "_comment": "V5 Exp36: repeat Exp35 after fixing classification loss chunk alignment. Keep dataset fwd_pred_next_n=1 to match the inherited action head output shape and test the professor's left-family sanity check cleanly.",
+    "parent": "configs/mobile_vla_v5_exp35_pure_hf_last4_lora_left50_fixed_5ep.json",
+    "exp_name": "v5-exp36-pure-hf-last4-lora-left50-lossfix-5ep",
+    "task_name": "mobile_vla_v5_exp36",
+
+    "train_dataset": {
+        "fwd_pred_next_n": 1
+    },
+
+    "val_dataset": {
+        "fwd_pred_next_n": 1
+    }
+}

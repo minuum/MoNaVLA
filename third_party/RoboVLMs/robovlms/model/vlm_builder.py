@@ -79,7 +79,6 @@ def build_vlm(vlm_config, tokenizer_config, precision="bf16", quantization_confi
         
         # 토크나이저/프로세서 로드 (shortest_edge 에러 방지를 위한 폴백 적용)
         try:
-            from robovlms.utils.model_utils import build_tokenizer
             tokenizer = build_tokenizer(tokenizer_config)
         except Exception as e:
             print(f"⚠️ Standard build_tokenizer failed: {e}. Trying raw AutoProcessor fallback...")

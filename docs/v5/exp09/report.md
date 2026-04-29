@@ -11,13 +11,17 @@
 - **Instruction**: "Navigate until centered in the frame"
 - **Weights**: [5.0, 1.0, 10.0, 10.0, 5.0, 5.0, 15.0, 15.0]
 
-## 3. Current Live Results (As of April 15)
-- **Epoch**: 11 / 15
-- **Val Loss**: **1.340**
-- **Val Accuracy**: **80.2%**
-- **Behavior**: Smooth transitions from rotation to forward as the basket enters the center of the FOV.
+## 3. Final Results (As of April 15)
+- **Epoch**: 15 / 15 (Completed)
+- **Val Loss**: **1.203** (Best)
+- **Val Accuracy (Trainer)**: **83.0%**
+- **Offline Eval (PM/DM)**: **85.7%** (42/49 samples)
+- **Behavior**: While Val Accuracy is high, offline evaluation reveals a persistent **Forward Bias**. The model predicts "Forward" for almost all validation samples.
 
-## 4. Findings
-- **8-Class system** provides much better control over rotation than 6-class.
-- **Center-goal instruction** effectively reduced the "Forward Bias" because the model now has a clear reason to STOP.
-- **Progress**: Currently the best performing model in project history.
+## 4. Findings & Analysis
+- **Forward Bias**: Even with class weights (Forward=1.0, others=5.0~15.0), the model tends to collapse to the "Forward" action. This is likely due to the overwhelming frequency of Forward transition in the dataset.
+- **8-Class Integration**: The architecture successfully supports 8 discrete actions, but the policy head requires stronger regularization or a more balanced curriculum to learn rotation and stopping.
+- **Next Steps**: 
+    1. Implement **Sampling Weight Adjustment** (weighted sampling) in the data loader.
+    2. Re-introduce **Counterfactual Stop** data specifically for V5-8class.
+    3. Explore **Action-Conditional Instruction** tuning (Track 2 from V4 plan).

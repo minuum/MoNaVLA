@@ -1,0 +1,22 @@
+{
+    "_comment": "V5 Exp32: pure HF Kosmos-2 head-only smoke run on exact left-start families (50 episodes). Monday proof run for whether the action head can escape always-straight without LoRA.",
+    "parent": "configs/mobile_vla_v5_exp21_pure_hf_head_only.json",
+    "exp_name": "v5-exp32-pure-hf-head-only-left50-5ep",
+    "task_name": "mobile_vla_v5_exp32",
+
+    "max_epochs": 5,
+
+    "trainer": {
+        "max_epochs": 5
+    },
+
+    "train_dataset": {
+        "exclude_path_types": null,
+        "include_path_families": ["left_straight", "left_left", "left_right"]
+    },
+
+    "val_dataset": {
+        "exclude_path_types": null,
+        "include_path_families": ["left_straight", "left_left", "left_right"]
+    }
+}

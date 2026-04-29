@@ -1,0 +1,7 @@
+{
+    "_comment": "Resume Exp21 from epoch 02 but redirect new checkpoints/logs/cache to /tmp to avoid repeated save failure in the project run directory.",
+    "parent": "configs/mobile_vla_v5_exp21_pure_hf_head_only_resume.json",
+    "output_root": "/tmp/monavla_resume_runs",
+    "log_root": "/tmp/monavla_resume_runs",
+    "cache_root": "/tmp/monavla_resume_cache"
+}

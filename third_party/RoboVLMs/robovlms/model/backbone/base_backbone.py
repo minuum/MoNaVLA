@@ -142,7 +142,7 @@ class BaseRoboVLM(nn.Module):
         self.act_head, self.fwd_head, self.clip_norm_head = self._init_heads()
 
         if self.act_head_configs is not None:
-            self.action_space = self.act_head_configs.get("action_space", "continuous")
+            self.action_space = self.act_head_configs.get("action_space", "continuous") if self.act_head_configs is not None else "continuous"
             if self.action_space == "discrete":
                 self.action_tokenizer = ActionTokenizer(
                     self.tokenizer,
@@ -529,6 +529,53 @@ class BaseRoboVLM(nn.Module):
 
         return action_head, fwd_decoder, clip_norm_head
 
+    def _get_text_decoder_layers(self):
+        if hasattr(self.text_tower, "layers"):
+            return self.text_tower.layers
+        if hasattr(self.text_tower, "blocks"):
+            return self.text_tower.blocks
+        return None
+
+    def _resolve_lora_target_modules(self, model):
+        from robovlms.utils.lora_utils import find_all_linear_names
+
+        target_modules = self.train_setup_configs.get("lora_target_modules", None)
+        lora_decoder_layers = int(self.train_setup_configs.get("lora_decoder_layers", -1))
+        decoder_layers = self._get_text_decoder_layers()
+
+        if target_modules is not None or lora_decoder_layers == -1 or decoder_layers is None:
+            return target_modules if target_modules is not None else find_all_linear_names(model)
+
+        if lora_decoder_layers <= 0:
+            raise ValueError("train_setup.lora_decoder_layers must be -1 or a positive integer.")
+        if lora_decoder_layers > len(decoder_layers):
+            raise ValueError(
+                f"Requested lora_decoder_layers={lora_decoder_layers}, "
+                f"but text tower only has {len(decoder_layers)} layers."
+            )
+
+        allowed_module_ids = set()
+        for layer in decoder_layers[-lora_decoder_layers:]:
+            for module in layer.modules():
+                if isinstance(module, nn.Linear):
+                    allowed_module_ids.add(id(module))
+
+        filtered = [
+            name
+            for name, module in model.named_modules()
+            if isinstance(module, nn.Linear) and id(module) in allowed_module_ids
+        ]
+        if not filtered:
+            raise RuntimeError(
+                "Failed to resolve LoRA target modules for the requested decoder slice."
+            )
+
+        print(
+            f"Restricting LoRA to last {lora_decoder_layers} decoder layers "
+            f"({len(filtered)} exact linear modules)."
+        )
+        return filtered
+
     def _trainable_params_setup(self):
         model = self.model
         compute_dtype = (
@@ -544,13 +591,9 @@ class BaseRoboVLM(nn.Module):
                 model.requires_grad_(True)
             else:
                 model.requires_grad_(False)
-                if hasattr(self.text_tower, "layers"):
-                    for layer in self.text_tower.layers[
-                        -self.train_setup_configs["train_decoder_layers"] :
-                    ]:
-                        layer.requires_grad_(True)
-                elif hasattr(self.text_tower, "blocks"):
-                    for layer in self.text_tower.blocks[
+                decoder_layers = self._get_text_decoder_layers()
+                if decoder_layers is not None:
+                    for layer in decoder_layers[
                         -self.train_setup_configs["train_decoder_layers"] :
                     ]:
                         layer.requires_grad_(True)
@@ -576,12 +619,9 @@ class BaseRoboVLM(nn.Module):
             self.word_embedding.register_forward_hook(make_inputs_require_grad)
 
         if self.train_setup_configs["lora_enable"]:
-            from robovlms.utils.lora_utils import find_all_linear_names
             from peft import LoraConfig, get_peft_model
 
-            target_modules = self.train_setup_configs.get("lora_target_modules", None)
-            if target_modules is None:
-                target_modules = find_all_linear_names(model)
+            target_modules = self._resolve_lora_target_modules(model)
 
             lora_config = LoraConfig(
                 r=self.train_setup_configs["lora_r"],
@@ -642,7 +682,7 @@ class BaseRoboVLM(nn.Module):
         )
 
         action_loss = None
-        if action_labels is not None and mode == "train":  # [수정] train 모드일 때만 손실 계산
+        if action_labels is not None and mode == "train" and self.train_setup_configs.get("predict_action", True):  # [수정] predict_action이 True일 때만 실제 손실 계산
             action, action_labels, action_mask = self.act_head.get_labels(
                 action, action_labels, action_mask, tok_seq=action_tokens, **kwargs
             )
@@ -1079,6 +1119,7 @@ class BaseRoboVLM(nn.Module):
             past_key_values=past_key_values,
             inputs_embeds=multimodal_embeds,
             use_cache=use_cache,
+            labels=mutlimodal_labels,
         )
 
         output_hs = output.logits
@@ -1093,6 +1134,10 @@ class BaseRoboVLM(nn.Module):
             return action
 
         self._update_loss(loss, action_loss, "act")
+        
+        # [추가] predict_caption이 활성화된 경우 LM 손실 추가 (BBox 학습용)
+        if self.train_setup_configs.get("predict_caption", False) and hasattr(output, "loss") and output.loss is not None:
+            self._update_loss(loss, {"loss_vl": output.loss}, "cotrain")
         
         # [DEBUG]
         if "loss" in action_loss and action_loss["loss"] is not None and not action_loss["loss"].requires_grad:
@@ -1131,7 +1176,7 @@ class BaseRoboVLM(nn.Module):
         loss = {}
         assert vision_x is not None
         bs, seq_len = vision_x.shape[:2]
-        action_space = self.act_head_configs.get("action_space", "continuous")
+        action_space = self.act_head_configs.get("action_space", "continuous") if self.act_head_configs is not None else "continuous"
 
         eos_offset = int(self.tokenizer.eos_token is not None)
         bos_offset = int(self.tokenizer.bos_token is not None)
@@ -1167,7 +1212,7 @@ class BaseRoboVLM(nn.Module):
         ) = self.merge_multi_modal_input(
             input_embeds,
             vision_x,
-            labels=None,
+            labels=caption_labels, # Use caption_labels instead of None
             attention_mask=attention_mask,
             insert_idx=bos_offset,
         )
@@ -1181,8 +1226,8 @@ class BaseRoboVLM(nn.Module):
             ) = self.merge_multi_modal_input(
                 multimodal_embeds,
                 vision_gripper,
-                mutlimodal_labels,
-                multimodal_attention_mask,
+                labels=mutlimodal_labels, # Pass through the already merged labels
+                attention_mask=multimodal_attention_mask,
                 insert_idx=bos_offset,
             )
 
@@ -1257,6 +1302,7 @@ class BaseRoboVLM(nn.Module):
                 past_key_values=past_key_values,
                 inputs_embeds=multimodal_embeds,
                 use_cache=use_cache,
+                labels=mutlimodal_labels,
                 output_hidden_states=True,
             )
         except ValueError as e:
@@ -1395,6 +1441,11 @@ class BaseRoboVLM(nn.Module):
                     ], dim=1)
                     action_token_mask[:, -1] = True
                     
+                    # Update labels to match the new sequence length
+                    if caption_labels is not None:
+                        action_label = torch.full((batch_size, 1), -100, dtype=caption_labels.dtype, device=caption_labels.device)
+                        caption_labels = torch.cat([caption_labels, action_label], dim=1)
+
                     # Update padded_length
                     padded_length += 1
                 
@@ -1413,6 +1464,7 @@ class BaseRoboVLM(nn.Module):
                         position_ids=position_ids,
                         past_key_values=past_key_values,
                         use_cache=use_cache,
+                        labels=caption_labels, # Use original labels for Kosmos, it will handle internal insertion
                         output_hidden_states=True,
                     )
                 
@@ -1566,7 +1618,13 @@ class BaseRoboVLM(nn.Module):
         # st = cur
 
         if mode == "train":
-            self._update_loss(loss, action_loss, "act")
+            if action_loss is not None:
+                self._update_loss(loss, action_loss, "act")
+            
+            # [추가] predict_caption이 활성화된 경우 LM 손실 추가
+            if self.train_setup_configs.get("predict_caption", False) and hasattr(output, "loss") and output.loss is not None:
+                self._update_loss(loss, {"loss_vl": output.loss}, "cotrain")
+            
             loss = self._format_loss(loss)
         else:
             return action_logits
@@ -1659,7 +1717,7 @@ class BaseRoboVLM(nn.Module):
         mode="train",  # [추가] 학습/추론 모드 파라미터 전달
         **kwargs,
     ):
-        action_space = self.act_head_configs.get("action_space", "continuous")
+        action_space = self.act_head_configs.get("action_space", "continuous") if self.act_head_configs is not None else "continuous"
         ### discard the latter visual observation is with_history is False
         ### while we can maintain the multi-step action (chunk) prediction
 
@@ -1791,7 +1849,7 @@ class BaseRoboVLM(nn.Module):
 
         assert vision_x is not None
         bs, seq_len = vision_x.shape[:2]
-        action_space = self.act_head_configs.get("action_space", "continuous")
+        action_space = self.act_head_configs.get("action_space", "continuous") if self.act_head_configs is not None else "continuous"
         if self.train_setup_configs["predict_action"]:
             if action_space == "discrete":
                 action = self.pred_action_discrete(

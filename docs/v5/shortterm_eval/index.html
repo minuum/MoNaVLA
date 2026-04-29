@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>V5 Short-Term Eval</title>
+  <style>
+    :root {
+      --bg: #f6f7f2;
+      --fg: #142013;
+      --muted: #5c6657;
+      --card: #fffdf6;
+      --line: #d8ddd0;
+      --accent: #205c3b;
+    }
+    body {
+      margin: 0;
+      padding: 28px;
+      background: radial-gradient(circle at top left, #fcfbf5, #eef2e7 70%);
+      color: var(--fg);
+      font-family: Georgia, "Times New Roman", serif;
+    }
+    h1 { margin: 0 0 8px 0; font-size: 2rem; }
+    .subhead { color: var(--muted); max-width: 900px; line-height: 1.5; margin-bottom: 20px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: 0 8px 30px rgba(30, 50, 20, 0.05);
+    }
+    .eyebrow { color: var(--accent); text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.78rem; }
+    h2 { margin: 8px 0 16px 0; font-size: 1.4rem; }
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .metric { font-size: 2rem; font-weight: 700; }
+    .caption { color: var(--muted); font-size: 0.85rem; line-height: 1.25; }
+    .sub { margin-top: 14px; color: var(--muted); font-size: 0.92rem; }
+  </style>
+</head>
+<body>
+  <h1>V5 Short-Term Evaluation</h1>
+  <div class="subhead">
+    Current V5 collection is a core-only route dataset. These three metrics are the recommended
+    short-term selection signals: closed-loop success, non-straight prefix commitment, and macro
+    per-path frame accuracy.
+  </div>
+  <div class="grid">
+    
+            <section class="card">
+              <div class="eyebrow">exp28</div>
+              <h2>Exp28</h2>
+              <div class="metric-grid">
+                <div>
+                  <div class="metric">0.0%</div>
+                  <div class="caption">Closed-loop success</div>
+                </div>
+                <div>
+                  <div class="metric">33.3%</div>
+                  <div class="caption">Non-straight prefix@5 success</div>
+                </div>
+                <div>
+                  <div class="metric">5.6%</div>
+                  <div class="caption">Macro per-path frame acc</div>
+                </div>
+              </div>
+              <div class="sub">
+                FPE 1.605m ·
+                TLD 1.241 ·
+                Macro per-path closed-loop 0.0%
+              </div>
+            </section>
+            
+  </div>
+</body>
+</html>

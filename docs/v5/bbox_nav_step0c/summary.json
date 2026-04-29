@@ -1,0 +1,58 @@
+{
+  "overall_pm": 0.6444444444444445,
+  "total": 90,
+  "correct": 58,
+  "pm_by_path": {
+    "center_straight": {
+      "correct": 10,
+      "total": 10
+    },
+    "center_left": {
+      "correct": 4,
+      "total": 10
+    },
+    "center_right": {
+      "correct": 4,
+      "total": 10
+    },
+    "left_straight": {
+      "correct": 8,
+      "total": 10
+    },
+    "left_left": {
+      "correct": 6,
+      "total": 10
+    },
+    "left_right": {
+      "correct": 6,
+      "total": 10
+    },
+    "right_straight": {
+      "correct": 8,
+      "total": 10
+    },
+    "right_left": {
+      "correct": 6,
+      "total": 10
+    },
+    "right_right": {
+      "correct": 6,
+      "total": 10
+    }
+  },
+  "baseline_pm": 0.6444444444444445,
+  "best_thresholds": {
+    "hard_left": 0.15,
+    "soft_left": 0.3,
+    "soft_right": 0.7,
+    "hard_right": 0.85,
+    "stop_area": 0.35
+  },
+  "baseline_thresholds": {
+    "hard_left": 0.15,
+    "soft_left": 0.3,
+    "soft_right": 0.7,
+    "hard_right": 0.85,
+    "stop_area": 0.35
+  }
+}

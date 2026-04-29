@@ -8,8 +8,14 @@ from torch.utils.data import Dataset
 import torchvision.transforms as T
 # from robovlms.utils.model_utils import load_image
 import random
+import json
 
 class MobileVLAH5Dataset(Dataset):
+    COARSE_LABELS = {
+        "left": 0,
+        "center": 1,
+        "right": 2,
+    }
 
     PATH_TYPE_INSTRUCTIONS = {
         "left": [
@@ -62,6 +68,7 @@ class MobileVLAH5Dataset(Dataset):
         fwd_pred_next_n=5,
         image_size=224,
         discrete_action=False,
+        use_bbox_target=False,
         abs_action=False,
         is_validation=False,
         train_split=0.9,
@@ -71,6 +78,8 @@ class MobileVLAH5Dataset(Dataset):
         augment=False,
         use_color_jitter=False,
         use_random_crop=False,
+        resize_mode="direct",
+        letterbox_fill=0,
         curvature_only=False,
         counterfactual_stop_prob=0.0,
         counterfactual_steer_prob=0.0,
@@ -90,19 +99,24 @@ class MobileVLAH5Dataset(Dataset):
         self.augment = augment
         self.use_color_jitter = use_color_jitter
         self.use_random_crop = use_random_crop
+        self.resize_mode = resize_mode
+        self.letterbox_fill = int(letterbox_fill)
         self.curvature_only = curvature_only
         # [Counterfactual] 학습 중 이 확률로 명령어 + 대응 액션으로 오버라이드
         self._counterfactual_stop_prob = counterfactual_stop_prob
         self._counterfactual_steer_prob = counterfactual_steer_prob
         self.stratified_split = stratified_split
         self.exclude_path_types = set(exclude_path_types) if exclude_path_types else set()
+        self.include_path_families = set(kwargs.get("include_path_families", []) or [])
         self.train_split = train_split
         self.tokenizer = kwargs.get('tokenizer', None)
-        # [V5] grounding_prefix
         self.grounding_prefix = kwargs.get('grounding_prefix', False)
+        self.use_bbox_target = use_bbox_target
         # [BugFix/Track1] instruction_override 명시적 저장 및 반영
         self.instruction_override = kwargs.get('instruction_override', None)
-        
+        self.grounding_aux_config = kwargs.get("grounding_aux", None) or {}
+        self.path_family_weights = kwargs.get("path_family_weights", None)
+
         # [NEW] Handle is_training from GRDataModule/third_party
         if 'is_training' in kwargs:
             is_validation = not kwargs['is_training']
@@ -129,6 +143,78 @@ class MobileVLAH5Dataset(Dataset):
                 f for f in self.episode_files
                 if not any(pt in f.stem for pt in self.exclude_path_types)
             ]
+
+        if self.include_path_families:
+            self.episode_files = [
+                f for f in self.episode_files
+                if self._extract_path_family(f.stem) in self.include_path_families
+            ]
+
+        # path_type_weights를 사용해서 각 그룹별 에피소드 비율 조정 (Step 3: 33/33/33)
+        path_type_weights = kwargs.get('path_type_weights', None)
+        if self.path_family_weights:
+            from collections import defaultdict
+
+            groups = defaultdict(list)
+            for f in self.episode_files:
+                groups[self._extract_path_family(f.stem)].append(f)
+
+            total_episodes = len(self.episode_files)
+            resampled_files = []
+
+            for key in sorted(groups.keys()):
+                weight = float(self.path_family_weights.get(key, 0.0))
+                target_count = int(round(total_episodes * weight))
+                group_files = groups[key]
+
+                if target_count > 0 and len(group_files) > 0:
+                    if len(group_files) >= target_count:
+                        sampled = random.sample(group_files, target_count)
+                    else:
+                        sampled = [random.choice(group_files) for _ in range(target_count)]
+                    resampled_files.extend(sampled)
+
+            if resampled_files:
+                self.episode_files = resampled_files
+                random.shuffle(self.episode_files)
+
+        elif path_type_weights:
+            from collections import defaultdict
+
+            # 그룹화
+            groups = defaultdict(list)
+            for f in self.episode_files:
+                stem = f.stem
+                if 'straight' in stem:
+                    key = 'straight'
+                elif 'left' in stem:
+                    key = 'left'
+                elif 'right' in stem:
+                    key = 'right'
+                else:
+                    key = 'other'
+                groups[key].append(f)
+
+            # 가중치에 따라 에피소드 샘플링 (replacement 허용으로 정확한 비율 유지)
+            total_episodes = len(self.episode_files)
+            resampled_files = []
+
+            for key in sorted(groups.keys()):
+                weight = path_type_weights.get(key, 0)
+                target_count = int(total_episodes * weight)
+                group_files = groups[key]
+
+                if target_count > 0 and len(group_files) > 0:
+                    if len(group_files) >= target_count:
+                        # 충분하면 비복원 샘플
+                        sampled = random.sample(group_files, target_count)
+                    else:
+                        # 부족하면 복원 샘플 (정확한 비율 유지)
+                        sampled = [random.choice(group_files) for _ in range(target_count)]
+                    resampled_files.extend(sampled)
+
+            self.episode_files = resampled_files
+            random.shuffle(self.episode_files)
 
         # Split
         if self.stratified_split:
@@ -197,20 +283,111 @@ class MobileVLAH5Dataset(Dataset):
         self.episode_files = filtered_files
         print(f"{'Validation' if self.is_validation else 'Training'} dataset initialized with {len(self.episode_files)} episodes and {len(self.frame_indices)} valid sequences.")
 
+        # Load text embeddings for Exp18 (if available)
+        text_emb_path = Path(data_dir).parent.parent / "docs" / "v5" / "v5_dataset_with_text_embeddings.json"
+        if text_emb_path.exists():
+            with open(text_emb_path) as f:
+                text_emb_data = json.load(f)
+            self.text_embeddings = {}
+            for item in text_emb_data:
+                ep_name = item['episode']
+                self.text_embeddings[ep_name] = np.array(item['text_embedding'], dtype=np.float32)
+        else:
+            self.text_embeddings = {}
+
+        self.grounding_aux_index = self._load_grounding_aux_index()
+
         # Transforms
         if self.use_color_jitter:
             self.color_jitter = T.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.4, hue=0.1)
         if self.use_random_crop:
             self.random_crop = T.RandomResizedCrop(self.image_size, scale=(0.8, 1.0))
 
+    @staticmethod
+    def _extract_path_family(stem):
+        marker = "_target_"
+        suffix = "_path"
+        if marker in stem and suffix in stem:
+            return stem.split(marker, 1)[1].split(suffix, 1)[0]
+        return "other"
+
+    def _load_grounding_aux_index(self):
+        if not self.grounding_aux_config.get("enabled", False):
+            return {}
+
+        truth_path = self.grounding_aux_config.get(
+            "truth_path",
+            str(Path(self.data_dir).parent.parent / "docs" / "v5" / "bbox_truth_mini.json"),
+        )
+        truth_path = Path(truth_path)
+        if not truth_path.exists():
+            print(f"⚠️ [NavH5Dataset] grounding_aux enabled but truth file missing: {truth_path}")
+            return {}
+
+        payload = json.loads(truth_path.read_text())
+        annotations = payload["annotations"] if isinstance(payload, dict) else payload
+        index = {}
+
+        for ann in annotations:
+            if ann.get("review_status") not in {"complete", "verified", "done"}:
+                continue
+
+            episode = ann.get("episode")
+            frame_idx = ann.get("frame_idx")
+            bbox = ann.get("bbox_xyxy_norm")
+            coarse = ann.get("coarse_position")
+            visible_flag = ann.get("target_visible")
+
+            if episode is None or frame_idx is None or bbox is None or coarse not in self.COARSE_LABELS:
+                continue
+
+            if visible_flag is True:
+                aux_weight = 1.0
+            elif visible_flag == "partial":
+                aux_weight = float(self.grounding_aux_config.get("partial_weight", 0.5))
+            else:
+                continue
+
+            index[(episode, int(frame_idx))] = {
+                "bbox_xyxy_norm": np.asarray(bbox, dtype=np.float32),
+                "coarse_label": int(self.COARSE_LABELS[coarse]),
+                "aux_weight": float(aux_weight),
+            }
+
+        print(f"[NavH5Dataset] Loaded grounding aux annotations: {len(index)} frames from {truth_path}")
+        return index
+
+    def _resize_image(self, img):
+        if self.use_random_crop:
+            return self.random_crop(img)
+
+        if self.resize_mode == "letterbox":
+            src_w, src_h = img.size
+            scale = min(self.image_size / src_w, self.image_size / src_h)
+            new_w = max(1, int(round(src_w * scale)))
+            new_h = max(1, int(round(src_h * scale)))
+            resized = img.resize((new_w, new_h), Image.BILINEAR)
+            canvas = Image.new("RGB", (self.image_size, self.image_size), (self.letterbox_fill,) * 3)
+            off_x = (self.image_size - new_w) // 2
+            off_y = (self.image_size - new_h) // 2
+            canvas.paste(resized, (off_x, off_y))
+            return canvas
+
+        return img.resize((self.image_size, self.image_size), Image.BILINEAR)
+
     def __len__(self):
         return len(self.frame_indices)
 
-    def _get_action_aware_instruction(self, actions):
-        """Build a training-only instruction variant from the next predicted action.
+    def _get_action_aware_instruction(self, actions, target_t=None):
+        """Build a training-only instruction variant from the action at target_t.
         100% Strict Action-Aware Prompting. No generic variations to prevent shortcut learning.
+        target_t=None → legacy behaviour (window_size position)
+        target_t=0    → t=0 action, aligned with parse_gt(ac[0,0,0]) evaluation
         """
-        target_idx = min(self.window_size, len(actions) - 1)
+        if target_t is not None:
+            target_idx = min(target_t, len(actions) - 1)
+        else:
+            target_idx = min(self.window_size, len(actions) - 1)
         # actions shape handling — V5: [lx, ly, az], V4: [lx, az] (2D)
         if len(actions.shape) == 3:
             a = actions[target_idx][0]
@@ -347,11 +524,7 @@ class MobileVLAH5Dataset(Dataset):
                 if self.use_color_jitter:
                     img = self.color_jitter(img)
                 
-                # [V3] Random Crop
-                if self.use_random_crop:
-                    img = self.random_crop(img)
-                else:
-                    img = img.resize((self.image_size, self.image_size), Image.BILINEAR)
+                img = self._resize_image(img)
                 
                 img_tensor = torch.from_numpy(np.array(img)).float() / 255.0
                 img_tensor = img_tensor.permute(2, 0, 1)
@@ -448,7 +621,7 @@ class MobileVLAH5Dataset(Dataset):
                 use_path_type_aware = (self.instruction_preset == "path_type_aware")
                 
                 if use_action_aware_train:
-                    language_base = self._get_action_aware_instruction(actions)
+                    language_base = self._get_action_aware_instruction(actions, target_t=0)
                 elif self.instruction_override is not None:
                     # BugFix: config의 instruction_override 로직 적용
                     # TODO: 이 부분은 path_type 기반 override. 추후 action 단위 override 원할 시 수정
@@ -464,6 +637,50 @@ class MobileVLAH5Dataset(Dataset):
                         language_base = f"<grounding>{language_base}"
                 else:
                     language_base = "Navigate to the gray basket"
+                    
+                # [Track 2] BBox 생성 (OpenCV 임시 활용)
+                if self.use_bbox_target:
+                    # 마지막 프레임 혹은 현재 프레임 영상 기반 bbox
+                    target_img_np = images_src[min(start_frame + self.window_size - 1, total_len - 1)]
+                    try:
+                        import cv2
+                        hsv = cv2.cvtColor(target_img_np, cv2.COLOR_RGB2HSV)
+                        # 임시로 Grayish + Reddish 물체를 잡음 (넓은 임계값)
+                        # 여기서는 화면 중앙 근처에 있는 컨투어를 우선하거나, 가장 큰 면적을 바구니로 가정
+                        lower_bound = np.array([0, 0, 0])
+                        upper_bound = np.array([180, 255, 200])
+                        mask = cv2.inRange(hsv, lower_bound, upper_bound)
+                        # 화면 아래쪽에 가중치(바구니는 바닥에 있음)
+                        H, W = mask.shape
+                        mask[0:H//3, :] = 0
+                        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                        
+                        xmin, ymin, xmax, ymax = W//3, H//3, 2*W//3, 2*H//3 # Default center bbox
+                        if contours:
+                            c = max(contours, key=cv2.contourArea)
+                            if cv2.contourArea(c) > 100:
+                                x, y, w, h = cv2.boundingRect(c)
+                                xmin, ymin, xmax, ymax = x, y, x+w, y+h
+                        
+                        # BBox 토큰 계산 (Kosmos-2 32x32 Grid 매핑)
+                        x1_idx = int((xmin / W) * 31)
+                        y1_idx = int((ymin / H) * 31)
+                        p1 = y1_idx * 32 + x1_idx
+                        
+                        x2_idx = int((xmax / W) * 31)
+                        y2_idx = int((ymax / H) * 31)
+                        p2 = y2_idx * 32 + x2_idx
+                        
+                        bbox_text = f"<box_2d><patch_index_{p1:04d}><patch_index_{p2:04d}></box_2d>"
+                        # language_base 뒤에 Action 출력 대신 BBox를 정답으로 연결
+                        if "Action:" in language_base:
+                            language_base = language_base.split("Action:")[0] + f"Action: {bbox_text}"
+                        else:
+                            language_base = f"{language_base} Action: {bbox_text}"
+                    except Exception as e:
+                        # Fallback
+                        bbox_text = f"<box_2d><patch_index_0528><patch_index_0656></box_2d>" # Center approx
+                        language_base = f"{language_base} Action: {bbox_text}"
 
             # -------------------------------------------------------------------------
             # [LFS Update] Augmentation - Image Flip (좌우 반전)
@@ -583,10 +800,12 @@ class MobileVLAH5Dataset(Dataset):
                     chunk = torch.cat([chunk, last_val.repeat(pad_len, 1)], dim=0)
                 action_chunks.extend(chunk)
             
-            # Reshape into (seq_len, chunk_size, 2)
-            action_chunck = torch.stack(action_chunks).reshape(self.window_size, self.fwd_pred_next_n, 2)
-            actions_tensor = actions_tensor_full # (window_size + next_n - 1, 2)
+            # Reshape into (seq_len, chunk_size, dims)
+            action_chunck = torch.stack(action_chunks).reshape(self.window_size, self.fwd_pred_next_n, actions_tensor_full.shape[-1])
+            actions_tensor = actions_tensor_full # (window_size + next_n - 1, dims)
         
+        ep_stem = self.episode_files[ep_idx].stem
+
         data_dict = {
             'rgb': images_tensor,
             'hand_rgb': torch.zeros_like(images_tensor),
@@ -599,6 +818,29 @@ class MobileVLAH5Dataset(Dataset):
             'data_source': 'mobile_vla_action',
             'attention_mask': torch.ones(self.window_size),
         }
+
+        grounding_bbox = torch.zeros(self.window_size, 4, dtype=torch.float32)
+        grounding_bbox_mask = torch.zeros(self.window_size, dtype=torch.bool)
+        grounding_bbox_weight = torch.zeros(self.window_size, dtype=torch.float32)
+        grounding_coarse_label = torch.full((self.window_size,), -100, dtype=torch.long)
+        grounding_coarse_mask = torch.zeros(self.window_size, dtype=torch.bool)
+
+        if self.grounding_aux_index:
+            for rel_t in range(self.window_size):
+                ann = self.grounding_aux_index.get((ep_stem, start_frame + rel_t))
+                if ann is None:
+                    continue
+                grounding_bbox[rel_t] = torch.from_numpy(ann["bbox_xyxy_norm"])
+                grounding_bbox_mask[rel_t] = True
+                grounding_bbox_weight[rel_t] = float(ann["aux_weight"])
+                grounding_coarse_label[rel_t] = int(ann["coarse_label"])
+                grounding_coarse_mask[rel_t] = True
+
+        data_dict["grounding_bbox"] = grounding_bbox
+        data_dict["grounding_bbox_mask"] = grounding_bbox_mask
+        data_dict["grounding_bbox_weight"] = grounding_bbox_weight
+        data_dict["grounding_coarse_label"] = grounding_coarse_label
+        data_dict["grounding_coarse_mask"] = grounding_coarse_mask
 
         # [CRITICAL] Tokenize the instruction
         if self.tokenizer is not None:
@@ -616,6 +858,12 @@ class MobileVLAH5Dataset(Dataset):
             # Fallback (should not happen in real training via GRDataModule)
             data_dict['text'] = torch.zeros(256, dtype=torch.long)
             data_dict['text_mask'] = torch.zeros(256, dtype=torch.long)
+
+        # Add text embedding for Exp18
+        if ep_stem in self.text_embeddings:
+            data_dict['text_embedding'] = torch.from_numpy(self.text_embeddings[ep_stem])
+        else:
+            data_dict['text_embedding'] = torch.zeros(1024, dtype=torch.float32)
 
         return data_dict
 

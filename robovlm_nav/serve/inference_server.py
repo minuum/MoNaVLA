@@ -52,6 +52,7 @@ import numpy as np
 import cv2
 from PIL import Image
 from fastapi import FastAPI, HTTPException, Header, Depends
+from fastapi.responses import FileResponse, Response
 from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
 
@@ -68,6 +69,42 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Mobile VLA Inference API", version="1.0.0")
+STATIC_DIR = Path(current_dir) / "static"
+DEBUG_UI_PATH = STATIC_DIR / "inference_debugger.html"
+DEBUG_IMAGE_ROOTS = {
+    "dataset_images": Path(project_root) / "ROS_action" / "mobile_vla_dataset_v5(Image)",
+    "workspace": Path(project_root),
+}
+DEFAULT_DEBUG_MODEL_CANDIDATES = [
+    (
+        Path(project_root) / "runs" / "v5_nav" / "kosmos" / "mobile_vla_v5_exp31" / "2026-04-24" / "v5-exp31-step3-grounding-turnboost-learnedmix-5ep" / "last.ckpt",
+        Path(project_root) / "configs" / "mobile_vla_v5_exp31_step3_grounding_turnboost_learnedmix_5ep.json",
+    ),
+    (
+        Path(project_root) / "runs" / "v5_nav" / "kosmos" / "mobile_vla_v5_exp30" / "2026-04-24" / "v5-exp30-step3-grounding-turnboost-bboxcoarse-5ep" / "last.ckpt",
+        Path(project_root) / "configs" / "mobile_vla_v5_exp30_step3_grounding_turnboost_coarseonly_5ep.json",
+    ),
+    (
+        Path(project_root) / "runs" / "v5_nav" / "kosmos" / "mobile_vla_v5_exp29" / "2026-04-23" / "v5-exp29-step3-grounding-turnboost-coarseonly-5ep" / "last.ckpt",
+        Path(project_root) / "configs" / "mobile_vla_v5_exp29_step3_grounding_turnboost_bboxcoarse_5ep.json",
+    ),
+    (
+        Path(project_root) / "runs" / "v5_nav" / "kosmos" / "mobile_vla_v5_exp28" / "2026-04-23" / "v5-exp28-step3-objective-grounding-turnboost" / "epoch_epoch=epoch=13-val_loss=val_loss=8.708.ckpt",
+        Path(project_root) / "configs" / "mobile_vla_v5_exp28_step3_balanced_objective_grounding_turnboost.json",
+    ),
+    (
+        Path(project_root) / "runs" / "v5_nav" / "kosmos" / "mobile_vla_v5_exp27" / "2026-04-23" / "v5-exp27-step3-objective-letterbox224" / "epoch_epoch=epoch=08-val_loss=val_loss=7.932.ckpt",
+        Path(project_root) / "configs" / "mobile_vla_v5_exp27_step3_objective_letterbox224.json",
+    ),
+    (
+        Path(project_root) / "runs" / "v5_nav" / "kosmos" / "mobile_vla_v5_exp26" / "2026-04-22" / "v5-exp26-step3-objective-direct224" / "epoch_epoch=epoch=14-val_loss=val_loss=7.036.ckpt",
+        Path(project_root) / "configs" / "mobile_vla_v5_exp26_step3_objective_direct224.json",
+    ),
+    (
+        Path(project_root) / "runs" / "v5_nav" / "kosmos" / "mobile_vla_v5_exp25" / "2026-04-22" / "v5-exp25-step3-balanced-objective" / "epoch_epoch=epoch=02-val_loss=val_loss=10.117.ckpt",
+        Path(project_root) / "configs" / "mobile_vla_v5_exp25_step3_balanced_objective.json",
+    ),
+]
 
 
 # API Key 설정
@@ -102,6 +139,8 @@ async def verify_api_key(api_key: str = Depends(api_key_header)):
 
 # Global model instance (lazy loading)
 model_instance = None
+model_override_checkpoint_path = None
+model_override_config_path = None
 
 
 class InferenceRequest(BaseModel):
@@ -119,6 +158,166 @@ class InferenceResponse(BaseModel):
     strategy: str  # Inference strategy used
     source: str  # "inferred" or "reused"
     buffer_status: dict  # Buffer status for chunk_reuse
+
+
+class InferenceDebugResponse(BaseModel):
+    """중간 추론 과정을 포함한 디버그 응답"""
+    action: List[float]
+    latency_ms: float
+    model_name: str
+    source: str
+    debug: dict[str, Any]
+
+
+class InferenceDebugPathRequest(BaseModel):
+    image_path: str
+    instruction: str
+
+
+class DebugModelReloadRequest(BaseModel):
+    checkpoint_path: Optional[str] = None
+    config_path: Optional[str] = None
+    candidate_name: Optional[str] = None
+
+
+def _get_allowed_debug_roots() -> dict[str, Path]:
+    return {name: path.resolve() for name, path in DEBUG_IMAGE_ROOTS.items() if path.exists()}
+
+
+def _resolve_debug_path(raw_path: str) -> Path:
+    if not raw_path or not str(raw_path).strip():
+        raise HTTPException(status_code=400, detail="image_path is required")
+
+    candidate = Path(str(raw_path)).expanduser().resolve()
+    for root in _get_allowed_debug_roots().values():
+        try:
+            candidate.relative_to(root)
+            return candidate
+        except ValueError:
+            continue
+    raise HTTPException(
+        status_code=403,
+        detail=f"Path is outside allowed debug roots: {candidate}",
+    )
+
+
+def _list_debug_directory(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        raise HTTPException(status_code=404, detail=f"Path not found: {path}")
+    if not path.is_dir():
+        raise HTTPException(status_code=400, detail=f"Path is not a directory: {path}")
+
+    dirs = []
+    files = []
+    image_exts = {".png", ".jpg", ".jpeg", ".bmp", ".webp"}
+    for child in sorted(path.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower())):
+        item = {
+            "name": child.name,
+            "path": str(child),
+            "is_dir": child.is_dir(),
+        }
+        if child.is_dir():
+            dirs.append(item)
+        elif child.suffix.lower() in image_exts:
+            files.append(item)
+
+    return {
+        "path": str(path),
+        "parent": str(path.parent) if path.parent != path else None,
+        "dirs": dirs,
+        "files": files,
+    }
+
+
+def _resolve_default_model_paths() -> tuple[str, str]:
+    env_ckpt = os.getenv("VLA_CHECKPOINT_PATH")
+    env_cfg = os.getenv("VLA_CONFIG_PATH")
+    if env_ckpt and env_cfg:
+        env_ckpt_path = Path(env_ckpt).expanduser()
+        env_cfg_path = Path(env_cfg).expanduser()
+        if env_ckpt_path.exists() and env_cfg_path.exists():
+            return str(env_ckpt_path.resolve()), str(env_cfg_path.resolve())
+        logger.warning(
+            "Ignoring stale VLA_CHECKPOINT_PATH/VLA_CONFIG_PATH because one of them does not exist. "
+            "ckpt=%s cfg=%s",
+            env_ckpt,
+            env_cfg,
+        )
+
+    for ckpt_path, cfg_path in DEFAULT_DEBUG_MODEL_CANDIDATES:
+        if ckpt_path.exists() and cfg_path.exists():
+            return str(ckpt_path), str(cfg_path)
+
+    raise FileNotFoundError(
+        "No valid default checkpoint/config pair found for inference_server. "
+        "Set VLA_CHECKPOINT_PATH and VLA_CONFIG_PATH explicitly."
+    )
+
+
+def _get_model_candidates() -> list[dict[str, str]]:
+    items = []
+    for ckpt_path, cfg_path in DEFAULT_DEBUG_MODEL_CANDIDATES:
+        if ckpt_path.exists() and cfg_path.exists():
+            items.append(
+                {
+                    "name": cfg_path.stem,
+                    "checkpoint_path": str(ckpt_path),
+                    "config_path": str(cfg_path),
+                }
+            )
+    return items
+
+
+def _resolve_model_selection(
+    candidate_name: Optional[str] = None,
+    checkpoint_path: Optional[str] = None,
+    config_path: Optional[str] = None,
+) -> tuple[str, str]:
+    if candidate_name:
+        for item in _get_model_candidates():
+            if item["name"] == candidate_name:
+                return item["checkpoint_path"], item["config_path"]
+        raise HTTPException(status_code=404, detail=f"Unknown model candidate: {candidate_name}")
+
+    if checkpoint_path and config_path:
+        ckpt = Path(checkpoint_path).expanduser().resolve()
+        cfg = Path(config_path).expanduser().resolve()
+        if not ckpt.exists():
+            raise HTTPException(status_code=404, detail=f"Checkpoint not found: {ckpt}")
+        if not cfg.exists():
+            raise HTTPException(status_code=404, detail=f"Config not found: {cfg}")
+        return str(ckpt), str(cfg)
+
+    return _resolve_default_model_paths()
+
+
+def _build_image_path_context(image_path: Path) -> dict[str, Any]:
+    if not image_path.exists():
+        raise HTTPException(status_code=404, detail=f"Image not found: {image_path}")
+    if not image_path.is_file():
+        raise HTTPException(status_code=400, detail=f"Not a file: {image_path}")
+
+    image_exts = {".png", ".jpg", ".jpeg", ".bmp", ".webp"}
+    siblings = sorted(
+        [p for p in image_path.parent.iterdir() if p.is_file() and p.suffix.lower() in image_exts],
+        key=lambda p: p.name.lower(),
+    )
+    names = [str(p) for p in siblings]
+    try:
+        idx = names.index(str(image_path))
+    except ValueError:
+        idx = -1
+
+    prev_path = names[idx - 1] if idx > 0 else None
+    next_path = names[idx + 1] if idx != -1 and idx + 1 < len(names) else None
+    return {
+        "current_path": str(image_path),
+        "parent_dir": str(image_path.parent),
+        "index": idx,
+        "count": len(names),
+        "prev_path": prev_path,
+        "next_path": next_path,
+    }
     
 
 class MobileVLAInference:
@@ -216,18 +415,31 @@ class MobileVLAInference:
         angle_speed = 0.5 # Default rotation speed
         diag = speed * 0.707
         
-        # [CRITICAL] Sync with nav_h5_dataset_impl.py mapping
-        # 6-class mapping: {0: 0(Stop), 1: 1(F), 3: 2(L), 4: 3(R), 5: 4(FL), 6: 5(FR)}
+        # [CRITICAL] Sync with nav_h5_dataset_impl.py mapping.
+        # 8-class: 0 Stop, 1 F, 2 L, 3 R, 4 FL, 5 FR, 6 turn-L, 7 turn-R.
+        # 6-class: same first six classes, omitting turns.
         if self.num_classes == 6:
             self.class_index_action_map = {
                 0: [0.0, 0.0, 0.0],   # STOP
                 1: [speed, 0.0, 0.0], # FORWARD
-                2: [0.0, speed, 0.0],  # LEFT (3->2)
-                3: [0.0, -speed, 0.0], # RIGHT (4->3)
-                4: [diag, diag, 0.0],  # FWD+L (5->4)
-                5: [diag, -diag, 0.0], # FWD+R (6->5)
+                2: [0.0, speed, 0.0],  # LEFT
+                3: [0.0, -speed, 0.0], # RIGHT
+                4: [diag, diag, 0.0],  # FWD+L
+                5: [diag, -diag, 0.0], # FWD+R
             }
             logger.info("🎯 Applied 6-class sync mapping: 2=L, 3=R, 4=FL, 5=FR")
+        elif self.num_classes == 8:
+            self.class_index_action_map = {
+                0: [0.0, 0.0, 0.0],   # STOP
+                1: [speed, 0.0, 0.0], # FORWARD
+                2: [0.0, speed, 0.0],  # LEFT
+                3: [0.0, -speed, 0.0], # RIGHT
+                4: [diag, diag, 0.0],  # FWD+L
+                5: [diag, -diag, 0.0], # FWD+R
+                6: [0.0, 0.0, angle_speed],  # TURN_L
+                7: [0.0, 0.0, -angle_speed], # TURN_R
+            }
+            logger.info("🎯 Applied 8-class V5 sync mapping: 2=L, 3=R, 4=FL, 5=FR, 6=TL, 7=TR")
         else:
             self.class_index_action_map = {
                 0: [0.0, 0.0, 0.0],   # STOP
@@ -330,8 +542,13 @@ class MobileVLAInference:
 
     def _build_classification_map(self) -> tuple[List[str], dict[str, List[float]], dict[int, List[float]]]:
         """Build class label/action map for classification inference."""
-        default_labels = ["STOP", "FORWARD", "BACKWARD", "LEFT", "RIGHT", "FORWARD_LEFT", "FORWARD_RIGHT", "BACKWARD_LEFT", "BACKWARD_RIGHT"]
         num_classes = int(self.config.get("act_head", {}).get("num_classes", 9))
+        if num_classes == 6:
+            default_labels = ["STOP", "FORWARD", "LEFT", "RIGHT", "FWD+L", "FWD+R"]
+        elif num_classes == 8:
+            default_labels = ["STOP", "FORWARD", "LEFT", "RIGHT", "FWD+L", "FWD+R", "TURN_L", "TURN_R"]
+        else:
+            default_labels = ["STOP", "FORWARD", "BACKWARD", "LEFT", "RIGHT", "FORWARD_LEFT", "FORWARD_RIGHT", "BACKWARD_LEFT", "BACKWARD_RIGHT"]
         labels = self.config.get("class_labels", default_labels[:num_classes])
         if not isinstance(labels, list) or not labels:
             labels = default_labels[:num_classes]
@@ -399,6 +616,130 @@ class MobileVLAInference:
                     return torch.cat(action_out, dim=-1)
             return action_out[0]
         return action_out
+
+    def _get_policy_head(self):
+        potential_model = self.model.model if hasattr(self.model, 'model') else self.model
+        for name in ['act_head', 'policy_head']:
+            if hasattr(potential_model, name):
+                return getattr(potential_model, name)
+        return None
+
+    def _get_history_length(self, policy_head) -> int:
+        try:
+            if policy_head is not None and hasattr(policy_head, "history_memory"):
+                return len(policy_head.history_memory)
+        except Exception:
+            pass
+        return -1
+
+    def _build_prompt(self, instruction: str) -> str:
+        if not instruction.startswith("<grounding>"):
+            return f"<grounding>An image of a robot {instruction}"
+        return instruction
+
+    def _decode_image_to_pil(self, image_input: str | np.ndarray) -> Image.Image:
+        if isinstance(image_input, str):
+            image_bytes = base64.b64decode(image_input)
+            return Image.open(io.BytesIO(image_bytes)).convert('RGB')
+        if isinstance(image_input, np.ndarray):
+            return Image.fromarray(cv2.cvtColor(image_input, cv2.COLOR_BGR2RGB))
+        raise ValueError(f"Unsupported image type: {type(image_input)}")
+
+    def _image_to_base64_png(self, image: Image.Image) -> str:
+        buffer = io.BytesIO()
+        image.save(buffer, format="PNG")
+        return base64.b64encode(buffer.getvalue()).decode("utf-8")
+
+    def _build_image_debug_payload(self, image_input: str | np.ndarray) -> dict[str, Any]:
+        image = self._decode_image_to_pil(image_input)
+        resized = image.resize((224, 224), Image.BICUBIC)
+        return {
+            "original_size": {"width": image.width, "height": image.height},
+            "model_input_size": {"width": 224, "height": 224},
+            "original_base64_png": self._image_to_base64_png(image),
+            "resized_base64_png": self._image_to_base64_png(resized),
+        }
+
+    def _tokenize_instruction_with_debug(self, instruction: str) -> tuple[torch.Tensor, torch.Tensor, dict[str, Any]]:
+        lang_x, attention_mask = self._tokenize_instruction(instruction)
+        input_ids = lang_x[0].detach().cpu().tolist()
+        mask = attention_mask[0].detach().cpu().tolist()
+        active_ids = [token_id for token_id, keep in zip(input_ids, mask) if int(keep) == 1]
+        tokens_preview = self.processor.tokenizer.convert_ids_to_tokens(active_ids[:64])
+        return lang_x, attention_mask, {
+            "token_count": int(sum(mask)),
+            "active_token_ids_preview": active_ids[:64],
+            "tokens_preview": tokens_preview,
+            "max_text_len": int(self.config['tokenizer']['max_text_len']),
+        }
+
+    def _summarize_classification_chunk(self, full_chunk: np.ndarray) -> dict[str, Any]:
+        if full_chunk.size == 0:
+            return {
+                "raw_logits": [],
+                "adjusted_logits": [],
+                "top_classes": [],
+                "predicted_class_idx": None,
+                "predicted_class_name": None,
+                "mapped_action": [0.0, 0.0],
+            }
+
+        logits = np.array(full_chunk[0], dtype=np.float32).reshape(-1)
+        adjusted = logits.copy()
+        if adjusted.size > 1 and self.logit_penalty:
+            penalty_vec = np.zeros_like(adjusted)
+            for k, v in self.logit_penalty.items():
+                try:
+                    idx = int(k)
+                    if idx < len(penalty_vec):
+                        penalty_vec[idx] = float(v)
+                except Exception:
+                    continue
+            adjusted = adjusted + penalty_vec
+
+        if adjusted.size > 1 and self.temperature != 1.0:
+            adjusted = adjusted / self.temperature
+
+        if adjusted.size == 0:
+            class_idx = None
+        elif adjusted.size == 1:
+            class_idx = int(adjusted[0])
+        else:
+            class_idx = int(np.argmax(adjusted))
+
+        top_classes = []
+        if adjusted.size > 1:
+            topk = min(5, adjusted.size)
+            order = np.argsort(adjusted)[::-1][:topk]
+            for idx in order:
+                class_name = self.class_labels[idx] if idx < len(self.class_labels) else f"IDX_{idx}"
+                mapped = self.class_index_action_map.get(idx, self.class_action_map.get(class_name, [0.0, 0.0]))
+                top_classes.append(
+                    {
+                        "class_idx": int(idx),
+                        "class_name": class_name,
+                        "score": float(adjusted[idx]),
+                        "mapped_action": [float(x) for x in mapped],
+                    }
+                )
+
+        predicted_class_name = None
+        mapped_action = [0.0, 0.0]
+        if class_idx is not None:
+            predicted_class_name = self.class_labels[class_idx] if class_idx < len(self.class_labels) else f"IDX_{class_idx}"
+            mapped_action = self.class_index_action_map.get(
+                class_idx,
+                self.class_action_map.get(predicted_class_name, [0.0, 0.0]),
+            )
+
+        return {
+            "raw_logits": logits.tolist(),
+            "adjusted_logits": adjusted.tolist(),
+            "top_classes": top_classes,
+            "predicted_class_idx": class_idx,
+            "predicted_class_name": predicted_class_name,
+            "mapped_action": [float(x) for x in mapped_action],
+        }
 
     def _decode_classification_action(self, full_chunk: np.ndarray) -> np.ndarray:
         """Convert class logits/prediction to continuous [linear_x, linear_y]."""
@@ -592,15 +933,7 @@ class MobileVLAInference:
         """
         이미지를 모델 입력 형식으로 변환 (Base64 문자열 또는 NumPy 배열 지원)
         """
-        if isinstance(image_input, str):
-            # Base64 decode
-            image_bytes = base64.b64decode(image_input)
-            image = Image.open(io.BytesIO(image_bytes)).convert('RGB')
-        elif isinstance(image_input, np.ndarray):
-            # NumPy (OpenCV BGR) -> PIL RGB
-            image = Image.fromarray(cv2.cvtColor(image_input, cv2.COLOR_BGR2RGB))
-        else:
-             raise ValueError(f"Unsupported image type: {type(image_input)}")
+        image = self._decode_image_to_pil(image_input)
         
         # Transform
         image_tensor = self.image_transform(image)
@@ -878,15 +1211,194 @@ class MobileVLAInference:
             
         return action, latency_ms, full_chunk
 
+    def predict_debug(self, image_base64: str, instruction: str) -> dict[str, Any]:
+        """
+        디버그 추론 실행.
+        원본 이미지, 224 입력 이미지, prompt, tokenization, raw chunk, 최종 action을 함께 반환한다.
+        """
+        start_time = time.time()
+        policy_head = self._get_policy_head()
+        inference_count_before = int(self.inference_count)
+        history_before = int(self._get_history_length(policy_head))
+        is_first_frame = inference_count_before == 0
+        full_prompt = self._build_prompt(instruction)
+        image_debug = self._build_image_debug_payload(image_base64)
 
-def get_model(refresh=False, use_quant=None):
+        with torch.no_grad():
+            image_tensor = self.preprocess_image(image_base64)
+            lang_x, attention_mask, token_debug = self._tokenize_instruction_with_debug(full_prompt)
+            target_dtype = next(self.model.parameters()).dtype
+            image_tensor = image_tensor.to(dtype=target_dtype, device=self.device)
+
+            tensor_cpu = image_tensor.detach().float().cpu()
+            image_debug["tensor_stats"] = {
+                "shape": list(tensor_cpu.shape),
+                "dtype": str(image_tensor.dtype),
+                "mean": float(tensor_cpu.mean().item()),
+                "std": float(tensor_cpu.std().item()),
+                "min": float(tensor_cpu.min().item()),
+                "max": float(tensor_cpu.max().item()),
+            }
+
+            if is_first_frame:
+                self.inference_count += 1
+                self.model.model.inference(
+                    vision_x=image_tensor,
+                    lang_x=lang_x,
+                    attention_mask=attention_mask,
+                )
+                self.image_history = []
+                latency_ms = (time.time() - start_time) * 1000.0
+                history_after = int(self._get_history_length(self._get_policy_head()))
+                return {
+                    "action": [0.0, 0.0, 0.0],
+                    "latency_ms": latency_ms,
+                    "model_name": self.model_name,
+                    "source": "first_frame_enforced",
+                    "debug": {
+                        "instruction": instruction,
+                        "full_prompt": full_prompt,
+                        "inference_mode": self.inference_mode,
+                        "window_size": int(self.window_size),
+                        "checkpoint_path": self.checkpoint_path,
+                        "config_path": self.config_path,
+                        "first_frame_enforced": True,
+                        "history": {
+                            "inference_count_before": inference_count_before,
+                            "inference_count_after": int(self.inference_count),
+                            "history_before": history_before,
+                            "history_after": history_after,
+                        },
+                        "image": image_debug,
+                        "tokenization": token_debug,
+                        "raw_chunk": [[0.0, 0.0, 0.0]],
+                        "raw_chunk_shape": [1, 3],
+                        "postprocess": {
+                            "message": "First frame primed the policy history. Run the same frame once more to inspect the real action output.",
+                        },
+                    },
+                }
+
+            outputs = self.model.model.inference(
+                vision_x=image_tensor,
+                lang_x=lang_x,
+                attention_mask=attention_mask,
+            )
+
+            raw_action_type = str(type(outputs))
+            raw_chunk = np.zeros((1, 2), dtype=np.float32)
+            action = np.array([0.0, 0.0], dtype=np.float32)
+
+            if isinstance(outputs, dict) and 'action' in outputs:
+                action_out = outputs['action']
+                raw_action_type = str(type(action_out))
+                action_out = self._extract_action_tensor(action_out)
+                if isinstance(action_out, torch.Tensor):
+                    raw_chunk = action_out.detach().float().cpu().numpy()
+                else:
+                    raw_chunk = np.asarray(action_out, dtype=np.float32)
+            else:
+                logger.warning(f"Unexpected outputs type in debug mode: {type(outputs)}")
+
+            if raw_chunk.ndim >= 2:
+                dim = raw_chunk.shape[-1]
+                raw_chunk = raw_chunk.reshape(-1, dim)
+            else:
+                raw_chunk = raw_chunk.reshape(1, -1)
+
+            postprocess: dict[str, Any] = {
+                "raw_output_type": raw_action_type,
+                "smoothing_applied": False,
+            }
+
+            if raw_chunk.size == 0:
+                action = np.array([0.0, 0.0], dtype=np.float32)
+            elif self.inference_mode == "classification":
+                cls_debug = self._summarize_classification_chunk(raw_chunk)
+                postprocess["classification"] = cls_debug
+                action = np.array(cls_debug["mapped_action"], dtype=np.float32)
+            else:
+                action = raw_chunk[0].astype(np.float32)
+                postprocess["regression_raw_action"] = action.tolist()
+
+                target_min = -1.15
+                target_max = 1.15
+                norm_action = self.config.get('norm_action', False)
+                if not norm_action:
+                    if action.shape[0] >= 2 and abs(action[0]) <= 1.0 and abs(action[1]) <= 1.0:
+                        action = action * 1.15
+                        postprocess["auto_scaled_to_training_range"] = True
+                else:
+                    action = unnoramalize_action(
+                        action,
+                        action_min=target_min,
+                        action_max=target_max
+                    )
+                    postprocess["denormalized"] = True
+
+            action_before_smoothing = action.copy()
+            if self.inference_count > 1:
+                action = self.smoothing_alpha * action + (1 - self.smoothing_alpha) * self.prev_action
+                postprocess["smoothing_applied"] = True
+                postprocess["smoothing_alpha"] = float(self.smoothing_alpha)
+                postprocess["prev_action"] = self.prev_action.tolist()
+
+            self.prev_action = action.copy()
+
+            if action.shape[0] >= 2:
+                action[0] = np.clip(action[0], -1.5, 1.5)
+                action[1] = np.clip(action[1], -1.5, 1.5)
+
+            latency_ms = (time.time() - start_time) * 1000.0
+            self.inference_count += 1
+            history_after = int(self._get_history_length(self._get_policy_head()))
+
+            if logger_instance:
+                logger_instance.log_step(self.inference_count, action, latency_ms, raw_chunk)
+
+            postprocess["action_before_smoothing"] = action_before_smoothing.tolist()
+            postprocess["final_action"] = action.tolist()
+
+            return {
+                "action": action.tolist(),
+                "latency_ms": latency_ms,
+                "model_name": self.model_name,
+                "source": "inferred",
+                "debug": {
+                    "instruction": instruction,
+                    "full_prompt": full_prompt,
+                    "inference_mode": self.inference_mode,
+                    "window_size": int(self.window_size),
+                    "checkpoint_path": self.checkpoint_path,
+                    "config_path": self.config_path,
+                    "first_frame_enforced": False,
+                    "history": {
+                        "inference_count_before": inference_count_before,
+                        "inference_count_after": int(self.inference_count),
+                        "history_before": history_before,
+                        "history_after": history_after,
+                    },
+                    "image": image_debug,
+                    "tokenization": token_debug,
+                    "raw_chunk": raw_chunk.tolist(),
+                    "raw_chunk_shape": list(raw_chunk.shape),
+                    "postprocess": postprocess,
+                },
+            }
+
+
+def get_model(refresh=False, use_quant=None, checkpoint_path=None, config_path=None):
     """
     모델 인스턴스 가져오기 (lazy loading)
     Args:
         refresh: Force reload model
         use_quant: Override quantization setting
     """
-    global model_instance
+    global model_instance, model_override_checkpoint_path, model_override_config_path
+
+    if checkpoint_path and config_path:
+        model_override_checkpoint_path = str(Path(checkpoint_path).expanduser().resolve())
+        model_override_config_path = str(Path(config_path).expanduser().resolve())
     
     if refresh:
         if model_instance:
@@ -896,15 +1408,11 @@ def get_model(refresh=False, use_quant=None):
             logger.info("🔄 Model unloaded for refresh")
     
     if model_instance is None:
-        # Checkpoint and Config from Env or Default
-        checkpoint_path = os.getenv(
-            "VLA_CHECKPOINT_PATH",
-            "runs/v5_nav/kosmos/mobile_vla_v5_exp01/2026-04-10/v5-exp01-discrete/epoch_epoch=epoch=05-val_loss=val_loss=2.270.ckpt"
-        )
-        config_path = os.getenv(
-            "VLA_CONFIG_PATH",
-            "configs/mobile_vla_v5_exp01_discrete.json"
-        )
+        if model_override_checkpoint_path and model_override_config_path:
+            checkpoint_path = model_override_checkpoint_path
+            config_path = model_override_config_path
+        else:
+            checkpoint_path, config_path = _resolve_default_model_paths()
         
         model_instance = MobileVLAInference(
             checkpoint_path=checkpoint_path,
@@ -924,6 +1432,110 @@ async def root():
         "version": "1.0.0",
         "status": "running",
         "auth": "API Key required (X-API-Key header)"
+    }
+
+
+@app.get("/debug-ui")
+async def debug_ui():
+    """브라우저에서 중간 추론 과정을 확인하는 디버그 페이지"""
+    if not DEBUG_UI_PATH.exists():
+        raise HTTPException(status_code=404, detail=f"Debug UI not found: {DEBUG_UI_PATH}")
+    return FileResponse(DEBUG_UI_PATH)
+
+
+@app.get("/debug/roots")
+async def debug_roots():
+    """디버그 UI용 서버 이미지 루트 목록"""
+    roots = _get_allowed_debug_roots()
+    return {
+        "roots": [
+            {"name": name, "path": str(path)}
+            for name, path in roots.items()
+        ]
+    }
+
+
+@app.get("/debug/files")
+async def debug_files(path: Optional[str] = None):
+    """디버그 UI용 서버 디렉토리 브라우저"""
+    roots = _get_allowed_debug_roots()
+    if not roots:
+        raise HTTPException(status_code=500, detail="No debug roots are available.")
+
+    target = _resolve_debug_path(path) if path else next(iter(roots.values()))
+    return _list_debug_directory(target)
+
+
+@app.get("/debug/path_context")
+async def debug_path_context(path: str):
+    """현재 이미지 기준 이전/다음 프레임 문맥"""
+    image_path = _resolve_debug_path(path)
+    return _build_image_path_context(image_path)
+
+
+@app.get("/debug/image")
+async def debug_image(path: str, resize: Optional[int] = None):
+    """디버그 UI용 서버 로컬 이미지 미리보기"""
+    image_path = _resolve_debug_path(path)
+    if not image_path.exists():
+        raise HTTPException(status_code=404, detail=f"Image not found: {image_path}")
+    if not image_path.is_file():
+        raise HTTPException(status_code=400, detail=f"Not a file: {image_path}")
+
+    if not resize:
+        return FileResponse(image_path)
+
+    try:
+        image = Image.open(image_path).convert("RGB")
+        image = image.resize((int(resize), int(resize)), Image.BICUBIC)
+        buffer = io.BytesIO()
+        image.save(buffer, format="PNG")
+        return Response(content=buffer.getvalue(), media_type="image/png")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to render preview: {e}")
+
+
+@app.get("/debug/models")
+async def debug_models():
+    """디버그 UI용 모델 후보 및 현재 로드 상태"""
+    current = None
+    if model_instance is not None:
+        current = {
+            "model_name": getattr(model_instance, "model_name", None),
+            "checkpoint_path": getattr(model_instance, "checkpoint_path", None),
+            "config_path": getattr(model_instance, "config_path", None),
+        }
+    else:
+        try:
+            ckpt, cfg = _resolve_default_model_paths()
+            current = {
+                "model_name": Path(cfg).stem,
+                "checkpoint_path": ckpt,
+                "config_path": cfg,
+            }
+        except Exception:
+            current = None
+
+    return {
+        "current": current,
+        "candidates": _get_model_candidates(),
+    }
+
+
+@app.post("/debug/model/reload")
+async def debug_model_reload(request: DebugModelReloadRequest):
+    """디버그 UI에서 모델 재로드"""
+    ckpt, cfg = _resolve_model_selection(
+        candidate_name=request.candidate_name,
+        checkpoint_path=request.checkpoint_path,
+        config_path=request.config_path,
+    )
+    model = get_model(refresh=True, checkpoint_path=ckpt, config_path=cfg)
+    return {
+        "status": "success",
+        "model_name": model.model_name,
+        "checkpoint_path": model.checkpoint_path,
+        "config_path": model.config_path,
     }
 
 
@@ -951,6 +1563,8 @@ async def health_check():
         "status": "healthy",
         "model_loaded": model_instance is not None,
         "model_name": model_name,
+        "checkpoint_path": getattr(model_instance, "checkpoint_path", None) if model_instance else None,
+        "config_path": getattr(model_instance, "config_path", None) if model_instance else None,
         "device": "cuda" if torch.cuda.is_available() else "cpu",
         "gpu_memory": gpu_memory
     }
@@ -981,6 +1595,73 @@ async def predict(request: InferenceRequest, api_key: str = Depends(verify_api_k
     except Exception as e:
         import traceback
         logger.error(f"Prediction failed: {e}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/predict_debug", response_model=InferenceDebugResponse)
+async def predict_debug(request: InferenceRequest, api_key: str = Depends(verify_api_key)):
+    """중간 추론 과정을 포함한 디버그 엔드포인트"""
+    try:
+        model = get_model()
+        payload = model.predict_debug(
+            image_base64=request.image,
+            instruction=request.instruction,
+        )
+        logger.info(
+            "✅ Debug prediction: source=%s, latency=%.1fms",
+            payload["source"],
+            payload["latency_ms"],
+        )
+        return InferenceDebugResponse(**payload)
+    except Exception as e:
+        import traceback
+        logger.error(f"Debug prediction failed: {e}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/predict_debug_path", response_model=InferenceDebugResponse)
+async def predict_debug_path(request: InferenceDebugPathRequest):
+    """디버그 UI 전용: 서버 로컬 이미지 경로로 추론"""
+    try:
+        image_path = _resolve_debug_path(request.image_path)
+        if not image_path.exists():
+            raise HTTPException(status_code=404, detail=f"Image not found: {image_path}")
+        if not image_path.is_file():
+            raise HTTPException(status_code=400, detail=f"Not a file: {image_path}")
+
+        image_bytes = image_path.read_bytes()
+        image_base64 = base64.b64encode(image_bytes).decode("utf-8")
+
+        model = get_model()
+        payload = model.predict_debug(
+            image_base64=image_base64,
+            instruction=request.instruction,
+        )
+        payload.setdefault("debug", {})
+        payload["debug"]["image_path"] = str(image_path)
+        logger.info(
+            "✅ Debug prediction from path: %s, latency=%.1fms",
+            image_path,
+            payload["latency_ms"],
+        )
+        return InferenceDebugResponse(**payload)
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        logger.error(f"Debug path prediction failed: {e}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/debug/reset")
+async def debug_reset_history():
+    """디버그 UI 전용 무인증 reset"""
+    model = get_model()
+    try:
+        model.reset()
+        return {"status": "success", "message": "History, buffer, and logging session reset"}
+    except Exception as e:
+        logger.error(f"Debug reset failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

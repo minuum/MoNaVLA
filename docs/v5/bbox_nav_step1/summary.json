@@ -1,0 +1,44 @@
+{
+  "overall_pm_mlp": 0.5504761934280396,
+  "overall_pm_rule": 0.3504761904761905,
+  "total_train": 2101,
+  "total_test": 525,
+  "pm_by_path": {
+    "center_straight": {
+      "correct": 50,
+      "total": 56
+    },
+    "center_left": {
+      "correct": 22,
+      "total": 54
+    },
+    "center_right": {
+      "correct": 24,
+      "total": 54
+    },
+    "left_straight": {
+      "correct": 39,
+      "total": 72
+    },
+    "left_left": {
+      "correct": 30,
+      "total": 55
+    },
+    "left_right": {
+      "correct": 16,
+      "total": 57
+    },
+    "right_straight": {
+      "correct": 42,
+      "total": 72
+    },
+    "right_left": {
+      "correct": 40,
+      "total": 57
+    },
+    "right_right": {
+      "correct": 26,
+      "total": 48
+    }
+  }
+}

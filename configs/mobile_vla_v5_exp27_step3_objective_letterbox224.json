@@ -1,0 +1,13 @@
+{
+    "_comment": "V5 Exp27: aspect-ratio-preserving 224 letterbox ablation on top of Exp26. Only image geometry changes; all other training settings remain aligned with Exp26 for a clean resize comparison.",
+    "parent": "configs/mobile_vla_v5_exp26_step3_objective_direct224.json",
+    "exp_name": "v5-exp27-step3-objective-letterbox224",
+    "task_name": "mobile_vla_v5_exp27",
+
+    "train_dataset": {
+        "resize_mode": "letterbox"
+    },
+    "val_dataset": {
+        "resize_mode": "letterbox"
+    }
+}

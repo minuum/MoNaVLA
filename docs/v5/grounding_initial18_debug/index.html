@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Initial 18 Grounding Debug</title>
+  <style>
+    body { font-family: sans-serif; margin: 24px; background: #f6f4ef; color: #1f2937; }
+    h1 { margin: 0 0 8px; }
+    .summary { margin: 0 0 20px; padding: 16px; background: #fff; border: 1px solid #d1d5db; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+    .card { background: #fff; border: 1px solid #d1d5db; }
+    img { width: 100%; display: block; }
+    .meta { padding: 12px; font-size: 14px; line-height: 1.4; }
+    .caption { margin-top: 8px; color: #4b5563; }
+    code { background: #eef2ff; padding: 2px 6px; }
+  </style>
+</head>
+<body>
+  <h1>Initial 18 Grounding Debug</h1>
+  <section class="summary">
+    <div>frames: <code>18</code></div>
+    <div>pred bbox frames: <code>18</code></div>
+    <div>seed bbox frames: <code>6</code></div>
+    <div>provisional coarse agreement vs seed: <code>1.0</code></div>
+    <div>provisional detection agreement vs seed: <code>0.3333</code></div>
+    <div>note: this report is provisional and compares raw Kosmos output against scaffold seed labels, not human-reviewed GT.</div>
+  </section>
+  <section class="grid">
+    
+            <article class="card">
+              <img src="overlays/episode_260408_123008_target_center_straight_path__core__fixed_center_f0000.png" alt="episode_260408_123008_target_center_straight_path__core__fixed_center frame 0">
+              <div class="meta">
+                <div><strong>episode_260408_123008_target_center_straight_path__core__fixed_center</strong> / center_straight / frame 0</div>
+                <div>pred: caption / coarse=center / entity=caption:center</div>
+                <div>seed: coarse=center / has_bbox=true</div>
+                <div class="caption">the center of the image, with the white wall and the window in the background.</div>
+              </div>
+            </article>
+            
+            <article class="card">
+              <img src="overlays/episode_260408_123008_target_center_straight_path__core__fixed_center_f0002.png" alt="episode_260408_123008_target_center_straight_path__core__fixed_center frame 2">
+              <div class="meta">
+                <div><strong>episode_260408_123008_target_center_straight_path__core__fixed_center</strong> / center_straight / frame 2</div>
+                <div>pred: caption / coarse=center / entity=caption:center</div>
+                <div>seed: coarse=center / has_bbox=true</div>
+                <div class="caption">the center of the image, with the white wall and the window in the background.</div>
+              </div>
+            </article>
+            
+            <article class="card">
+              <img src="overlays/episode_260408_174654_target_center_left_path__core__fixed_center_f0000.png" alt="episode_260408_174654_target_center_left_path__core__fixed_center frame 0">
+              <div class="meta">
+                <div><strong>episode_260408_174654_target_center_left_path__core__fixed_center</strong> / center_left / frame 0</div>
+                <div>pred: entity_match / coarse=center / entity=the gray air conditioner</div>
+                <div>seed: coarse=center / has_bbox=true</div>
+                <div class="caption">the center of the image, with the gray air conditioner sitting on the floor in front of it.</div>
+              </div>
+            </article>
+            
+            <article class="card">
+              <img src="overlays/episode_260408_174654_target_center_left_path__core__fixed_center_f0002.png" alt="episode_260408_174654_target_center_left_path__core__fixed_center frame 2">
+              <div class="meta">
+                <div><strong>episode_260408_174654_target_center_left_path__core__fixed_center</strong> / center_left / frame 2</div>
+                <div>pred: fallback / coarse=center / entity=The white wall</div>
+                <div>seed: coarse=center / has_bbox=true</div>
+                <div class="caption">the bottom of the image. The white wall is behind it. A window is above the window.</div>
+              </div>
+            </article>
+            
+            <article class="card">
+              <img src="overlays/episode_260408_185014_target_center_right_path__core__fixed_center_f0000.png" alt="episode_260408_185014_target_center_right_path__core__fixed_center frame 0">
+              <div class="meta">
+                <div><strong>episode_260408_185014_target_center_right_path__core__fixed_center</strong> / center_right / frame 0</div>
+                <div>pred: caption / coarse=center / entity=caption:center</div>
+                <div>seed: coarse=center / has_bbox=true</div>
+                <div class="caption">the center of the image, with the white wall and the window in the background.</div>
+              </div>
+            </article>
+            
+            <article class="card">
+              <img src="overlays/episode_260408_185014_target_center_right_path__core__fixed_center_f0002.png" alt="episode_260408_185014_target_center_right_path__core__fixed_center frame 2">
+              <div class="meta">
+                <div><strong>episode_260408_185014_target_center_right_path__core__fixed_center</strong> / center_right / frame 2</div>
+                <div>pred: fallback / coarse=right / entity=a chair</div>
+                <div>seed: coarse=right / has_bbox=true</div>
+                <div class="caption">the end of the room, with a chair and a table in the background.</div>
+              </div>
+            </article>
+            
+            <article class="card">
+              <img src="overlays/episode_260409_072214_target_left_straight_path__core__fixed_center_f0000.png" alt="episode_260409_072214_target_left_straight_path__core__fixed_center frame 0">
+              <div class="meta">
+                <div><strong>episode_260409_072214_target_left_straight_path__core__fixed_center</strong> / left_straight / frame 0</div>
+                <div>pred: fallback / coarse=right / entity=the chair</div>
+                <div>seed: coarse=not_visible / has_bbox=false</div>
+                <div class="caption">the end of the room, and the chair is in the middle of the image.</div>
+              </div>
+            </article>
+            
+            <article class="card">
+              <img src="overlays/episode_260409_072214_target_left_straight_path__core__fixed_center_f0002.png" alt="episode_260409_072214_target_left_straight_path__core__fixed_center frame 2">
+              <div class="meta">
+                <div><strong>episode_260409_072214_target_left_straight_path__core__fixed_center</strong> / left_straight / frame 2</div>
+                <div>pred: entity_match / coarse=center / entity=the gray trash can</div>
+                <div>seed: coarse=not_visible / has_bbox=false</div>
+                <div class="caption">the end of the room, and the gray trash can is in the middle of the image.</div>
+              </div>
+            </article>
+            
+            <article class="card">
+              <img src="overlays/episode_260409_124157_target_left_left_path__core__fixed_center_f0000.png" alt="episode_260409_124157_target_left_left_path__core__fixed_center frame 0">
+              <div class="meta">
+                <div><strong>episode_260409_124157_target_left_left_path__core__fixed_center</strong> / left_left / frame 0</div>
+                <div>pred: caption / coarse=left / entity=caption:far_left</div>
+                <div>seed: coarse=not_visible / has_bbox=false</div>
+                <div class="caption">the far left of the image. The white wall is the background. A window is above the basket.</div>
+              </div>
+            </article>
+            
+            <article class="card">
+              <img src="overlays/episode_260409_124157_target_left_left_path__core__fixed_center_f0002.png" alt="episode_260409_124157_target_left_left_path__core__fixed_center frame 2">
+              <div class="meta">
+                <div><strong>episode_260409_124157_target_left_left_path__core__fixed_center</strong> / left_left / frame 2</div>
+                <div>pred: fallback / coarse=center / entity=the white trash can</div>
+                <div>seed: coarse=not_visible / has_bbox=false</div>
+                <div class="caption">the bottom of the image, and the white trash can is in the middle of the room.</div>
+              </div>
+            </article>
+            
+            <article class="card">
+              <img src="overlays/episode_260409_123044_target_left_right_path__core__fixed_center_f0000.png" alt="episode_260409_123044_target_left_right_path__core__fixed_center frame 0">
+              <div class="meta">
+                <div><strong>episode_260409_123044_target_left_right_path__core__fixed_center</strong> / left_right / frame 0</div>
+                <div>pred: entity_match / coarse=left / entity=the gray trash can</div>
+                <div>seed: coarse=not_visible / has_bbox=false</div>
+                <div class="caption">the far end of the room, and the gray trash can is in the middle.</div>
+              </div>
+            </article>
+            
+            <article class="card">
+              <img src="overlays/episode_260409_123044_target_left_right_path__core__fixed_center_f0002.png" alt="episode_260409_123044_target_left_right_path__core__fixed_center frame 2">
+              <div class="meta">
+                <div><strong>episode_260409_123044_target_left_right_path__core__fixed_center</strong> / left_right / frame 2</div>
+                <div>pred: entity_match / coarse=center / entity=a gray trash can</div>
+                <div>seed: coarse=not_visible / has_bbox=false</div>
+                <div class="caption">the left side of the image, and the white wall is at right. The floor is tiled, and there is a gray trash can in the middle of the room.</div>
+              </div>
+            </article>
+            
+            <article class="card">
+              <img src="overlays/episode_260409_134030_target_right_straight_path__core__fixed_center_f0000.png" alt="episode_260409_134030_target_right_straight_path__core__fixed_center frame 0">
+              <div class="meta">
+                <div><strong>episode_260409_134030_target_right_straight_path__core__fixed_center</strong> / right_straight / frame 0</div>
+                <div>pred: fallback / coarse=center / entity=the white wall</div>
+                <div>seed: coarse=not_visible / has_bbox=false</div>
+                <div class="caption">the end of the room, and the white wall is behind it.</div>
+              </div>
+            </article>
+            
+            <article class="card">
+              <img src="overlays/episode_260409_134030_target_right_straight_path__core__fixed_center_f0002.png" alt="episode_260409_134030_target_right_straight_path__core__fixed_center frame 2">
+              <div class="meta">
+                <div><strong>episode_260409_134030_target_right_straight_path__core__fixed_center</strong> / right_straight / frame 2</div>
+                <div>pred: caption / coarse=center / entity=caption:center</div>
+                <div>seed: coarse=not_visible / has_bbox=false</div>
+                <div class="caption">the center of the image, with a chair and a desk in the background.</div>
+              </div>
+            </article>
+            
+            <article class="card">
+              <img src="overlays/episode_260409_131126_target_right_left_path__core__fixed_center_f0000.png" alt="episode_260409_131126_target_right_left_path__core__fixed_center frame 0">
+              <div class="meta">
+                <div><strong>episode_260409_131126_target_right_left_path__core__fixed_center</strong> / right_left / frame 0</div>
+                <div>pred: entity_match / coarse=right / entity=the gray trash can</div>
+                <div>seed: coarse=not_visible / has_bbox=false</div>
+                <div class="caption">the bottom of the image, and the gray trash can is at the top of the frame.</div>
+              </div>
+            </article>
+            
+            <article class="card">
+              <img src="overlays/episode_260409_131126_target_right_left_path__core__fixed_center_f0002.png" alt="episode_260409_131126_target_right_left_path__core__fixed_center frame 2">
+              <div class="meta">
+                <div><strong>episode_260409_131126_target_right_left_path__core__fixed_center</strong> / right_left / frame 2</div>
+                <div>pred: fallback / coarse=center / entity=the white wall</div>
+                <div>seed: coarse=not_visible / has_bbox=false</div>
+                <div class="caption">the bottom of the image, and the white wall is behind it. The floor is tiled, and there is a chair and a table in the room.</div>
+              </div>
+            </article>
+            
+            <article class="card">
+              <img src="overlays/episode_260409_172906_target_right_right_path__core__fixed_center_f0000.png" alt="episode_260409_172906_target_right_right_path__core__fixed_center frame 0">
+              <div class="meta">
+                <div><strong>episode_260409_172906_target_right_right_path__core__fixed_center</strong> / right_right / frame 0</div>
+                <div>pred: caption / coarse=right / entity=caption:far_right</div>
+                <div>seed: coarse=not_visible / has_bbox=false</div>
+                <div class="caption">the far right of the image. The white wall is the background.</div>
+              </div>
+            </article>
+            
+            <article class="card">
+              <img src="overlays/episode_260409_172906_target_right_right_path__core__fixed_center_f0002.png" alt="episode_260409_172906_target_right_right_path__core__fixed_center frame 2">
+              <div class="meta">
+                <div><strong>episode_260409_172906_target_right_right_path__core__fixed_center</strong> / right_right / frame 2</div>
+                <div>pred: caption / coarse=center / entity=caption:center</div>
+                <div>seed: coarse=not_visible / has_bbox=false</div>
+                <div class="caption">the center of the image, with a chair and a table in the background.</div>
+              </div>
+            </article>
+            
+  </section>
+</body>
+</html>

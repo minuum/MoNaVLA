@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="MoNaVLA V5 evaluation protocol page.">
+  <title>MoNaVLA V5 Evaluation Protocol</title>
+  <link href="https://fonts.googleapis.com/css?family=Google+Sans|Noto+Sans|Castoro" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body{font-family:'Noto Sans',sans-serif;background:#f8fafc;color:#0f172a}
+    .title.is-1,.title.is-2,.title.is-3,.title.is-4{font-family:'Google Sans',sans-serif;letter-spacing:-.03em}
+    .hero-shell{background:linear-gradient(135deg,#0f172a 0%,#0f766e 100%)}
+    .hero-shell .hero-body{padding:4rem 1.5rem 3.4rem}
+    .hero-links{display:flex;flex-wrap:wrap;gap:12px;margin-top:1.2rem}
+    .hero-links .button{border-radius:10px;font-weight:700}
+    .surface-card{background:#fff;border:1px solid #e2e8f0;border-radius:16px;box-shadow:0 10px 28px rgba(15,23,42,.06);padding:1.5rem}
+    .layer-card{background:#fff;border:1px solid #ccfbf1;border-radius:16px;box-shadow:0 10px 24px rgba(20,184,166,.08);padding:1.2rem;height:100%}
+    .layer-number{display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:50%;background:#0f766e;color:#fff;font-weight:800;margin-bottom:.8rem}
+    .matrix-table th{background:#ecfeff !important;color:#115e59 !important;text-align:center !important}
+    .matrix-table td{vertical-align:middle !important}
+    .section-subtitle{color:#475569;line-height:1.75;max-width:760px}
+    .footer{background:#0f172a;color:#94a3b8}.footer a{color:#7dd3fc}
+  </style>
+</head>
+<body>
+<section class="hero hero-shell">
+  <div class="hero-body">
+    <div class="container is-max-desktop">
+      <h1 class="title is-1 has-text-white mb-4" style="font-size:3.1rem;">V5 Evaluation Protocol</h1>
+      <p class="subtitle is-4 has-text-grey-lighter mb-0">loss, 오프라인 PM/DM, rollout, 실기 테스트를 하나의 공식 판정 흐름으로 묶는 V5 평가 프로토콜.</p>
+      <div class="hero-links">
+        <a href="devlog.html" class="button is-warning"><span class="icon"><i class="fas fa-stream"></i></span><span>Dev Log</span></a>
+        <a href="sanity.html" class="button is-info"><span class="icon"><i class="fas fa-vial"></i></span><span>Sanity</span></a>
+        <a href="../index.html" class="button is-white is-outlined"><span class="icon"><i class="fas fa-home"></i></span><span>Main</span></a>
+      </div>
+    </div>
+  </div>
+</section>
+<section class="section">
+  <div class="container is-max-desktop">
+    <div class="surface-card">
+      <h2 class="title is-3">핵심 원칙</h2>
+      <p><strong>정성 평가는 발견용</strong>, <strong>정량 평가는 판정용</strong>입니다. V5 실험은 학습 loss만으로 닫히지 않고, perception → policy → rollout → real-world 평가 단계를 통과해야 완료된 것으로 봅니다.</p>
+    </div>
+  </div>
+</section>
+<section class="section" style="background:#ecfeff;">
+  <div class="container is-max-desktop">
+    <h2 class="title is-3">4-Layer Evaluation Stack</h2>
+    <p class="section-subtitle mb-5">Policy 실험이든 grounding 실험이든, 아래 레이어를 어디까지 통과했는지로 공식 상태를 판정합니다.</p>
+    <div class="columns is-multiline">
+      <div class="column is-6-tablet is-3-desktop"><div class="layer-card"><div class="layer-number">1</div><h3 class="title is-5">Static Perception</h3><p>BBox IoU, center offset, direction accuracy.</p></div></div>
+      <div class="column is-6-tablet is-3-desktop"><div class="layer-card"><div class="layer-number">2</div><h3 class="title is-5">Offline Policy</h3><p>PM, DM, confusion matrix, forward bias, stop/turn recall.</p></div></div>
+      <div class="column is-6-tablet is-3-desktop"><div class="layer-card"><div class="layer-number">3</div><h3 class="title is-5">Closed-Loop Rollout</h3><p>success rate, timeout, deviation, overshoot, recovery.</p></div></div>
+      <div class="column is-6-tablet is-3-desktop"><div class="layer-card"><div class="layer-number">4</div><h3 class="title is-5">Real Robot</h3><p>고정 시나리오 success rate, intervention count, completion time.</p></div></div>
+    </div>
+  </div>
+</section>
+<section class="section">
+  <div class="container is-max-desktop">
+    <div class="columns is-variable is-5">
+      <div class="column is-7"><div class="surface-card"><h2 class="title is-3">공식 판정 순서</h2><ol style="color:#475569; line-height:1.9; padding-left:1.2rem;"><li>Layer 1 통과 또는 면제 여부 확인</li><li>Layer 2 오프라인 정책 평가</li><li>Layer 3 closed-loop rollout</li><li>Layer 4 실기 테스트</li></ol><p class="mt-4">Policy 실험은 Layer 2와 Layer 3를 모두 통과해야 합니다. Grounding 실험은 Layer 1이 우선이지만, policy transfer를 주장하려면 Layer 3 연결 증거가 필요합니다.</p></div></div>
+      <div class="column is-5"><div class="surface-card"><h2 class="title is-4">실험 유형별 적용</h2><div class="table-container"><table class="table is-fullwidth is-bordered matrix-table"><thead><tr><th>유형</th><th>L1</th><th>L2</th><th>L3</th><th>L4</th></tr></thead><tbody><tr><td>Pure policy</td><td>선택</td><td>필수</td><td>필수</td><td>최종</td></tr><tr><td>Grounding</td><td>필수</td><td>보조</td><td>transfer 시 필수</td><td>필요 시</td></tr><tr><td>Hybrid</td><td>필수</td><td>필수</td><td>필수</td><td>최종</td></tr></tbody></table></div></div></div>
+    </div>
+  </div>
+</section>
+<section class="section" style="background:#ecfeff;">
+  <div class="container is-max-desktop">
+    <h2 class="title is-3">공통 리더보드 포맷</h2>
+    <div class="surface-card">
+      <div class="table-container">
+        <table class="table is-fullwidth is-bordered is-striped matrix-table">
+          <thead><tr><th>Exp</th><th>Split</th><th>Perception</th><th>PM</th><th>DM</th><th>Forward Bias</th><th>Stop Recall</th><th>Sim Success</th><th>Real Success</th><th>Verdict</th></tr></thead>
+          <tbody>
+            <tr><td>Exp04</td><td>val</td><td>N/A</td><td>?</td><td>?</td><td>?</td><td>?</td><td>?</td><td>?</td><td>미완료</td></tr>
+            <tr><td>Exp09</td><td>val</td><td>N/A</td><td>85.7</td><td>?</td><td>높음</td><td>낮음 추정</td><td>?</td><td>?</td><td>bias 지속</td></tr>
+            <tr><td>Exp10</td><td>val</td><td>IoU 0.87</td><td>간접</td><td>간접</td><td>N/A</td><td>stop discrepancy</td><td>미연결</td><td>?</td><td>grounding 성공</td></tr>
+            <tr><td>Exp11</td><td>val</td><td>N/A</td><td>미실행</td><td>미실행</td><td>미실행</td><td>미실행</td><td>미실행</td><td>미실행</td><td>계획</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+<section class="section">
+  <div class="container is-max-desktop">
+    <div class="surface-card">
+      <h2 class="title is-3">Failure Taxonomy</h2>
+      <div class="tags mt-4">
+        <span class="tag is-danger is-light">forward_collapse</span><span class="tag is-danger is-light">false_stop</span><span class="tag is-danger is-light">missed_stop</span><span class="tag is-warning is-light">late_turn</span><span class="tag is-warning is-light">early_turn</span><span class="tag is-warning is-light">left_right_confusion</span><span class="tag is-warning is-light">rotation_missing</span><span class="tag is-warning is-light">oscillation</span><span class="tag is-warning is-light">overshoot</span><span class="tag is-info is-light">perception_miss</span><span class="tag is-info is-light">trajectory_divergence</span>
+      </div>
+    </div>
+  </div>
+</section>
+<footer class="footer"><div class="content has-text-centered"><p><strong>MoNaVLA V5 Evaluation Protocol</strong><br><a href="devlog.html">Development Log</a> · <a href="sanity.html">Sanity</a> · <a href="../index.html">Main</a></p></div></footer>
+</body>
+</html>

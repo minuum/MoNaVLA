@@ -1,0 +1,43 @@
+{
+  "overall_pm": 0.34444444444444444,
+  "total": 90,
+  "correct": 31,
+  "pm_by_path": {
+    "center_straight": {
+      "correct": 5,
+      "total": 10
+    },
+    "center_left": {
+      "correct": 2,
+      "total": 10
+    },
+    "center_right": {
+      "correct": 4,
+      "total": 10
+    },
+    "left_straight": {
+      "correct": 4,
+      "total": 10
+    },
+    "left_left": {
+      "correct": 4,
+      "total": 10
+    },
+    "left_right": {
+      "correct": 4,
+      "total": 10
+    },
+    "right_straight": {
+      "correct": 2,
+      "total": 10
+    },
+    "right_left": {
+      "correct": 3,
+      "total": 10
+    },
+    "right_right": {
+      "correct": 3,
+      "total": 10
+    }
+  }
+}

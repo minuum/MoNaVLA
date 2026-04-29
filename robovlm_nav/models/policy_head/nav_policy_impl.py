@@ -70,6 +70,7 @@ class MobileVLALSTMDecoder(BasePolicyHead):
     def reset(self):
         self.hidden_state = None
         self.history_memory = []
+        self.last_hidden_states = None
 
     def forward(self, tok_seq, h_0=None, **kwargs):
         """
@@ -83,7 +84,6 @@ class MobileVLALSTMDecoder(BasePolicyHead):
             velocities: (B, seq_len, fwd_pred_next_n, action_dim) - 2D 속도 (linear_x, linear_y)
             None: gripper 없음 (BasePolicyHead.loss 호환성을 위해)
         """
-        print(f"DEBUG: MobileVLALSTMDecoder forward input tok_seq shape: {tok_seq.shape}")
         # Down sample 처리 (LSTMDecoder와 동일)
         # tok_seq shape 확인 및 처리
         if len(tok_seq.shape) == 4:
@@ -298,19 +298,43 @@ class MobileVLAClassificationDecoder(BasePolicyHead):
             self.register_buffer("class_weights_tensor", torch.tensor(class_weights, dtype=torch.float))
         else:
             self.class_weights_tensor = None
-            
+
+        self.label_smoothing = float(kwargs.get("label_smoothing", 0.0))
+        self.prior_reg_weight = float(kwargs.get("prior_reg_weight", 0.0))
+        target_class_prior = kwargs.get("target_class_prior", None)
+        if target_class_prior is not None:
+            prior = torch.tensor(target_class_prior, dtype=torch.float)
+            if prior.numel() != action_dim:
+                raise ValueError(
+                    f"target_class_prior length ({prior.numel()}) must match action_dim ({action_dim})"
+                )
+            if torch.any(prior < 0):
+                raise ValueError("target_class_prior must be non-negative")
+            prior = prior / prior.sum().clamp_min(1e-8)
+            self.register_buffer("target_class_prior_tensor", prior)
+        else:
+            self.target_class_prior_tensor = None
+
+        # Instruction conditioning (Exp13)
+        instr_in_features = kwargs.get("instr_in_features", None)
+        if instr_in_features is not None:
+            self.instr_proj = nn.Linear(instr_in_features, in_features * latent)
+        else:
+            self.instr_proj = None
+
         initialize_param(self)
 
     def reset(self):
         self.hidden_state = None
         self.history_memory = []
+        self.last_hidden_states = None
 
     def forward(self, tok_seq, h_0=None, **kwargs):
         # 강제로 그래디언트 계산 활성화
         torch.set_grad_enabled(True)
         if not tok_seq.requires_grad:
             tok_seq.requires_grad_(True)
-            
+
         self.debug_tok_seq_grad = tok_seq.requires_grad
         if len(tok_seq.shape) == 4:
             if self.down_sample == "pooling":
@@ -320,7 +344,15 @@ class MobileVLAClassificationDecoder(BasePolicyHead):
                 tok_seq = rearrange(tok_seq, "(b l) d n -> b l (n d)", b=bs, l=seq_len)
             elif self.down_sample == "none":
                 tok_seq = rearrange(tok_seq, "b l n d-> b l (n d)")
-        
+
+        # Instruction conditioning (Exp13): additive bias on LSTM input
+        instruction_emb = kwargs.get("instruction_emb", None)
+        if instruction_emb is not None and self.instr_proj is not None:
+            # instruction_emb: (bs, embed_dim)  tok_seq: (bs, ws, in_features)
+            instr_feat = self.instr_proj(instruction_emb.to(tok_seq.dtype))  # (bs, in_features)
+            instr_feat = instr_feat.unsqueeze(1).expand_as(tok_seq)           # (bs, ws, in_features)
+            tok_seq = tok_seq + instr_feat
+
         if tok_seq.shape[1] == 1:
             self.history_memory.append(tok_seq)
             if len(self.history_memory) <= self.history_len:
@@ -341,6 +373,8 @@ class MobileVLAClassificationDecoder(BasePolicyHead):
                 tok_seq = tok_seq.to(next(self.rnn.parameters()).dtype)
             x, h_n = self.rnn(tok_seq, self.hidden_state)
             self.hidden_state = h_n
+
+        self.last_hidden_states = x
 
         # 클래스별 Logits 출력
         logits = self.logits(x)
@@ -408,6 +442,15 @@ class MobileVLAClassificationDecoder(BasePolicyHead):
             if attention_mask is not None:
                 attention_mask = attention_mask[:, :min_l]
 
+        n_logits = logits.size(2)
+        n_labels = class_labels.size(2)
+        if n_logits != n_labels:
+            min_n = min(n_logits, n_labels)
+            logits = logits[:, :, :min_n]
+            class_labels = class_labels[:, :, :min_n]
+            if attention_mask is not None and attention_mask.dim() == 3:
+                attention_mask = attention_mask[:, :, :min_n]
+
         flat_logits = rearrange(logits, "b l n d -> (b l n) d")
         flat_labels = rearrange(class_labels, "b l n -> (b l n)").long()
 
@@ -426,8 +469,7 @@ class MobileVLAClassificationDecoder(BasePolicyHead):
                 flat_logits = flat_logits[flat_mask]
                 flat_labels = flat_labels[flat_mask]
 
-        if list(flat_logits.shape)[0] != list(flat_labels.shape)[0]:
-            print(f"!!! Error in loss shapes: logits={flat_logits.shape}, labels={flat_labels.shape}")
+        if flat_logits.shape[0] != flat_labels.shape[0]:
             # match size 0 by trimming the larger one
             min_size = min(flat_logits.shape[0], flat_labels.shape[0])
             flat_logits = flat_logits[:min_size]
@@ -442,9 +484,22 @@ class MobileVLAClassificationDecoder(BasePolicyHead):
                 "acc_velocity": 0.0,
             }
 
-        # [DEBUG]
-        print(f"DEBUG: [loss] flat_logits shape={flat_logits.shape}, flat_labels shape={flat_labels.shape}, n={self.fwd_pred_next_n}", flush=True)
-        loss = F.cross_entropy(flat_logits, flat_labels, weight=self.class_weights_tensor)
+        ce_loss = F.cross_entropy(
+            flat_logits,
+            flat_labels,
+            weight=self.class_weights_tensor,
+            label_smoothing=self.label_smoothing,
+        )
+
+        prior_loss = None
+        if self.prior_reg_weight > 0.0 and self.target_class_prior_tensor is not None:
+            probs = flat_logits.softmax(dim=-1).mean(dim=0)
+            prior = self.target_class_prior_tensor.to(device=probs.device, dtype=probs.dtype)
+            prior = (prior + 1e-8) / (prior + 1e-8).sum()
+            prior_loss = F.kl_div(probs.clamp_min(1e-8).log(), prior, reduction="sum")
+            loss = ce_loss + self.prior_reg_weight * prior_loss
+        else:
+            loss = ce_loss
         
         # Accuracy 계산
         preds = flat_logits.argmax(dim=-1)
@@ -453,6 +508,8 @@ class MobileVLAClassificationDecoder(BasePolicyHead):
         return {
             "loss_arm_act": loss,
             "loss_velocity": loss,
+            "loss_ce": ce_loss,
+            "loss_prior_reg": prior_loss,
             "loss_gripper": None,
             "acc_arm_act": acc,
             "acc_velocity": acc,

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>Exp14 Step 3: Full Dataset + WINDOW=8 + 32x32</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin: 0; padding: 24px; background: #0f172a; color: #e2e8f0; }
+  h1 { font-size: 2rem; margin-bottom: 8px; }
+  .sub { color: #94a3b8; margin-bottom: 24px; max-width: 900px; line-height: 1.6; }
+  .back { color: #60a5fa; text-decoration: none; display: inline-block; margin-bottom: 16px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px; }
+  .box { background: #1e293b; padding: 16px 20px; border-radius: 10px; }
+  .num { font-size: 2.5rem; font-weight: 800; }
+  .good { color: #22c55e; } .warn { color: #fbbf24; } .blue { color: #60a5fa; }
+  table { border-collapse: collapse; background: #1e293b; border-radius: 8px; overflow: hidden; width: 100%; }
+  th, td { padding: 8px 14px; border-bottom: 1px solid #334155; text-align: left; }
+  th { background: #0b1220; }
+  .diag { background: #172554; border-left: 4px solid #60a5fa; padding: 14px 18px; border-radius: 6px; color: #dbeafe; margin-top: 20px; line-height: 1.7; }
+</style>
+</head>
+<body>
+  <a class="back" href="../../index.html">← Back to main</a>
+  <h1>Exp14 Step 3: Full Dataset + WINDOW=8 + 32×32</h1>
+  <p class="sub">
+    Step 2 대비: 데이터 45→150 ep, WINDOW 3→8, image 16²→32² grayscale.<br>
+    입력 dim: 268 → 1056 floats. MLP: 512→256→128→8.
+  </p>
+
+  <div class="grid3">
+    <div class="box">
+      <div style="color:#94a3b8;font-size:0.85rem;text-transform:uppercase;">Step 2 (baseline)</div>
+      <div class="num blue">75.9%</div><div>Step 2 reference (45 ep, W=3)</div>
+    </div>
+    <div class="box">
+      <div style="color:#94a3b8;font-size:0.85rem;text-transform:uppercase;">Step 3 PM</div>
+      <div class="num good">77.0%</div>
+      <div>(403/525)</div>
+    </div>
+    <div class="box">
+      <div style="color:#94a3b8;font-size:0.85rem;text-transform:uppercase;">데이터</div>
+      <div class="num warn">2626</div>
+      <div>windows (150 ep)</div>
+    </div>
+  </div>
+
+  <h2>PM per Path Type (test split)</h2>
+  <table>
+    <tr><th>Path Type</th><th>Correct/Total</th><th>PM</th></tr>
+    <tr><td>center_straight</td><td>47/56</td><td><strong>83.9%</strong></td></tr><tr><td>center_left</td><td>33/54</td><td><strong>61.1%</strong></td></tr><tr><td>center_right</td><td>25/54</td><td><strong>46.3%</strong></td></tr><tr><td>left_straight</td><td>68/72</td><td><strong>94.4%</strong></td></tr><tr><td>left_left</td><td>39/55</td><td><strong>70.9%</strong></td></tr><tr><td>left_right</td><td>42/57</td><td><strong>73.7%</strong></td></tr><tr><td>right_straight</td><td>71/72</td><td><strong>98.6%</strong></td></tr><tr><td>right_left</td><td>40/57</td><td><strong>70.2%</strong></td></tr><tr><td>right_right</td><td>39/48</td><td><strong>81.2%</strong></td></tr>
+  </table>
+
+  <h2 style="margin-top:28px;">End-to-End Gate Check (Exp17 / Exp18)</h2>
+  <table>
+    <tr><th>Model</th><th>PM</th><th>Closed-loop</th><th>FPE</th><th>Interpretation</th></tr>
+    <tr><td><strong>Exp14 Step2</strong></td><td>75.9%</td><td><strong>66.7%</strong></td><td>0.55m</td><td>Strongest practical baseline</td></tr>
+    <tr><td>Exp17</td><td><strong>76.95%</strong></td><td>11.1%</td><td>1.04m</td><td>PM only improved, rollout failed</td></tr>
+    <tr><td>Exp18</td><td>27.62%</td><td>11.1%</td><td>1.04m</td><td>Text-fusion gate failed</td></tr>
+  </table>
+
+  <div class="diag">
+    <strong>설정</strong><br>
+    입력: WINDOW=8 × (cx, cy, area, has_bbox) + 32×32 grayscale image<br>
+    출력: 8-class discrete action | epochs=300 | AdamW lr=2e-3
+  </div>
+
+  <div class="diag">
+    <strong>Exp18 실패 패턴 요약</strong><br>
+    best checkpoint는 <code>val_loss 1.325</code>였지만, 실제 PM은 <strong>27.62%</strong>, closed-loop는 <strong>11.1%</strong>에 그쳤습니다.<br>
+    PM confusion 기준으로는 <strong>FORWARD 95개가 전부 FWD+R로 오분류</strong>됐고, closed-loop에서는 <strong>center_right</strong>만 성공했습니다.<br>
+    즉 text embedding fusion은 현재 end-to-end instability를 해결하지 못했고, strongest baseline은 여전히 <strong>Exp14 Step2</strong>입니다.
+  </div>
+</body>
+</html>

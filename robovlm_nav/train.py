@@ -12,6 +12,8 @@ RoboVLM-Nav Training Entry Point
 
 import sys
 import os
+import atexit
+import datetime
 from pathlib import Path
 
 # ── MPI hang 방지: mpi4py가 설치된 환경에서 Lightning이 orted 데몬을 spawn해 블로킹됨
@@ -56,10 +58,12 @@ setattr(robovlms.model.policy_head, "MobileVLAClassificationDecoder", NavClassif
 setattr(robovlms.model.policy_head, "MobileVLALSTMDecoder", NavLSTMDecoder)
 setattr(robovlms.model.policy_head, "HybridActionHead", HybridActionHead)
 
-# Backbone — 'RoboVLM-Nav' → RoboKosMos 주입
-# base_trainer.py L26: self.model_fn = getattr(RoboVLM_Backbone, configs["robovlm_name"])
+# Backbone — 'RoboVLM-Nav' / 'RoboKosMos' → NavRoboKosMos 주입
+# NavRoboKosMos는 RoboKosMos의 subclass로 instruction conditioning 지원
 from robovlms.model.backbone.robokosmos import RoboKosMos
-setattr(robovlms.model.backbone, "RoboVLM-Nav", RoboKosMos)
+from robovlm_nav.models.nav_robokosmos import NavRoboKosMos
+setattr(robovlms.model.backbone, "RoboVLM-Nav", NavRoboKosMos)
+setattr(robovlms.model.backbone, "RoboKosMos", NavRoboKosMos)
 
 # Trainer
 import robovlms.train.base_trainer as base_trainer_mod
@@ -71,6 +75,92 @@ setattr(robovlms.train, "BaseTrainer", NavTrainer)
 import main
 main.BaseTrainer = NavTrainer
 
+
+class TeeStream:
+    def __init__(self, stream, file_handle):
+        self._stream = stream
+        self._file_handle = file_handle
+        self.encoding = getattr(stream, "encoding", "utf-8")
+
+    def write(self, data):
+        self._stream.write(data)
+        self._file_handle.write(data)
+        if "\n" in data:
+            self.flush()
+        return len(data)
+
+    def flush(self):
+        self._stream.flush()
+        self._file_handle.flush()
+
+    def isatty(self):
+        return self._stream.isatty()
+
+    def fileno(self):
+        return self._stream.fileno()
+
+
+def setup_stdio_logging(configs):
+    rank = int(os.environ.get("RANK", "0"))
+    log_dir_value = configs.get("log_dir")
+    if log_dir_value is None:
+        # Bootstrap a deterministic log dir before main.experiment() expands log_root/output_root.
+        log_root = Path(configs["log_root"])
+        log_dir_value = log_root / datetime.date.today().isoformat() / configs["exp_name"]
+        configs["log_dir"] = str(log_dir_value)
+    log_dir = Path(log_dir_value)
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_name = "train.log" if rank == 0 else f"train.rank{rank}.log"
+    log_path = log_dir / log_name
+    file_handle = open(log_path, "a", buffering=1, encoding="utf-8")
+
+    original_stdout = sys.stdout
+    original_stderr = sys.stderr
+    sys.stdout = TeeStream(original_stdout, file_handle)
+    sys.stderr = TeeStream(original_stderr, file_handle)
+
+    def _cleanup():
+        try:
+            sys.stdout.flush()
+            sys.stderr.flush()
+        finally:
+            file_handle.close()
+
+    atexit.register(_cleanup)
+    print(f"[train.py] stdout/stderr tee -> {log_path}", flush=True)
+
+
+def configure_cuda_memory_limit(configs):
+    if not os.environ.get("CUDA_VISIBLE_DEVICES", "") and not configs.get("gpus"):
+        return
+
+    fraction = configs.get("gpu_memory_fraction", None)
+    if fraction is None:
+        fraction = os.environ.get("MONAVLA_CUDA_MEMORY_FRACTION", None)
+    if fraction is None:
+        return
+
+    try:
+        fraction = float(fraction)
+    except (TypeError, ValueError):
+        print(f"[train.py] invalid gpu_memory_fraction={fraction!r}; ignoring", flush=True)
+        return
+
+    if not (0.0 < fraction <= 1.0):
+        print(f"[train.py] gpu_memory_fraction must be in (0, 1], got {fraction}; ignoring", flush=True)
+        return
+
+    import torch
+
+    if not torch.cuda.is_available():
+        print("[train.py] gpu_memory_fraction requested but CUDA is unavailable; ignoring", flush=True)
+        return
+
+    device_count = torch.cuda.device_count()
+    for device_idx in range(device_count):
+        torch.cuda.set_per_process_memory_fraction(fraction, device=device_idx)
+    print(f"[train.py] set_per_process_memory_fraction({fraction}) on {device_count} CUDA device(s)", flush=True)
+
 if __name__ == "__main__":
     # third_party/RoboVLMs/main.py의 함수들을 직접 import해서 사용.
     # chdir을 PROJECT_ROOT로 유지: parent 상대 경로가 configs/ 기준으로 resolve됨.
@@ -81,6 +171,8 @@ if __name__ == "__main__":
     args = parse_args()
     configs = load_config(args.get("config"))
     configs = update_configs(configs, args)
+    setup_stdio_logging(configs)
+    configure_cuda_memory_limit(configs)
 
     # DDP 초기화 (main.py의 __main__ 블록과 동일)
     is_ddp_strategy = False

@@ -1,0 +1,8 @@
+{
+    "_comment": "Exp24 tmp-output runner to avoid project-run checkpoint save failures seen in Exp21.",
+    "parent": "configs/mobile_vla_v5_exp24_pure_hf_head_only_objective.json",
+    "output_root": "/tmp/monavla_resume_runs",
+    "log_root": "/tmp/monavla_resume_runs",
+    "cache_root": "/tmp/monavla_resume_cache",
+    "resume": null
+}

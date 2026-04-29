@@ -1,0 +1,65 @@
+benchmark_id: v5_lr_4way_sanity
+version: 2026-04-17
+
+notes:
+  - This is the initial split design scaffold.
+  - The current validation split is not stable enough across experiments.
+  - Promote these entries to fully fixed dataset indices after one remapping pass.
+
+subsets:
+  - subset_id: left_left_pure
+    expected_path_pattern: left_left
+    expected_gt:
+      class_id: 2
+      class_name: LEFT
+    target_count: 2
+    candidate_examples:
+      - experiment: exp11
+        dataset_idx: 1
+        episode_stem: target_left_left_path__core__fixed_center
+        sample_ref: runs/sanity_checks/exp11_pathsets_4way/left__00__idx1.jpg
+
+  - subset_id: center_left_forward
+    expected_path_pattern: center_left
+    expected_gt:
+      class_id: 4
+      class_name: FWD+L
+    target_count: 2
+    candidate_examples: []
+
+  - subset_id: right_right_pure
+    expected_path_pattern: right_right
+    expected_gt:
+      class_id: 3
+      class_name: RIGHT
+    target_count: 2
+    candidate_examples:
+      - experiment: exp11
+        dataset_idx: 104
+        episode_stem: target_right_right_path__core__fixed_center
+        sample_ref: runs/sanity_checks/exp11_pathsets_4way/right__00__idx104.jpg
+      - experiment: exp09
+        dataset_idx: 55
+        episode_stem: target_right_right_path__core__fixed_center
+        sample_ref: runs/sanity_checks/exp09_pathsets_4way/right__00__idx55.jpg
+
+  - subset_id: center_right_forward
+    expected_path_pattern: center_right
+    expected_gt:
+      class_id: 5
+      class_name: FWD+R
+    target_count: 2
+    candidate_examples:
+      - experiment: exp11
+        dataset_idx: 103
+        episode_stem: target_right_right_path__core__fixed_center
+        sample_ref: runs/sanity_checks/exp11_pathsets_4way/fwd+r__00__idx103.jpg
+      - experiment: exp09
+        dataset_idx: 54
+        episode_stem: target_right_right_path__core__fixed_center
+        sample_ref: runs/sanity_checks/exp09_pathsets_4way/fwd+r__00__idx54.jpg
+
+next_actions:
+  - Run one dataset remapping pass to populate center_left and true center_right examples.
+  - Freeze final dataset indices and stop using dynamic validation discovery for sanity checks.
+  - Update the sanity script to consume this split file directly.

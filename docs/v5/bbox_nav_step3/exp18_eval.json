@@ -1,0 +1,43 @@
+{
+  "experiment": "exp18_vla_text_fusion",
+  "date": "2026-04-21",
+  "checkpoint": "runs/v5_nav/kosmos/mobile_vla_v5_exp18/2026-04-21/v5-exp18-vla-text-fusion/epoch_epoch=epoch=14-val_loss=val_loss=1.325.ckpt",
+  "best_val_loss": 1.325,
+  "pm": {
+    "overall": 0.27624309392265195,
+    "correct": 50,
+    "total": 181,
+    "class_accuracy": {
+      "STOP": 0.0,
+      "FORWARD": 0.0,
+      "LEFT": 0.6666666666666666,
+      "RIGHT": 0.0,
+      "FWD+L": 0.0,
+      "FWD+R": 0.7368421052631579,
+      "TURN_L": 0.4444444444444444,
+      "TURN_R": 0.0
+    },
+    "dominant_failure": "FORWARD -> FWD+R collapse"
+  },
+  "closed_loop": {
+    "success_rate": 0.1111111111111111,
+    "mean_fpe": 1.04,
+    "mean_tld": 1.08,
+    "successful_paths": ["center_right"],
+    "failed_paths": [
+      "center_straight",
+      "center_left",
+      "left_straight",
+      "left_left",
+      "left_right",
+      "right_straight",
+      "right_left",
+      "right_right"
+    ]
+  },
+  "comparison": {
+    "exp14_step2_closed_loop": 0.6666666666666666,
+    "exp17_closed_loop": 0.1111111111111111
+  },
+  "conclusion": "Exp18 failed the gate evaluation and does not replace Exp14 Step2 as the strongest practical baseline."
+}

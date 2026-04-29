@@ -1,0 +1,84 @@
+{
+    "_comment": "V5 Exp10: Next-Token Prediction BBox target for VLA (Track 2)",
+    "parent": "configs/mobile_vla_v5_exp01_discrete.json",
+    "output_root": "runs/v5_nav",
+    "log_root": "runs/v5_nav",
+    "cache_root": "runs/cache",
+    "robovlm_name": "RoboKosMos",
+    "model": "kosmos",
+    "discrete_action": false,
+    "use_bbox_target": true,
+    "window_size": 1,
+    "fwd_pred_next_n": 1,
+    "exp_name": "v5-exp10-track2-bbox",
+    "task_name": "mobile_vla_v5_bbox",
+    "batch_size": 4,
+    "num_workers": 4,
+    "learning_rate": 2e-5,
+    "max_epochs": 10,
+    "model_path": "microsoft/kosmos-2-patch14-224",
+    "vlm": {
+        "pretrained_model_name_or_path": "microsoft/kosmos-2-patch14-224"
+    },
+    "tokenizer": {
+        "pretrained_model_name_or_path": "microsoft/kosmos-2-patch14-224"
+    },
+    "model_load_path": "/home/billy/25-1kp/MoNaVLA/runs/v4_nav/kosmos/mobile_vla_v4_regression_v2/2026-03-26/v4-regression-v2-weighted-v2/last.ckpt",
+    "model_load_source": "lightning",
+    "resume": null,
+    "seed": 42,
+    "act_head": {
+        "type": "MobileVLALSTMDecoder",
+        "action_dim": 6,
+        "hidden_size": 1024,
+        "action_space": "continuous",
+        "history_type": "post"
+    },
+    "train_setup": {
+        "predict_action": false,
+        "predict_forward": false,
+        "predict_forward_hand": false,
+        "predict_caption": true,
+        "vl_cotrain_ratio": 1.0,
+        "cap_loss_ratio": 1.0
+    },
+    "train_dataset": {
+        "type": "NavDataset",
+        "data_dir": "/home/billy/25-1kp/MoNaVLA/ROS_action/mobile_vla_dataset_v5",
+        "episode_pattern": "episode_*.h5",
+        "discrete_action": false,
+        "use_bbox_target": true,
+        "window_size": 1,
+        "fwd_pred_next_n": 1,
+        "instruction_preset": "action_aware_train",
+        "grounding_prefix": true,
+        "counterfactual_steer_prob": 0.0,
+        "counterfactual_stop_prob": 0.0,
+        "stratified_split": true,
+        "augment": false,
+        "use_color_jitter": true,
+        "use_random_crop": false,
+        "train_split": 0.9,
+        "min_episode_frames": 10
+    },
+    "val_dataset": {
+        "type": "NavDataset",
+        "data_dir": "/home/billy/25-1kp/MoNaVLA/ROS_action/mobile_vla_dataset_v5",
+        "episode_pattern": "episode_*.h5",
+        "discrete_action": false,
+        "use_bbox_target": true,
+        "window_size": 1,
+        "fwd_pred_next_n": 1,
+        "instruction_preset": "action_aware_train",
+        "grounding_prefix": true,
+        "instruction_override": {
+            "left": ["Navigate toward the gray basket until it is centered in the frame"],
+            "right": ["Navigate toward the gray basket until it is centered in the frame"],
+            "straight": ["Navigate toward the gray basket until it is centered in the frame"],
+            "default": ["Navigate toward the gray basket until it is centered in the frame"]
+        },
+        "is_validation": true,
+        "train_split": 0.9,
+        "min_episode_frames": 10
+    }
+}
