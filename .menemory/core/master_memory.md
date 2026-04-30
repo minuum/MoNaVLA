@@ -2,7 +2,7 @@
 
 이 파일은 Menemory 프롬프트에 항상 포함되는 핵심 메모리입니다.
 
-**마지막 업데이트: 2026-04-30**
+**마지막 업데이트: 2026-05-01**
 
 ---
 
@@ -41,6 +41,14 @@
   - PM: 75.9~76.6%, closed-loop: **66.7%**, FPE: 0.55m
   - 스크립트: `scripts/test_v5_bbox_nav_exp19_proxy.py`
   - bbox cache: `docs/v5/bbox_nav_step1/bbox_dataset.json`
+
+### 진행 중 학습
+- **Exp39** — Exp25 identical + last-4 LoRA (`lora_decoder_layers=4`)
+  - config: `configs/mobile_vla_v5_exp39_exp25_last4_lora.json`
+  - 목적: 과적합 방지 (전체 24층 LoRA → 끝 4층만, ~1/6 파라미터)
+  - 로컬 GPU OOM으로 다른 서버에서 실행 예정
+  - 학습 명령: `python3 robovlm_nav/train.py configs/mobile_vla_v5_exp39_exp25_last4_lora.json`
+  - 비교 기준: Exp25 (CL 55.6%, PM 52.4%)
 
 ### 로봇 서버 현재 배포
 - Primary end-to-end: **Exp17** (CL 11.1%)
@@ -101,14 +109,18 @@
 | Exp32~36 | Pure HF last-4 LoRA, left-family | val 6.5~7.5 | 미평가 |
 | Exp37 | left_left 30ep overfit | 35%(collapse) | — |
 | Exp38 | all-path head-only 20ep sanity | 미평가 | — |
+| **Exp39** | **Exp25 + last-4 LoRA** | **학습 예정** | — |
 
 ---
 
 ## 미해결 / 다음 단계
 
 1. **Exp31, Exp35, Exp36, Exp38 PM/rollout 평가 미완**
-2. **Exp32~36 val_loss=6.5~7.5** — num_classes 불일치 가능성 (arm_action shape [4,10] 확인 필요)
-3. Shortcut collapse 근본 해결책 미확보
+2. **Exp32~36 val_loss=6.5~7.5 — 버그 아님 (2026-05-01 확인)**
+   - arm_action [4,10]은 raw sequence (window_size+fwd_next-1), get_labels()가 정상 chunking
+   - 고손실 원인: class_weights 스케일(ROT_L/R=50배) + 5ep 미수렴
+3. **Exp39 학습 대기** — 로컬 GPU OOM, 다른 서버에서 실행 필요
+4. Shortcut collapse 근본 해결책 미확보
 4. Gray basket prompted grounding 재실행 필요 (현재 free-gen은 오인식)
 5. BBox proxy (Exp19)를 inference_server.py에 연결하는 작업 미완
 
