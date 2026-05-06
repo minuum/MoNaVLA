@@ -14,22 +14,29 @@ mkdir -p "$OUT_DIR"
 
 echo "[pipeline] Exp42 Phase A pipeline started: $(date)"
 
-# ── 1. 학습 완료 대기 ───────────────────────────────────────
-echo "[pipeline] Waiting for Exp42 last.ckpt ..."
+# ── 1. 학습 완료 대기 — train.py 프로세스가 죽을 때까지 ───
+# Lightning은 매 epoch마다 last.ckpt를 갱신해서 size 안정성 체크는 false positive
+# 발생 (epoch 0 직후 평가됨, 5/6 22:59 incident). 진짜 완료는 train.py PID 부재로 판단.
+TRAIN_CONFIG_NAME="$(basename "$CONFIG")"
+echo "[pipeline] Waiting for train.py with config $TRAIN_CONFIG_NAME to exit ..."
 while true; do
-    CKPT=$(find "$EXP_DIR" -name "last.ckpt" 2>/dev/null | head -1)
-    if [ -n "$CKPT" ]; then
-        SIZE1=$(stat -c%s "$CKPT" 2>/dev/null || echo 0)
-        sleep 15
-        SIZE2=$(stat -c%s "$CKPT" 2>/dev/null || echo 0)
-        if [ "$SIZE1" -eq "$SIZE2" ] && [ "$SIZE1" -gt 0 ]; then
-            echo "[pipeline] Training done. ckpt=$CKPT"
-            break
-        fi
-        echo "[pipeline] ckpt found but still writing... (${SIZE1} → ${SIZE2})"
+    if ! pgrep -af "robovlm_nav/train.py.*$TRAIN_CONFIG_NAME" >/dev/null 2>&1; then
+        # 프로세스가 없으면 학습 종료 (또는 시작 안 함)
+        echo "[pipeline] train.py process gone."
+        break
     fi
-    sleep 60
+    sleep 120
 done
+
+# 학습 종료 후 last.ckpt 안정화 추가 대기 (마지막 flush)
+sleep 30
+
+CKPT=$(find "$EXP_DIR" -name "last.ckpt" 2>/dev/null | head -1)
+if [ -z "$CKPT" ]; then
+    echo "[pipeline] ERROR: No last.ckpt found in $EXP_DIR" >&2
+    exit 1
+fi
+echo "[pipeline] Training done. ckpt=$CKPT"
 
 # best epoch ckpt (val_loss 기준 최솟값)
 BEST_CKPT=$(find "$EXP_DIR" -name "epoch*.ckpt" 2>/dev/null \
