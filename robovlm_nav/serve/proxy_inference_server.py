@@ -53,7 +53,26 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="Mobile VLA Exp19 Proxy API", version="0.1.0")
 
 ROOT = Path(project_root)
-DATA_DIR = ROOT / "ROS_action" / "mobile_vla_dataset_v5"
+
+# 두 서버 호환: billy ↔ minum 데이터셋 자동 resolve. VLA_PROXY_DATA_DIR로 강제 가능.
+_DATA_PATH_CANDIDATES = [
+    Path("/home/billy/25-1kp/MoNaVLA/ROS_action/mobile_vla_dataset_v5"),
+    Path("/home/minum/minum/26CS/MoNa-pi/mobile_vla_dataset_v5"),
+    ROOT / "ROS_action" / "mobile_vla_dataset_v5",
+]
+
+
+def _resolve_data_dir() -> Path:
+    override = os.getenv("VLA_PROXY_DATA_DIR")
+    if override:
+        return Path(override)
+    for cand in _DATA_PATH_CANDIDATES:
+        if cand.exists() and any(cand.glob("episode_*.h5")):
+            return cand
+    return _DATA_PATH_CANDIDATES[-1]
+
+
+DATA_DIR = _resolve_data_dir()
 DATASET_FILE = ROOT / "docs" / "v5" / "bbox_nav_step1" / "bbox_dataset.json"
 DEFAULT_WEIGHTS_PATH = ROOT / "docs" / "v5" / "bbox_nav_exp19_proxy" / "exp19_proxy_mlp.pt"
 DEFAULT_GROUNDING_MODEL = ROOT / ".vlms" / "kosmos-2-patch14-224"
@@ -156,6 +175,11 @@ class ProxyMLP(nn.Module):
         return self.net(x)
 
 
+_COARSE_CLF_PATH   = ROOT / "docs" / "v5" / "bbox_nav_step1" / "coarse_direction_clf.pt"
+_GROUNDING_LORA    = ROOT / "docs" / "v5" / "bbox_nav_step1" / "grounding_lora"
+_COARSE_LABEL_CX   = {0: 0.25, 1: 0.5, 2: 0.75}
+
+
 class GroundingBackend:
     def __init__(self, model_path: Path, device: torch.device):
         if not model_path.exists():
@@ -167,10 +191,81 @@ class GroundingBackend:
             str(model_path),
             torch_dtype=torch.float16 if device.type == "cuda" else torch.float32,
         ).to(device).eval()
+
+        # Optional LoRA grounding adapter — DISABLED BY DEFAULT.
+        # The 5/4 fine-tune (grounding_lora/) collapses caption to "" and zeros
+        # entity matching (verified 0/72 on bbox_truth_mini, 2026-05-05).
+        # Set VLA_ENABLE_GROUNDING_LORA=1 to opt back in once a working adapter
+        # is trained. See docs/v5/grounding_3tier_ablation.md for the diagnosis.
+        if _GROUNDING_LORA.exists() and os.getenv("VLA_ENABLE_GROUNDING_LORA") == "1":
+            try:
+                from peft import PeftModel
+                self.model = PeftModel.from_pretrained(self.model, str(_GROUNDING_LORA))
+                self.model = self.model.merge_and_unload()
+                self.model.eval()
+                logger.info("Loaded grounding LoRA adapter from %s", _GROUNDING_LORA)
+            except Exception as e:
+                logger.warning("Failed to load grounding LoRA (%s); using base model", e)
+
         logger.info("Loaded grounding backend from %s on %s", model_path, device)
 
+        # Coarse direction classifier (optional, loaded if weights file exists)
+        self._coarse_clf: Optional[nn.Linear] = None
+        self._coarse_mean: Optional[torch.Tensor] = None
+        self._coarse_std: Optional[torch.Tensor] = None
+        if _COARSE_CLF_PATH.exists():
+            ckpt = torch.load(_COARSE_CLF_PATH, map_location=device, weights_only=False)
+            feat_dim = ckpt.get("feature_dim", 1024)
+            clf = nn.Linear(feat_dim, 3).to(device).eval()
+            clf.load_state_dict(ckpt["model"])
+            self._coarse_clf = clf
+            self._coarse_mean = ckpt["mean"].float().to(device)
+            self._coarse_std = ckpt["std"].float().to(device)
+            logger.info("Loaded coarse direction classifier (%d samples)", ckpt.get("n_samples", 0))
+        else:
+            logger.info("No coarse direction classifier found at %s", _COARSE_CLF_PATH)
+
+    # caption 방향 패턴: (phrases, cx값) — 긴 구문 먼저 체크
+    _CAPTION_DIRECTION_PATTERNS = [
+        (["far left",  "extreme left",  "leftmost",    "bottom left",  "lower left",
+          "front left", "left side",    "left corner",  "upper left",   "top left",
+          "bottom-left", "lower-left",  "left-hand side"],               0.12),
+        (["left"],                                                        0.25),
+        (["far right", "extreme right", "rightmost",   "bottom right", "lower right",
+          "front right", "right side",  "right corner", "upper right",  "top right",
+          "bottom-right", "lower-right", "right-hand side"],             0.88),
+        (["right"],                                                       0.75),
+        (["center", "middle",  "straight ahead", "in front",
+          "directly ahead",    "in the middle",  "front and center"],    0.5),
+    ]
+
+    def _caption_to_cx(self, caption_lower: str) -> Optional[float]:
+        """caption 텍스트에서 방향 패턴 매칭 → cx 반환. 매칭 없으면 None."""
+        for phrases, cx in self._CAPTION_DIRECTION_PATTERNS:
+            if any(p in caption_lower for p in phrases):
+                return cx
+        return None
+
+    def _coarse_direction_cx(self, pixel_values: torch.Tensor) -> Optional[float]:
+        """Frozen Kosmos-2 vision features → coarse direction (LEFT/CENTER/RIGHT) → cx.
+
+        Reuses already-computed pixel_values; no text generation needed.
+        Returns None if classifier weights are not loaded.
+        """
+        if self._coarse_clf is None:
+            return None
+        with torch.no_grad():
+            vo = self.model.vision_model(pixel_values=pixel_values)
+            feats = vo.last_hidden_state.mean(dim=1).float()  # (1, 1024)
+            feats_norm = (feats - self._coarse_mean) / (self._coarse_std + 1e-6)
+            pred = self._coarse_clf(feats_norm).argmax(dim=-1).item()
+        return _COARSE_LABEL_CX[pred]
+
     def _parse_basket_bbox(self, caption: str, entities: list[Any]) -> Optional[dict[str, Any]]:
-        keywords = ("basket", "gray box", "container", "gray")
+        # "basket", "container", "bin", "laundry", "gray box" 등 바구니 특화 키워드만 사용.
+        # 과거에 있던 "gray" 단독 키워드는 "gray trash can", "gray wall" 등 무관한 객체까지
+        # 매칭해서 잘못된 bbox 좌표를 리턴하는 문제가 있어 제거.
+        basket_keywords = ("basket", "gray box", "container", "bin", "laundry")
         candidates = []
         for entity_name, _span, boxes in entities:
             for box in boxes:
@@ -190,7 +285,7 @@ class GroundingBackend:
                         "cx": (x1 + x2) / 2.0,
                         "cy": (y1 + y2) / 2.0,
                         "area": area,
-                        "is_basket": any(k in entity_name.lower() for k in keywords),
+                        "is_basket": any(k in entity_name.lower() for k in basket_keywords),
                     }
                 )
 
@@ -198,19 +293,24 @@ class GroundingBackend:
         if matched:
             return matched[0]
 
+        # entity 매칭 실패 시 caption 텍스트로 방향 추정
         caption_lower = caption.lower()
-        if "far left" in caption_lower:
-            return {"entity": "caption:far_left", "cx": 0.1, "cy": 0.5, "area": 0.05}
-        if "far right" in caption_lower:
-            return {"entity": "caption:far_right", "cx": 0.9, "cy": 0.5, "area": 0.05}
-        if "left" in caption_lower and "right" not in caption_lower:
-            return {"entity": "caption:left", "cx": 0.25, "cy": 0.5, "area": 0.05}
-        if "right" in caption_lower and "left" not in caption_lower:
-            return {"entity": "caption:right", "cx": 0.75, "cy": 0.5, "area": 0.05}
-        if "center" in caption_lower:
-            return {"entity": "caption:center", "cx": 0.5, "cy": 0.5, "area": 0.05}
-        if candidates:
-            return candidates[0]
+        cx = self._caption_to_cx(caption_lower)
+        if cx is not None:
+            # 방향에 따른 label 결정
+            if cx < 0.2:
+                label = "caption:far_left"
+            elif cx < 0.4:
+                label = "caption:left"
+            elif cx > 0.8:
+                label = "caption:far_right"
+            elif cx > 0.6:
+                label = "caption:right"
+            else:
+                label = "caption:center"
+            return {"entity": label, "cx": cx, "cy": 0.6, "area": 0.06}
+
+        # caption 방향도 없으면 coarse_clf에 위임 (seed_coarse_agreement=1.0, 오탐 entity보다 정확)
         return None
 
     def run(self, image_rgb: np.ndarray) -> dict[str, Any]:
@@ -236,6 +336,13 @@ class GroundingBackend:
         raw = self.processor.batch_decode(new_ids, skip_special_tokens=False)[0]
         caption, entities = self.processor.post_process_generation(raw)
         bbox = self._parse_basket_bbox(caption, entities)
+
+        # Coarse classifier fallback: fires only when entity match AND caption both fail
+        if bbox is None:
+            cx = self._coarse_direction_cx(pixel_values)
+            if cx is not None:
+                bbox = {"entity": "coarse_clf", "cx": cx, "cy": 0.6, "area": 0.06}
+
         return {
             "caption": caption,
             "bbox": bbox,
