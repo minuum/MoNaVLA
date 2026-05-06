@@ -161,3 +161,8 @@ ROS_action/mobile_vla_dataset_v5/
 ROS_action/mobile_vla_dataset_v5(Image)/
 ROS_action/v5_data_bak/
 .menemory/sessions/
+
+# ─── Misc large/accidental ──────────────────────────────────
+home/                        # accidental rsync target (e.g. billy home), ~27GB
+mobile_vla_dataset_v5_images/  # extracted images cache, ~86MB
+logs/
