@@ -123,6 +123,13 @@ MODELS = {
         "fwd_pred_next_n": 5,
         "num_classes": 8,
     },
+    "exp42_counterfactual_pta": {
+        "exp_dir": "runs/v5_nav/kosmos/mobile_vla_v5_exp42",
+        "config": "configs/mobile_vla_v5_exp42_counterfactual_pta.json",
+        "window_size": 8,
+        "fwd_pred_next_n": 3,
+        "num_classes": 8,
+    },
 }
 
 INSTRUCTIONS = {
