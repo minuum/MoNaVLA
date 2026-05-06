@@ -109,6 +109,20 @@ MODELS = {
         "fwd_pred_next_n": 5,
         "num_classes": 8,
     },
+    "exp41b_resume_exp40_pta": {
+        "exp_dir": "runs/v5_nav/kosmos/mobile_vla_v5_exp41b",
+        "config": "configs/mobile_vla_v5_exp41b_resume_exp40_pta.json",
+        "window_size": 8,
+        "fwd_pred_next_n": 1,
+        "num_classes": 8,
+    },
+    "exp41c_scratch_pta": {
+        "exp_dir": "runs/v5_nav/kosmos/mobile_vla_v5_exp41c",
+        "config": "configs/mobile_vla_v5_exp41c_scratch_pta.json",
+        "window_size": 8,
+        "fwd_pred_next_n": 5,
+        "num_classes": 8,
+    },
 }
 
 INSTRUCTIONS = {
