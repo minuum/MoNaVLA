@@ -323,6 +323,18 @@
               </a>
             </span>
             <span class="link-block">
+              <a href="reports/viewer.html?file=plans/plan_20260506_phase_d_cross_attention.md" class="button is-danger is-outlined is-rounded">
+                <span class="icon"><i class="fas fa-microchip"></i></span>
+                <span>Phase D: Cross-Attention (Exp43)</span>
+              </a>
+            </span>
+            <span class="link-block">
+              <a href="v5/bbox_nav_exp19_proxy/index.html" class="button is-success is-rounded">
+                <span class="icon"><i class="fas fa-robot"></i></span>
+                <span>Exp25 + BBox Proxy Dual Deploy</span>
+              </a>
+            </span>
+            <span class="link-block">
               <a href="https://github.com/minuum/MoNaVLA" class="button is-white is-outlined is-rounded">
                 <span class="icon"><i class="fab fa-github"></i></span>
                 <span>Source Code</span>
@@ -647,6 +659,43 @@
           <p class="subtitle is-6">내부 분석 툴킷 사용법 및 로깅 시스템 구조 문서화</p>
           <a href="reports/vla_analyzer_docs.html" class="button is-small is-fullwidth is-outlined is-link">View Report</a>
         </div>
+      </div>
+    </div>
+ 
+    <!-- Category: Live Demos & Utilities -->
+    <div class="column is-12 mt-5">
+      <h4 class="title is-4 has-text-warning border-bottom-thick">
+        <i class="fas fa-play-circle mr-2"></i>Live Demos & Utility Tools
+      </h4>
+    </div>
+    <div class="column is-one-third">
+      <div class="card methodology-box" style="padding: 20px;">
+        <div class="mb-2">
+          <span class="tag is-success">Interactive</span>
+        </div>
+        <p class="title is-5">VLA Demo UI (HTML)</p>
+        <p class="subtitle is-6">로봇 제어 및 VLM 추론 결과를 시각화하는 통합 데모 웹 인터페이스</p>
+        <a href="../scripts/demo_ui.html" class="button is-small is-fullwidth is-outlined is-link">Open UI</a>
+      </div>
+    </div>
+    <div class="column is-one-third">
+      <div class="card methodology-box" style="padding: 20px;">
+        <div class="mb-2">
+          <span class="tag is-info">Server</span>
+        </div>
+        <p class="title is-5">VLA FastAPI Server</p>
+        <p class="subtitle is-6">Kosmos-2 및 BBox Proxy 통합 추론을 위한 고성능 백엔드 서버</p>
+        <code class="is-size-7">scripts/vla_server_fastapi.py</code>
+      </div>
+    </div>
+    <div class="column is-one-third">
+      <div class="card methodology-box" style="padding: 20px;">
+        <div class="mb-2">
+          <span class="tag is-warning">Analysis</span>
+        </div>
+        <p class="title is-5">VLM Grounding Compat Test</p>
+        <p class="subtitle is-6">Pretrained VLM의 객체 인식 및 텍스트 민감도를 정밀 진단하는 스크립트</p>
+        <code class="is-size-7">scripts/test_pretrained_vlm_grounding_compat.py</code>
       </div>
     </div>
 
