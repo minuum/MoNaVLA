@@ -4,9 +4,23 @@
     "exp_name": "v5-exp44-hybrid-backbone",
     "task_name": "mobile_vla_v5_exp44",
 
+    "model_url": null,
     "model_path": ".vlms/kosmos-gr-vision-hf-text",
     "model_config": ".vlms/kosmos-gr-vision-hf-text",
     "pretrained_vlm_path": null,
+    "vlm": {
+        "pretrained_model_name_or_path": "/home/minum/26CS/MoNaVLA/.vlms/kosmos-gr-vision-hf-text"
+    },
+    "tokenizer": {
+        "pretrained_model_name_or_path": "/home/minum/26CS/MoNaVLA/.vlms/kosmos-gr-vision-hf-text"
+    },
+
+    "train_dataset": {
+        "data_dir": "/home/minum/26CS/MoNaVLA/ROS_action/mobile_vla_dataset_v5"
+    },
+    "val_dataset": {
+        "data_dir": "/home/minum/26CS/MoNaVLA/ROS_action/mobile_vla_dataset_v5"
+    },
 
     "trainer": {
         "max_epochs": 10,
