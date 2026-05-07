@@ -19,7 +19,6 @@ import io
 import json
 import logging
 import os
-import secrets
 import sys
 import time
 from collections import defaultdict
@@ -36,8 +35,7 @@ import h5py
 import numpy as np
 import torch
 import torch.nn as nn
-from fastapi import Depends, FastAPI, HTTPException
-from fastapi.security import APIKeyHeader
+from fastapi import FastAPI, HTTPException
 from PIL import Image
 from pydantic import BaseModel
 
@@ -77,9 +75,6 @@ DATASET_FILE = ROOT / "docs" / "v5" / "bbox_nav_step1" / "bbox_dataset.json"
 DEFAULT_WEIGHTS_PATH = ROOT / "docs" / "v5" / "bbox_nav_exp19_proxy" / "exp19_proxy_mlp.pt"
 DEFAULT_GROUNDING_MODEL = ROOT / ".vlms" / "kosmos-2-patch14-224"
 
-API_KEY_NAME = "X-API-Key"
-api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
-
 NUM_CLASSES = 8
 WINDOW = 3
 IMG_SIZE = 16
@@ -111,27 +106,6 @@ ACTION_3D = {
 }
 
 model_instance = None
-
-
-def get_api_key() -> str:
-    api_key = os.getenv("VLA_API_KEY")
-    if not api_key:
-        api_key = secrets.token_urlsafe(32)
-        logger.warning("=" * 60)
-        logger.warning("VLA_API_KEY is not set.")
-        logger.warning("Generated API key: %s", api_key)
-        logger.warning('Export it with: export VLA_API_KEY="%s"', api_key)
-        logger.warning("=" * 60)
-    return api_key
-
-
-VALID_API_KEY = get_api_key()
-
-
-async def verify_api_key(api_key: str = Depends(api_key_header)) -> str:
-    if api_key != VALID_API_KEY:
-        raise HTTPException(status_code=403, detail="Invalid API Key")
-    return api_key
 
 
 class InferenceRequest(BaseModel):
@@ -705,8 +679,7 @@ async def health_check() -> dict[str, Any]:
 
 
 @app.post("/predict", response_model=InferenceResponse)
-async def predict(request: InferenceRequest, api_key: str = Depends(verify_api_key)) -> InferenceResponse:
-    del api_key
+async def predict(request: InferenceRequest) -> InferenceResponse:
     try:
         model = get_model()
         result = model.predict(request.image, request.instruction)
@@ -732,16 +705,14 @@ async def predict(request: InferenceRequest, api_key: str = Depends(verify_api_k
 
 
 @app.post("/reset")
-async def reset_history(api_key: str = Depends(verify_api_key)) -> dict[str, Any]:
-    del api_key
+async def reset_history() -> dict[str, Any]:
     model = get_model()
     model.reset()
     return {"status": "success", "message": "Proxy history reset"}
 
 
 @app.get("/test")
-async def test_endpoint(api_key: str = Depends(verify_api_key)) -> dict[str, Any]:
-    del api_key
+async def test_endpoint() -> dict[str, Any]:
     dummy = Image.new("RGB", (224, 224), color=(128, 128, 128))
     buf = io.BytesIO()
     dummy.save(buf, format="PNG")
