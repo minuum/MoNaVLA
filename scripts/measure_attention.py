@@ -130,6 +130,13 @@ MODELS = {
         "fwd_pred_next_n": 3,
         "num_classes": 8,
     },
+    "exp43_cross_attn_text": {
+        "exp_dir": "runs/v5_nav/kosmos/mobile_vla_v5_exp43",
+        "config": "configs/mobile_vla_v5_exp43_cross_attn_text.json",
+        "window_size": 8,
+        "fwd_pred_next_n": 3,
+        "num_classes": 8,
+    },
 }
 
 INSTRUCTIONS = {
