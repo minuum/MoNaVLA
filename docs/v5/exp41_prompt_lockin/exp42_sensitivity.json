@@ -1,8 +1,8 @@
 {
-  "ckpt": "runs/v5_nav/kosmos/mobile_vla_v5_exp42/2026-05-06/v5-exp42-counterfactual-pta/epoch_epoch=epoch=00-val_loss=val_loss=10.999.ckpt",
+  "ckpt": "runs/v5_nav/kosmos/mobile_vla_v5_exp42/2026-05-06/v5-exp42-counterfactual-pta/epoch_epoch=epoch=02-val_loss=val_loss=10.929.ckpt",
   "config": "configs/mobile_vla_v5_exp42_counterfactual_pta.json",
   "n_frames": 30,
-  "mean_softmax_l1": 9.68757602903578e-06,
+  "mean_softmax_l1": 1.3049112425910104e-05,
   "mean_l1_left_vs_right": 0.0,
   "max_l1_left_vs_right": 0.0,
   "frames_with_pred_change": 0,
@@ -27,8 +27,8 @@
       },
       "softmax_l1": {
         "left_vs_right": 0.0,
-        "left_vs_forward": 1.586228609085083e-05,
-        "right_vs_forward": 1.586228609085083e-05
+        "left_vs_forward": 3.7379562854766846e-05,
+        "right_vs_forward": 3.7379562854766846e-05
       },
       "raw_text": "<grounding>Navigate straight forward to the gray basket. 바구니를 향해 직진해."
     },
@@ -46,8 +46,8 @@
       },
       "softmax_l1": {
         "left_vs_right": 0.0,
-        "left_vs_forward": 1.4841556549072266e-05,
-        "right_vs_forward": 1.4841556549072266e-05
+        "left_vs_forward": 1.2218952178955078e-06,
+        "right_vs_forward": 1.2218952178955078e-06
       },
       "raw_text": "<grounding>Navigate straight forward to the gray basket. 바구니를 향해 직진해."
     },
@@ -65,8 +65,8 @@
       },
       "softmax_l1": {
         "left_vs_right": 0.0,
-        "left_vs_forward": 1.0527670383453369e-05,
-        "right_vs_forward": 1.0527670383453369e-05
+        "left_vs_forward": 2.800673246383667e-05,
+        "right_vs_forward": 2.800673246383667e-05
       },
       "raw_text": "<grounding>Navigate straight forward to the gray basket. 바구니를 향해 직진해."
     },
@@ -84,8 +84,8 @@
       },
       "softmax_l1": {
         "left_vs_right": 0.0,
-        "left_vs_forward": 4.954636096954346e-06,
-        "right_vs_forward": 4.954636096954346e-06
+        "left_vs_forward": 1.751631498336792e-05,
+        "right_vs_forward": 1.751631498336792e-05
       },
       "raw_text": "<grounding>Navigate straight forward to the gray basket. 바구니를 향해 직진해."
     },
@@ -103,8 +103,8 @@
       },
       "softmax_l1": {
         "left_vs_right": 0.0,
-        "left_vs_forward": 1.4975666999816895e-05,
-        "right_vs_forward": 1.4975666999816895e-05
+        "left_vs_forward": 1.4543533325195312e-05,
+        "right_vs_forward": 1.4543533325195312e-05
       },
       "raw_text": "<grounding>Navigate straight forward to the gray basket. 바구니를 향해 직진해."
     },
@@ -122,8 +122,8 @@
       },
       "softmax_l1": {
         "left_vs_right": 0.0,
-        "left_vs_forward": 1.1704862117767334e-05,
-        "right_vs_forward": 1.1704862117767334e-05
+        "left_vs_forward": 2.086162567138672e-06,
+        "right_vs_forward": 2.086162567138672e-06
       },
       "raw_text": "<grounding>Navigate straight forward to the gray basket. 바구니를 향해 직진해."
     },
@@ -141,8 +141,8 @@
       },
       "softmax_l1": {
         "left_vs_right": 0.0,
-        "left_vs_forward": 1.3500452041625977e-05,
-        "right_vs_forward": 1.3500452041625977e-05
+        "left_vs_forward": 2.230703830718994e-05,
+        "right_vs_forward": 2.230703830718994e-05
       },
       "raw_text": "<grounding>Navigate straight forward to the gray basket. 바구니를 향해 직진해."
     },
@@ -160,8 +160,8 @@
       },
       "softmax_l1": {
         "left_vs_right": 0.0,
-        "left_vs_forward": 7.97957181930542e-06,
-        "right_vs_forward": 7.97957181930542e-06
+        "left_vs_forward": 2.3409724235534668e-05,
+        "right_vs_forward": 2.3409724235534668e-05
       },
       "raw_text": "<grounding>Navigate straight forward to the gray basket. 바구니를 향해 직진해."
     },
@@ -179,8 +179,8 @@
       },
       "softmax_l1": {
         "left_vs_right": 0.0,
-        "left_vs_forward": 3.184378147125244e-05,
-        "right_vs_forward": 3.184378147125244e-05
+        "left_vs_forward": 1.4021992683410645e-05,
+        "right_vs_forward": 1.4021992683410645e-05
       },
       "raw_text": "<grounding>Navigate straight forward to the gray basket. 바구니를 향해 직진해."
     },
@@ -198,8 +198,8 @@
       },
       "softmax_l1": {
         "left_vs_right": 0.0,
-        "left_vs_forward": 1.73225998878479e-05,
-        "right_vs_forward": 1.73225998878479e-05
+        "left_vs_forward": 2.9109418392181396e-05,
+        "right_vs_forward": 2.9109418392181396e-05
       },
       "raw_text": "<grounding>Navigate straight forward to the gray basket. 바구니를 향해 직진해."
     },
@@ -217,8 +217,8 @@
       },
       "softmax_l1": {
         "left_vs_right": 0.0,
-        "left_vs_forward": 1.4990568161010742e-05,
-        "right_vs_forward": 1.4990568161010742e-05
+        "left_vs_forward": 2.275407314300537e-05,
+        "right_vs_forward": 2.275407314300537e-05
       },
       "raw_text": "<grounding>Navigate straight forward to the gray basket. 바구니를 향해 직진해."
     },
@@ -236,8 +236,8 @@
       },
       "softmax_l1": {
         "left_vs_right": 0.0,
-        "left_vs_forward": 6.794929504394531e-06,
-        "right_vs_forward": 6.794929504394531e-06
+        "left_vs_forward": 1.780688762664795e-05,
+        "right_vs_forward": 1.780688762664795e-05
       },
       "raw_text": "<grounding>Navigate straight forward to the gray basket. 바구니를 향해 직진해."
     },
@@ -255,8 +255,8 @@
       },
       "softmax_l1": {
         "left_vs_right": 0.0,
-        "left_vs_forward": 1.3820827007293701e-05,
-        "right_vs_forward": 1.3820827007293701e-05
+        "left_vs_forward": 3.769993782043457e-06,
+        "right_vs_forward": 3.769993782043457e-06
       },
       "raw_text": "<grounding>Navigate straight forward to the gray basket. 바구니를 향해 직진해."
     },
@@ -274,8 +274,8 @@
       },
       "softmax_l1": {
         "left_vs_right": 0.0,
-        "left_vs_forward": 4.53069806098938e-05,
-        "right_vs_forward": 4.53069806098938e-05
+        "left_vs_forward": 6.8247318267822266e-06,
+        "right_vs_forward": 6.8247318267822266e-06
       },
       "raw_text": "<grounding>Navigate straight forward to the gray basket. 바구니를 향해 직진해."
     },
@@ -293,8 +293,8 @@
       },
       "softmax_l1": {
         "left_vs_right": 0.0,
-        "left_vs_forward": 1.7412006855010986e-05,
-        "right_vs_forward": 1.7412006855010986e-05
+        "left_vs_forward": 3.223121166229248e-05,
+        "right_vs_forward": 3.223121166229248e-05
       },
       "raw_text": "<grounding>Navigate straight forward to the gray basket. 바구니를 향해 직진해."
     },
@@ -312,8 +312,8 @@
       },
       "softmax_l1": {
         "left_vs_right": 0.0,
-        "left_vs_forward": 9.82731580734253e-06,
-        "right_vs_forward": 9.82731580734253e-06
+        "left_vs_forward": 1.55717134475708e-05,
+        "right_vs_forward": 1.55717134475708e-05
       },
       "raw_text": "<grounding>Navigate straight forward to the gray basket. 바구니를 향해 직진해."
     },
@@ -331,8 +331,8 @@
       },
       "softmax_l1": {
         "left_vs_right": 0.0,
-        "left_vs_forward": 1.8864870071411133e-05,
-        "right_vs_forward": 1.8864870071411133e-05
+        "left_vs_forward": 5.0887465476989746e-05,
+        "right_vs_forward": 5.0887465476989746e-05
       },
       "raw_text": "<grounding>Navigate straight forward to the gray basket. 바구니를 향해 직진해."
     },
@@ -350,8 +350,8 @@
       },
       "softmax_l1": {
         "left_vs_right": 0.0,
-        "left_vs_forward": 5.386769771575928e-06,
-        "right_vs_forward": 5.386769771575928e-06
+        "left_vs_forward": 6.623566150665283e-06,
+        "right_vs_forward": 6.623566150665283e-06
       },
       "raw_text": "<grounding>Navigate straight forward to the gray basket. 바구니를 향해 직진해."
     },
@@ -369,8 +369,8 @@
       },
       "softmax_l1": {
         "left_vs_right": 0.0,
-        "left_vs_forward": 1.8633902072906494e-05,
-        "right_vs_forward": 1.8633902072906494e-05
+        "left_vs_forward": 2.6747584342956543e-05,
+        "right_vs_forward": 2.6747584342956543e-05
       },
       "raw_text": "<grounding>Navigate straight forward to the gray basket. 바구니를 향해 직진해."
     },
@@ -388,8 +388,8 @@
       },
       "softmax_l1": {
         "left_vs_right": 0.0,
-        "left_vs_forward": 1.9721686840057373e-05,
-        "right_vs_forward": 1.9721686840057373e-05
+        "left_vs_forward": 1.1511147022247314e-05,
+        "right_vs_forward": 1.1511147022247314e-05
       },
       "raw_text": "<grounding>Navigate straight forward to the gray basket. 바구니를 향해 직진해."
     },
@@ -407,8 +407,8 @@
       },
       "softmax_l1": {
         "left_vs_right": 0.0,
-        "left_vs_forward": 2.668052911758423e-05,
-        "right_vs_forward": 2.668052911758423e-05
+        "left_vs_forward": 2.24187970161438e-05,
+        "right_vs_forward": 2.24187970161438e-05
       },
       "raw_text": "<grounding>Navigate straight forward to the gray basket. 바구니를 향해 직진해."
     },
@@ -426,8 +426,8 @@
       },
       "softmax_l1": {
         "left_vs_right": 0.0,
-        "left_vs_forward": 1.1198222637176514e-05,
-        "right_vs_forward": 1.1198222637176514e-05
+        "left_vs_forward": 4.647672176361084e-05,
+        "right_vs_forward": 4.647672176361084e-05
       },
       "raw_text": "<grounding>Navigate straight forward to the gray basket. 바구니를 향해 직진해."
     },
@@ -445,8 +445,8 @@
       },
       "softmax_l1": {
         "left_vs_right": 0.0,
-        "left_vs_forward": 1.179426908493042e-05,
-        "right_vs_forward": 1.179426908493042e-05
+        "left_vs_forward": 3.482401371002197e-05,
+        "right_vs_forward": 3.482401371002197e-05
       },
       "raw_text": "<grounding>Navigate straight forward to the gray basket. 바구니를 향해 직진해."
     },
@@ -464,8 +464,8 @@
       },
       "softmax_l1": {
         "left_vs_right": 0.0,
-        "left_vs_forward": 1.566857099533081e-05,
-        "right_vs_forward": 1.566857099533081e-05
+        "left_vs_forward": 1.786649227142334e-05,
+        "right_vs_forward": 1.786649227142334e-05
       },
       "raw_text": "<grounding>Navigate straight forward to the gray basket. 바구니를 향해 직진해."
     },
@@ -483,8 +483,8 @@
       },
       "softmax_l1": {
         "left_vs_right": 0.0,
-        "left_vs_forward": 2.3812055587768555e-05,
-        "right_vs_forward": 2.3812055587768555e-05
+        "left_vs_forward": 3.399699926376343e-05,
+        "right_vs_forward": 3.399699926376343e-05
       },
       "raw_text": "<grounding>Navigate straight forward to the gray basket. 바구니를 향해 직진해."
     },
@@ -502,8 +502,8 @@
       },
       "softmax_l1": {
         "left_vs_right": 0.0,
-        "left_vs_forward": 3.6656856536865234e-06,
-        "right_vs_forward": 3.6656856536865234e-06
+        "left_vs_forward": 6.981194019317627e-06,
+        "right_vs_forward": 6.981194019317627e-06
       },
       "raw_text": "<grounding>Navigate straight forward to the gray basket. 바구니를 향해 직진해."
     },
@@ -521,8 +521,8 @@
       },
       "softmax_l1": {
         "left_vs_right": 0.0,
-        "left_vs_forward": 5.3942203521728516e-06,
-        "right_vs_forward": 5.3942203521728516e-06
+        "left_vs_forward": 1.548975706100464e-05,
+        "right_vs_forward": 1.548975706100464e-05
       },
       "raw_text": "<grounding>Navigate straight forward to the gray basket. 바구니를 향해 직진해."
     },
@@ -540,8 +540,8 @@
       },
       "softmax_l1": {
         "left_vs_right": 0.0,
-        "left_vs_forward": 1.1235475540161133e-05,
-        "right_vs_forward": 1.1235475540161133e-05
+        "left_vs_forward": 0.0,
+        "right_vs_forward": 0.0
       },
       "raw_text": "<grounding>Navigate straight forward to the gray basket. 바구니를 향해 직진해."
     },
@@ -559,8 +559,8 @@
       },
       "softmax_l1": {
         "left_vs_right": 0.0,
-        "left_vs_forward": 3.6656856536865234e-06,
-        "right_vs_forward": 3.6656856536865234e-06
+        "left_vs_forward": 6.638467311859131e-06,
+        "right_vs_forward": 6.638467311859131e-06
       },
       "raw_text": "<grounding>Navigate straight forward to the gray basket. 바구니를 향해 직진해."
     },
@@ -578,8 +578,8 @@
       },
       "softmax_l1": {
         "left_vs_right": 0.0,
-        "left_vs_forward": 8.553266525268555e-06,
-        "right_vs_forward": 8.553266525268555e-06
+        "left_vs_forward": 1.8186867237091064e-05,
+        "right_vs_forward": 1.8186867237091064e-05
       },
       "raw_text": "<grounding>Navigate straight forward to the gray basket. 바구니를 향해 직진해."
     }
