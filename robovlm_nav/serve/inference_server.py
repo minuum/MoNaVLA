@@ -1755,7 +1755,6 @@ async def predict(request: InferenceRequest, api_key: str = Depends(verify_api_k
     except Exception as e:
         import traceback
         logger.error(f"Prediction failed: {e}\n{traceback.format_exc()}")
-<<<<<<< HEAD
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -1823,8 +1822,6 @@ async def debug_reset_history():
         return {"status": "success", "message": "History, buffer, and logging session reset"}
     except Exception as e:
         logger.error(f"Debug reset failed: {e}")
-=======
->>>>>>> origin/monavla-driving
         raise HTTPException(status_code=500, detail=str(e))
 
 
