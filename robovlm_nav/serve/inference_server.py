@@ -51,9 +51,10 @@ import torch
 import numpy as np
 import cv2
 from PIL import Image
-from fastapi import FastAPI, HTTPException, Header, Depends
+from fastapi import FastAPI, HTTPException, Header, Depends, Request
 from fastapi.responses import FileResponse, Response
 from fastapi.security import APIKeyHeader
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 # Project imports
@@ -105,6 +106,26 @@ DEFAULT_DEBUG_MODEL_CANDIDATES = [
         Path(project_root) / "configs" / "mobile_vla_v5_exp25_step3_balanced_objective.json",
     ),
 ]
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start_time = time.time()
+    client_host = request.client.host if request.client else "unknown"
+    forwarded_for = request.headers.get("x-forwarded-for")
+    real_ip = request.headers.get("x-real-ip")
+    source = forwarded_for or real_ip or client_host
+    response = await call_next(request)
+    duration_ms = (time.time() - start_time) * 1000.0
+    logger.info(
+        "HTTP %s %s from=%s status=%s duration_ms=%.1f",
+        request.method,
+        request.url.path,
+        source,
+        response.status_code,
+        duration_ms,
+    )
+    return response
 
 
 # API Key 설정
@@ -318,6 +339,13 @@ def _build_image_path_context(image_path: Path) -> dict[str, Any]:
         "prev_path": prev_path,
         "next_path": next_path,
     }
+
+class ModelLoadRequest(BaseModel):
+    """모델 로드 요청 스키마"""
+    checkpoint_path: str
+    config_path: str
+    precision: Literal["fp16", "int8"] = "fp16"
+    refresh: bool = True
     
 
 class MobileVLAInference:
@@ -1538,6 +1566,86 @@ async def debug_model_reload(request: DebugModelReloadRequest):
         "config_path": model.config_path,
     }
 
+@app.get("/admin", response_class=HTMLResponse)
+async def admin_page():
+    """로컬 브라우저용 간단한 관리 페이지"""
+    api_key = VALID_API_KEY
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>MoNaVLA Server Admin</title>
+  <style>
+    body {{ font-family: sans-serif; margin: 24px; background: #f6f4ee; color: #1f2937; }}
+    h1 {{ margin-bottom: 8px; }}
+    .row {{ display: flex; gap: 12px; flex-wrap: wrap; margin: 12px 0; }}
+    button {{ padding: 10px 14px; border: 0; border-radius: 10px; background: #1f6feb; color: white; cursor: pointer; }}
+    button.secondary {{ background: #4b5563; }}
+    pre {{ background: white; padding: 16px; border-radius: 12px; overflow: auto; border: 1px solid #d1d5db; }}
+    input {{ width: 100%; padding: 10px; border-radius: 10px; border: 1px solid #cbd5e1; }}
+    .grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }}
+  </style>
+</head>
+<body>
+  <h1>MoNaVLA Server Admin</h1>
+  <p>Local management for the running FastAPI server.</p>
+  <div class="row">
+    <button onclick="loadHealth()">Refresh Health</button>
+    <button onclick="loadInfo()">Refresh Model Info</button>
+    <button class="secondary" onclick="resetHistory()">Reset History</button>
+  </div>
+  <div class="grid">
+    <div>
+      <p>Checkpoint path</p>
+      <input id="ckpt" value="{os.getenv('VLA_CHECKPOINT_PATH', '')}">
+    </div>
+    <div>
+      <p>Config path</p>
+      <input id="cfg" value="{os.getenv('VLA_CONFIG_PATH', '')}">
+    </div>
+  </div>
+  <div class="row">
+    <button onclick="loadSelected('fp16')">Load FP16</button>
+    <button class="secondary" onclick="loadSelected('int8')">Load INT8</button>
+  </div>
+  <h2>Response</h2>
+  <pre id="out">Ready</pre>
+  <script>
+    const headers = {{
+      "Content-Type": "application/json",
+      "X-API-Key": {json.dumps(api_key)}
+    }};
+    async function show(resp) {{
+      const text = await resp.text();
+      try {{
+        document.getElementById("out").textContent = JSON.stringify(JSON.parse(text), null, 2);
+      }} catch (_e) {{
+        document.getElementById("out").textContent = text;
+      }}
+    }}
+    async function loadHealth() {{
+      await show(await fetch('/health'));
+    }}
+    async function loadInfo() {{
+      await show(await fetch('/model/info', {{ headers }}));
+    }}
+    async function resetHistory() {{
+      await show(await fetch('/reset', {{ method: 'POST', headers }}));
+    }}
+    async function loadSelected(precision) {{
+      const body = {{
+        checkpoint_path: document.getElementById('ckpt').value,
+        config_path: document.getElementById('cfg').value,
+        precision,
+        refresh: true
+      }};
+      await show(await fetch('/model/load', {{ method: 'POST', headers, body: JSON.stringify(body) }}));
+    }}
+    loadHealth();
+  </script>
+</body>
+</html>"""
+
 
 @app.get("/health")
 async def health_check():
@@ -1568,6 +1676,60 @@ async def health_check():
         "device": "cuda" if torch.cuda.is_available() else "cpu",
         "gpu_memory": gpu_memory
     }
+
+
+@app.get("/model/info")
+async def model_info(api_key: str = Depends(verify_api_key)):
+    """현재 로드된 모델 정보 조회"""
+    if model_instance is None:
+        return {
+            "model_loaded": False,
+            "model_name": "Unavailable",
+            "checkpoint_path": "N/A",
+            "config_path": "N/A",
+            "precision": "int8" if os.getenv("VLA_QUANTIZE", "false").lower() == "true" else "fp16",
+            "device": "cuda" if torch.cuda.is_available() else "cpu",
+            "action_dim": 3,
+        }
+
+    return {
+        "model_loaded": True,
+        "model_name": model_instance.model_name,
+        "checkpoint_path": model_instance.checkpoint_path,
+        "config_path": model_instance.config_path,
+        "precision": "int8" if model_instance.use_quant else "fp16",
+        "device": model_instance.device,
+        "action_dim": 3,
+    }
+
+
+@app.post("/model/load")
+async def load_model(request: ModelLoadRequest, api_key: str = Depends(verify_api_key)):
+    """런타임에 모델 로드/교체"""
+    try:
+        os.environ["VLA_CHECKPOINT_PATH"] = request.checkpoint_path
+        os.environ["VLA_CONFIG_PATH"] = request.config_path
+        os.environ["VLA_QUANTIZE"] = "true" if request.precision == "int8" else "false"
+
+        model = get_model(
+            refresh=request.refresh,
+            use_quant=(request.precision == "int8"),
+            checkpoint_path=request.checkpoint_path,
+            config_path=request.config_path,
+        )
+
+        return {
+            "status": "success",
+            "message": "Model loaded",
+            "model_name": model.model_name,
+            "checkpoint_path": model.checkpoint_path,
+            "config_path": model.config_path,
+            "precision": request.precision,
+            "device": model.device,
+        }
+    except Exception as e:
+        logger.error(f"Model load failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/predict", response_model=InferenceResponse)

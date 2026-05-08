@@ -5,10 +5,10 @@
 
 # 1. 모델 설정 (Checkpoint & Config)
 # 최신 학습 결과에 맞춰 경로를 수정하세요.
-# v3_exp08_center_goal
-# Best model (87% accuracy, diagonal-aware)
-export VLA_CHECKPOINT_PATH="/home/soda/MoNaVLA/runs/v4_nav/kosmos/v4_balanced_v2/checkpoints/best_model_87pc.ckpt"
-export VLA_CONFIG_PATH="/home/soda/MoNaVLA/configs/mobile_vla_v4_balanced_v2.json"
+export VLA_PROFILE="end_to_end_default"
+# Default runtime target: V5 exp25 balanced objective
+export VLA_CHECKPOINT_PATH="/home/soda/MoNaVLA/runs/v5_nav/kosmos/mobile_vla_v5_exp25/2026-04-22/v5-exp25-step3-balanced-objective/epoch_epoch=epoch=02-val_loss=val_loss=10.117.ckpt"
+export VLA_CONFIG_PATH="/home/soda/MoNaVLA/configs/mobile_vla_v5_exp25_step3_balanced_objective.json"
 
 # 2. 보안 설정 (API Key)
 export VLA_API_KEY="v3_test_key"
@@ -16,5 +16,6 @@ export VLA_API_KEY="v3_test_key"
 # 3. 인프라 설정
 export ROS_DOMAIN_ID=42
 export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/ros/humble/lib
 export VLA_ROOT="/home/soda/MoNaVLA"
 export VLA_ROS_WS="/home/soda/MoNaVLA/ROS_action"

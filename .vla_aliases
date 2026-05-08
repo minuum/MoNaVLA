@@ -33,6 +33,10 @@ export MONAVLA_ROOT="/home/soda/MoNaVLA"
 # Tailscale VPN 주소
 export JETSON_TAILSCALE_IP="${JETSON_TAILSCALE_IP:-100.85.118.58}"
 export BILLY_TAILSCALE_IP="${BILLY_TAILSCALE_IP:-100.86.152.29}"  # Billy 서버의 Tailscale IP
+export VLA_SYNC_HOST="${VLA_SYNC_HOST:-$BILLY_TAILSCALE_IP}"
+export VLA_SYNC_USER="${VLA_SYNC_USER:-soda}"
+export VLA_SYNC_SSH_PORT="${VLA_SYNC_SSH_PORT:-22}"
+export VLA_SYNC_ROOT="${VLA_SYNC_ROOT:-$VLA_PROJECT_DIR}"
 
 # ========================================
 # Jetson 서버 전용 설정
@@ -258,6 +262,7 @@ vla-help() {
         echo "  mona-model-env     - Model 서버 환경 설정 [alias: vla-model-env]"
         echo ""
         echo "API 서버 관리:"
+        echo "  vla-server         - API 서버 시작/관리"
         echo "  mona-start         - API 서버 시작 [alias: vla-start]"
         echo "  mona-stop          - API 서버 중지 [alias: vla-stop]"
         echo "  mona-restart       - API 서버 재시작 [alias: vla-restart]"
@@ -273,6 +278,11 @@ vla-help() {
     echo "유틸리티:"
     echo "  mona-env           - 환경 변수 확인 [alias: vla-env]"
     echo "  mona-network-check - 네트워크 연결 확인 [alias: vla-network-check]"
+    echo "  vla-profile        - 현재 활성 프로파일 해석 결과"
+    echo "  vla-models         - 운영 모델 레지스트리 목록"
+    echo "  vla-use <profile>  - 현재 셸의 활성 프로파일 변경"
+    echo "  vla-doctor         - 프로파일/ROS/API 진단"
+    echo "  vla-sync-models    - 활성 profile의 ckpt/config를 원격 서버로 rsync"
     echo "  vla-ps             - 프로세스 확인"
     echo "  mona-cd            - 프로젝트로 이동 [alias: vla-cd]"
     echo "  mona-gpu           - GPU 상태 [alias: vla-gpu]"
@@ -323,7 +333,257 @@ alias vla-train-stop='pkill -f main.py'
 
 # MoNaVLA Shortcuts
 alias vla-analyze='python3 /home/soda/MoNaVLA/scripts/gradio_offline_h5_analyzer.py'
-alias vla-dashboard='python3 /home/soda/MoNaVLA/scripts/gradio_inference_dashboard.py'
-alias vla-collect='python3 /home/soda/MoNaVLA/scripts/gradio_data_collector.py'
-alias vla-server='python3 /home/soda/MoNaVLA/robovlm_nav/serve/inference_server.py'
-alias vla-reset='kill -9 $(pgrep -f "gradio_") || true; kill -9 $(pgrep -f "inference_server") || true'
+
+unalias vla-profile 2>/dev/null || true
+vla-profile() {
+    python3 "$VLA_PROJECT_DIR/scripts/vla_profile.py" profile --profile "${1:-${VLA_PROFILE:-end_to_end_default}}"
+}
+
+unalias vla-models 2>/dev/null || true
+vla-models() {
+    python3 "$VLA_PROJECT_DIR/scripts/vla_profile.py" models "$@"
+}
+
+unalias vla-doctor 2>/dev/null || true
+vla-doctor() {
+    python3 "$VLA_PROJECT_DIR/scripts/vla_profile.py" doctor --profile "${1:-${VLA_PROFILE:-end_to_end_default}}"
+}
+
+unalias vla-use 2>/dev/null || true
+vla-use() {
+    local profile_name="${1:-end_to_end_default}"
+    eval "$(python3 "$VLA_PROJECT_DIR/scripts/vla_profile.py" env --profile "$profile_name")"
+    echo "✓ Active profile: $VLA_PROFILE ($VLA_MODEL_LABEL)"
+}
+
+unalias vla-sync-models 2>/dev/null || true
+vla-sync-models() {
+    local profile_name="${VLA_PROFILE:-end_to_end_default}"
+    local mode=""
+    local arg=""
+    for arg in "$@"; do
+        case "$arg" in
+            --dry-run|--print-only)
+                mode="$arg"
+                ;;
+            *)
+                profile_name="$arg"
+                ;;
+        esac
+    done
+
+    eval "$(python3 "$VLA_PROJECT_DIR/scripts/vla_profile.py" env --profile "$profile_name")" || return 1
+
+    if [ -z "${VLA_CHECKPOINT_PATH:-}" ] || [ ! -f "$VLA_CHECKPOINT_PATH" ]; then
+        echo "Checkpoint not found for profile $VLA_PROFILE: ${VLA_CHECKPOINT_PATH:-N/A}"
+        return 1
+    fi
+
+    if [ -z "${VLA_CONFIG_PATH:-}" ] || [ ! -f "$VLA_CONFIG_PATH" ]; then
+        echo "Config not found for profile $VLA_PROFILE: ${VLA_CONFIG_PATH:-N/A}"
+        return 1
+    fi
+
+    local remote_base="${VLA_SYNC_USER}@${VLA_SYNC_HOST}:${VLA_SYNC_ROOT}"
+    local rsync_args=(-ahz --info=progress2 --relative -e "ssh -p ${VLA_SYNC_SSH_PORT}")
+    local ckpt_rel config_rel
+
+    ckpt_rel="${VLA_CHECKPOINT_PATH#$VLA_PROJECT_DIR/}"
+    config_rel="${VLA_CONFIG_PATH#$VLA_PROJECT_DIR/}"
+
+    if [ "$ckpt_rel" = "$VLA_CHECKPOINT_PATH" ] || [ "$config_rel" = "$VLA_CONFIG_PATH" ]; then
+        echo "Only paths inside $VLA_PROJECT_DIR are supported by vla-sync-models."
+        echo "Checkpoint: $VLA_CHECKPOINT_PATH"
+        echo "Config:     $VLA_CONFIG_PATH"
+        return 1
+    fi
+
+    if [ "$mode" = "--dry-run" ]; then
+        rsync_args+=(--dry-run)
+    fi
+
+    echo "Sync profile: $VLA_PROFILE ($VLA_MODEL_LABEL)"
+    echo "Remote root:  $remote_base"
+    echo "Checkpoint:   $ckpt_rel"
+    echo "Config:       $config_rel"
+
+    if [ "$mode" = "--print-only" ]; then
+        echo "rsync ${rsync_args[*]} $VLA_PROJECT_DIR/./$ckpt_rel $VLA_PROJECT_DIR/./$config_rel $remote_base/"
+        return 0
+    fi
+
+    rsync "${rsync_args[@]}" \
+        "$VLA_PROJECT_DIR/./$ckpt_rel" \
+        "$VLA_PROJECT_DIR/./$config_rel" \
+        "$remote_base/"
+}
+
+unalias vla-sync-profile 2>/dev/null || true
+vla-sync-profile() {
+    vla-sync-models "$@"
+}
+
+alias vla-sync='vla-sync-models'
+
+unalias vla-start 2>/dev/null || true
+unalias vla-restart 2>/dev/null || true
+unalias vla-stop 2>/dev/null || true
+unalias vla-status 2>/dev/null || true
+unalias vla-logs 2>/dev/null || true
+unalias vla-server 2>/dev/null || true
+unalias vla-server-running 2>/dev/null || true
+unalias vla-api-is-local 2>/dev/null || true
+unalias vla-clean 2>/dev/null || true
+
+vla-api-is-local() {
+    case "${VLA_API_SERVER:-http://localhost:8000}" in
+        http://localhost:*|http://127.0.0.1:*|http://0.0.0.0:*|https://localhost:*|https://127.0.0.1:*)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+vla-server-running() {
+    local api_url="${VLA_API_SERVER:-http://127.0.0.1:${VLA_PORT:-8000}}"
+    curl -s "${api_url%/}/health" > /dev/null 2>&1
+}
+
+vla-server() {
+    local action="start"
+    case "${1:-start}" in
+        start|stop|restart|status|logs|http|admin|urls)
+            action="$1"
+            if [ "$#" -gt 0 ]; then
+                shift
+            fi
+            ;;
+    esac
+
+    local profile_name="${1:-${VLA_PROFILE:-end_to_end_default}}"
+    local api_url="${VLA_API_SERVER:-http://127.0.0.1:${VLA_PORT:-8000}}"
+
+    if [ "$action" = "start" ] || [ "$action" = "restart" ] || [ "$action" = "status" ]; then
+        eval "$(python3 "$VLA_PROJECT_DIR/scripts/vla_profile.py" env --profile "$profile_name")"
+    fi
+
+    if [ "$action" = "http" ] || [ "$action" = "admin" ] || [ "$action" = "urls" ]; then
+        echo "MoNaVLA local HTTP management"
+        echo "  Root:   ${api_url%/}/"
+        echo "  Health: ${api_url%/}/health"
+        echo "  Admin:  ${api_url%/}/admin"
+        echo "  Docs:   ${api_url%/}/docs"
+        if [ "$action" != "urls" ]; then
+            if command -v xdg-open >/dev/null 2>&1; then
+                xdg-open "${api_url%/}/admin" >/dev/null 2>&1 &
+            elif command -v open >/dev/null 2>&1; then
+                open "${api_url%/}/admin" >/dev/null 2>&1 &
+            fi
+        fi
+        return 0
+    fi
+
+    "$VLA_PROJECT_DIR/scripts/manage_api_server.sh" "$action" "$profile_name"
+}
+
+vla-start() { vla-server start "$@"; }
+vla-restart() { vla-server restart "$@"; }
+vla-stop() { vla-server stop "$@"; }
+vla-status() { vla-server status "$@"; }
+vla-logs() { vla-server logs "$@"; }
+
+vla-clean() {
+    local patterns=(
+        "$VLA_PROJECT_DIR/robovlm_nav/serve/inference_server.py"
+        "$VLA_PROJECT_DIR/scripts/gradio_inference_dashboard.py"
+        "$VLA_PROJECT_DIR/scripts/gradio_data_collector.py"
+        "camera_publisher_continuous"
+        "camera_service_server"
+        "usb_camera_service_server"
+        "launch_mobile_vla.launch.py"
+    )
+    local pattern=""
+    echo "Cleaning MoNaVLA runtime processes..."
+    for pattern in "${patterns[@]}"; do
+        pkill -f "$pattern" 2>/dev/null || true
+    done
+    sleep 1
+    for pattern in "${patterns[@]}"; do
+        pkill -9 -f "$pattern" 2>/dev/null || true
+    done
+    rm -f "$VLA_PROJECT_DIR/logs/api_server.pid"
+    echo "✓ Cleaned server / gradio / camera-related processes"
+}
+
+unalias vla-inference-gradio 2>/dev/null || true
+vla-inference-gradio() {
+    local profile_name="${1:-${VLA_PROFILE:-end_to_end_default}}"
+    eval "$(python3 "$VLA_PROJECT_DIR/scripts/vla_profile.py" env --profile "$profile_name")"
+    if [ "$VLA_MODEL_RUNTIME" != "api_server" ]; then
+        echo "⚠️  Profile $VLA_PROFILE uses runtime $VLA_MODEL_RUNTIME and is not launchable via gradio inference dashboard."
+        echo "    Try: vla-profile $VLA_PROFILE"
+        return 1
+    fi
+    if [ -f "/opt/ros/humble/setup.zsh" ]; then
+        source /opt/ros/humble/setup.zsh
+    elif [ -f "/opt/ros/humble/setup.bash" ]; then
+        source /opt/ros/humble/setup.bash
+    fi
+    if [ -f "$VLA_ROS_WS/install/setup.zsh" ]; then
+        source "$VLA_ROS_WS/install/setup.zsh"
+    elif [ -f "$VLA_ROS_WS/install/setup.bash" ]; then
+        source "$VLA_ROS_WS/install/setup.bash"
+    fi
+
+    export VLA_DASHBOARD_BACKEND="API Server"
+
+    if vla-api-is-local; then
+        if ! vla-server-running; then
+            echo "API server is not running at $VLA_API_SERVER"
+            echo "Starting local vla-server with profile $VLA_PROFILE..."
+            vla-server start "$profile_name" || return 1
+        fi
+    else
+        echo "Using remote API server: $VLA_API_SERVER"
+    fi
+
+    echo "Recommended runtime stack: vla-camera | vla-server | vla-inference-gradio"
+    echo "Launching inference dashboard with profile $VLA_PROFILE ($VLA_MODEL_LABEL) in API Server mode"
+    python3 "$VLA_PROJECT_DIR/scripts/gradio_inference_dashboard.py"
+}
+
+unalias vla-collect-gradio 2>/dev/null || true
+vla-collect-gradio() {
+    local profile_name="${1:-collect_default}"
+    eval "$(python3 "$VLA_PROJECT_DIR/scripts/vla_profile.py" env --profile "$profile_name")"
+    if [ -f "/opt/ros/humble/setup.zsh" ]; then
+        source /opt/ros/humble/setup.zsh
+    elif [ -f "/opt/ros/humble/setup.bash" ]; then
+        source /opt/ros/humble/setup.bash
+    fi
+    if [ -f "$VLA_ROS_WS/install/setup.zsh" ]; then
+        source "$VLA_ROS_WS/install/setup.zsh"
+    elif [ -f "$VLA_ROS_WS/install/setup.bash" ]; then
+        source "$VLA_ROS_WS/install/setup.bash"
+    fi
+    echo "Launching collector with profile $VLA_PROFILE"
+    python3 "$VLA_PROJECT_DIR/scripts/gradio_data_collector.py"
+}
+
+# Compatibility aliases
+unalias vla-collect 2>/dev/null || true
+vla-collect() { vla-collect-gradio "$@"; }
+unalias vla-dashboard 2>/dev/null || true
+vla-dashboard() { vla-inference-gradio "$@"; }
+alias mona-collect-gradio='vla-collect-gradio'
+alias mona-inference-gradio='vla-inference-gradio'
+alias mona-server='vla-server'
+alias mona-clean='vla-clean'
+alias mona-profile='vla-profile'
+alias mona-models='vla-models'
+alias mona-doctor='vla-doctor'
+alias mona-sync='vla-sync-models'
+
+alias vla-reset='vla-clean'

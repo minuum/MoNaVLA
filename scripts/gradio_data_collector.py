@@ -10,10 +10,21 @@ import json
 from datetime import datetime
 from PIL import Image
 from collections import defaultdict
+from pathlib import Path
+import socket
 
 # --- Forced ROS2 Environment Overrides ---
+os.environ.setdefault("MPLCONFIGDIR", "/tmp/matplotlib")
+os.environ.setdefault("ROS_HOME", "/tmp/ros")
+Path(os.environ["MPLCONFIGDIR"]).mkdir(parents=True, exist_ok=True)
+Path(os.environ["ROS_HOME"]).mkdir(parents=True, exist_ok=True)
 os.environ["ROS_DOMAIN_ID"] = "42"
 os.environ["RMW_IMPLEMENTATION"] = "rmw_fastrtps_cpp"
+
+# Add ROS Workspace to Path
+ros_ws_path = "/home/soda/MoNaVLA/ROS_action/install/camera_interfaces/lib/python3.10/site-packages"
+if os.path.exists(ros_ws_path) and ros_ws_path not in sys.path:
+    sys.path.append(ros_ws_path)
 
 def load_env():
     env_path = "/home/soda/MoNaVLA/.vla_env_settings"
@@ -36,6 +47,7 @@ except ImportError:
     ROBOT_HW_AVAILABLE = False
 
 # --- ROS2 Setup ---
+ROS_IMPORT_ERROR = ""
 try:
     import rclpy
     from rclpy.node import Node
@@ -43,8 +55,17 @@ try:
     from cv_bridge import CvBridge
     from camera_interfaces.srv import GetImage
     ROS_AVAILABLE = True
-except ImportError:
+except ImportError as e:
+    print(f"CRITICAL: ROS2 IMPORT ERROR -> {e}")
+    ROS_IMPORT_ERROR = str(e)
     ROS_AVAILABLE = False
+
+OFFLINE_TELEOP_LABELS = {
+    'q': '↖', 'w': '⬆', 'e': '↗',
+    'a': '⬅', 's': 'STOP', 'd': '➡',
+    'z': '↙', 'x': '⬇', 'c': '↘',
+    't': 'L-Angle', 'r': 'R-Angle', 'g': 'RETURN'
+}
 
 # --- V5 Scenarios ---
 V5_SCENARIOS = {
@@ -331,11 +352,47 @@ class GradioCollectorNode(Node):
 
 # --- ROS2 Process Setup ---
 node = None
+NODE_START_ERROR = ""
 if ROS_AVAILABLE:
-    if not rclpy.ok(): rclpy.init()
-    node = GradioCollectorNode() 
-    def spin(): rclpy.spin(node)
-    threading.Thread(target=spin, daemon=True).start()
+    try:
+        if not rclpy.ok(): rclpy.init()
+        node = GradioCollectorNode() 
+        def spin(): rclpy.spin(node)
+        threading.Thread(target=spin, daemon=True).start()
+    except Exception as e:
+        print(f"FAILED TO START ROS NODE: {e}")
+        NODE_START_ERROR = str(e)
+        node = None
+
+
+def collector_diagnostics(_=None):
+    ros_ws = os.getenv("VLA_ROS_WS", "/home/soda/MoNaVLA/ROS_action")
+    checks = [
+        ("ROS import", "OK" if ROS_AVAILABLE else f"FAIL: {ROS_IMPORT_ERROR or 'unknown'}"),
+        ("Node ready", "OK" if node else f"OFFLINE: {NODE_START_ERROR or 'node unavailable'}"),
+        ("ROS workspace", "OK" if os.path.exists(ros_ws) else f"MISSING: {ros_ws}"),
+        ("camera_interfaces", "OK" if os.path.exists(os.path.join(ros_ws, 'install', 'camera_interfaces')) else "MISSING"),
+        ("Dataset root", DATASET_ROOT),
+    ]
+    lines = ["### 🧪 Collector Diagnostics"]
+    for key, val in checks:
+        lines.append(f"- **{key}**: {val}")
+    return "\n".join(lines)
+
+
+def pick_server_port(default_port: int, span: int = 20) -> int:
+    try:
+        for port in range(default_port, default_port + span):
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                try:
+                    sock.bind(("127.0.0.1", port))
+                except OSError:
+                    continue
+            return port
+    except PermissionError:
+        return default_port
+    return default_port
 
 def get_feed(_=None):
     if not node: return None
@@ -351,7 +408,8 @@ def get_feed(_=None):
         return Image.fromarray(img)
 
 def update_ui_state(_=None):
-    if not node: return "ROS Offline", ""
+    if not node:
+        return "ROS Offline", ""
     node.load_all_stats() # 주기적으로 파일 개수 갱신
     with node.lock:
         s = f"● REC [%d] - %s" % (len(node.episode_buffer), V5_SCENARIOS.get(node.current_scenario_key, {}).get('name', '')) if node.collecting else "IDLE"
@@ -399,27 +457,27 @@ with gr.Blocks(title="MoNaVLA V5 PRO") as demo:
             stream = gr.Image(label="Live Target View", interactive=False, elem_id="main_camera")
             status_markdown = gr.Markdown("### IDLE", elem_classes=["status-card"])
             with gr.Row():
-                mode_btn = gr.Button("🕹️ TELEOP MODE: OFF 🔴", variant="secondary")
-                stop_save = gr.Button("⏹️ SAVE EPISODE", variant="primary")
-                discard = gr.Button("🗑️ DISCARD", variant="stop")
+                mode_btn = gr.Button("🕹️ TELEOP MODE: OFF 🔴", variant="secondary", interactive=bool(node))
+                stop_save = gr.Button("⏹️ SAVE EPISODE", variant="primary", interactive=bool(node))
+                discard = gr.Button("🗑️ DISCARD", variant="stop", interactive=bool(node))
             
             grid_btns = {}
             with gr.Row():
-                grid_btns['q'] = gr.Button("Q ↖", elem_id="btn_q", size="sm")
-                grid_btns['w'] = gr.Button("W ⬆", elem_id="btn_w", size="sm")
-                grid_btns['e'] = gr.Button("E ↗", elem_id="btn_e", size="sm")
+                grid_btns['q'] = gr.Button(f"Q {OFFLINE_TELEOP_LABELS['q']}", elem_id="btn_q", size="sm", interactive=bool(node))
+                grid_btns['w'] = gr.Button(f"W {OFFLINE_TELEOP_LABELS['w']}", elem_id="btn_w", size="sm", interactive=bool(node))
+                grid_btns['e'] = gr.Button(f"E {OFFLINE_TELEOP_LABELS['e']}", elem_id="btn_e", size="sm", interactive=bool(node))
             with gr.Row():
-                grid_btns['a'] = gr.Button("A ⬅", elem_id="btn_a", size="sm")
-                grid_btns[' '] = gr.Button("STOP 🛑", elem_id="btn_space", variant="stop", size="sm")
-                grid_btns['d'] = gr.Button("D ➡", elem_id="btn_d", size="sm")
+                grid_btns['a'] = gr.Button(f"A {OFFLINE_TELEOP_LABELS['a']}", elem_id="btn_a", size="sm", interactive=bool(node))
+                grid_btns[' '] = gr.Button("STOP 🛑", elem_id="btn_space", variant="stop", size="sm", interactive=bool(node))
+                grid_btns['d'] = gr.Button(f"D {OFFLINE_TELEOP_LABELS['d']}", elem_id="btn_d", size="sm", interactive=bool(node))
             with gr.Row():
-                grid_btns['z'] = gr.Button(node.TELEOP_LABELS['z'], elem_id="btn_z", size="sm")
-                grid_btns['x'] = gr.Button(node.TELEOP_LABELS['x'], elem_id="btn_x", size="sm")
-                grid_btns['c'] = gr.Button(node.TELEOP_LABELS['c'], elem_id="btn_c", size="sm")
+                grid_btns['z'] = gr.Button(OFFLINE_TELEOP_LABELS['z'], elem_id="btn_z", size="sm", interactive=bool(node))
+                grid_btns['x'] = gr.Button(OFFLINE_TELEOP_LABELS['x'], elem_id="btn_x", size="sm", interactive=bool(node))
+                grid_btns['c'] = gr.Button(OFFLINE_TELEOP_LABELS['c'], elem_id="btn_c", size="sm", interactive=bool(node))
             with gr.Row():
-                grid_btns['t'] = gr.Button(f"{node.TELEOP_LABELS['t']} (T)", elem_id="btn_t", size="sm")
-                grid_btns['r'] = gr.Button(f"{node.TELEOP_LABELS['r']} (R)", elem_id="btn_r", size="sm")
-                grid_btns['g'] = gr.Button(f"{node.TELEOP_LABELS['g']} (G)", elem_id="btn_g", variant="secondary", size="sm")
+                grid_btns['t'] = gr.Button(f"{OFFLINE_TELEOP_LABELS['t']} (T)", elem_id="btn_t", size="sm", interactive=bool(node))
+                grid_btns['r'] = gr.Button(f"{OFFLINE_TELEOP_LABELS['r']} (R)", elem_id="btn_r", size="sm", interactive=bool(node))
+                grid_btns['g'] = gr.Button(f"{OFFLINE_TELEOP_LABELS['g']} (G)", elem_id="btn_g", variant="secondary", size="sm", interactive=bool(node))
 
         with gr.Column(scale=1):
             with gr.Group():
@@ -430,11 +488,12 @@ with gr.Blocks(title="MoNaVLA V5 PRO") as demo:
                 scen_click_list = []
                 for k, v in V5_SCENARIOS.items():
                     with gr.Row():
-                        b_rec = gr.Button(f"[{k}] {v['name']}", elem_classes=["scenario-btn"], scale=4)
-                        b_auto = gr.Button("▶️", scale=1)
+                        b_rec = gr.Button(f"[{k}] {v['name']}", elem_classes=["scenario-btn"], scale=4, interactive=bool(node))
+                        b_auto = gr.Button("▶️", scale=1, interactive=bool(node))
                         scen_click_list.append((k, b_rec, b_auto))
             log = gr.Textbox(label="Terminal Log", interactive=False)
             stats_tbl = gr.Markdown("")
+            diag_tbl = gr.Markdown(collector_diagnostics())
 
     if node:
         mode_btn.click(fn=node.toggle_teleop, outputs=[mode_btn, log])
@@ -459,7 +518,10 @@ with gr.Blocks(title="MoNaVLA V5 PRO") as demo:
         discard.click(fn=lambda: node.stop_rec(False), outputs=[log])
     
     gr.Timer(1).tick(fn=update_ui_state, outputs=[status_markdown, stats_tbl])
+    gr.Timer(1).tick(fn=collector_diagnostics, outputs=[diag_tbl])
     gr.Timer(0.1).tick(fn=get_feed, outputs=stream)
 
 if __name__ == "__main__":
-    demo.launch(server_name="0.0.0.0", server_port=8081, js=CUSTOM_JS, css=CUSTOM_CSS, theme=gr.themes.Soft())
+    requested_port = int(os.getenv("VLA_COLLECT_PORT", os.getenv("GRADIO_SERVER_PORT", "8081")))
+    server_port = pick_server_port(requested_port)
+    demo.launch(server_name="0.0.0.0", server_port=server_port, js=CUSTOM_JS, css=CUSTOM_CSS, theme=gr.themes.Soft())

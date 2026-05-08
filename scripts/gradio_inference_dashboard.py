@@ -1,271 +1,409 @@
-import gradio as gr
-import requests
 import base64
-import json
-import time
-from PIL import Image
+import gc
 import io
 import os
 import sys
 import threading
-import numpy as np
-import cv2
-from datetime import datetime
-
-# --- Forced ROS2 Environment Overrides ---
-os.environ["ROS_DOMAIN_ID"] = "42"
-os.environ["RMW_IMPLEMENTATION"] = "rmw_fastrtps_cpp"
-print(f"🔧 Forced ROS_DOMAIN_ID={os.environ['ROS_DOMAIN_ID']}, RMW={os.environ['RMW_IMPLEMENTATION']}")
-
-# --- Load .vla_env_settings manually ---
-env_path = os.getenv("VLA_ENV_PATH", "/home/soda/MoNaVLA/.vla_env_settings")
-if not os.path.exists(env_path):
-    env_path = "/home/billy/25-1kp/vla/.vla_env_settings" # fallback
-if os.path.exists(env_path):
-    with open(env_path, "r") as f:
-        for line in f:
-            line = line.strip()
-            if line.startswith("export "):
-                try:
-                    key, val = line.replace("export ", "", 1).split("=", 1)
-                    os.environ[key] = val.strip('"').strip("'")
-                except ValueError:
-                    continue
-    print("✅ Loaded .vla_env_settings directly into python environment")
-
-# Add internal logging
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-try:
-    from inference_logger import get_logger
-    logger_instance = get_logger()
-except ImportError:
-    logger_instance = None
-
-# --- Color Correction Params (Modified: Gains Only) ---
-# --- Color Correction Params (Reset to Neutral) ---
-CC_PARAMS = {
-    'hue_target': 0,
-    'hue_width': 0,
-    'hue_strength': 0.0,
-    'r_gain': 1.0,
-    'g_gain': 1.0,
-    'b_gain': 1.0,
-    'center_boost': 0.0,
-    'saturation': 1.0,
-    'gamma': 1.0,
-    'contrast': 1.0,
-    'brightness': 0.0
-}
-
-def correct_image(img_pil):
-    """Apply Simplified Color Correction (Gains Only) to PIL Image"""
-    img_rgb = np.array(img_pil).astype(np.float32)
-    # 2. Global Gains Only (Skip Hue Recovery)
-    r, g, b = cv2.split(img_rgb)
-    r = r * CC_PARAMS['r_gain']
-    g = g * CC_PARAMS['g_gain']
-    b = b * CC_PARAMS['b_gain']
-    img_corrected = cv2.merge([r, g, b])
-    
-    # Final conversion
-    img_final = np.clip(img_corrected, 0, 255).astype(np.uint8)
-    return Image.fromarray(img_final)
-
-# --- Matplotlib Optimization ---
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-import io
+import time
 import warnings
+from pathlib import Path
+import socket
+
+import cv2
+import gradio as gr
+import matplotlib
+import numpy as np
+import requests
+from PIL import Image
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+
 warnings.filterwarnings("ignore", message="Unable to import Axes3D")
 
-# --- ROS2 Environment Path Discovery ---
-def setup_ros_paths():
-    """Ensure colcon install paths are in sys.path"""
-    import sys
-    ros_ws = "/home/billy/25-1kp/vla/ROS_action"
-    install_base = os.path.join(ros_ws, "install")
-    if os.path.exists(install_base):
-        for pkg in os.listdir(install_base):
-            pkg_path = os.path.join(install_base, pkg, "local/lib/python3.10/dist-packages")
-            if os.path.exists(pkg_path) and pkg_path not in sys.path:
-                sys.path.append(pkg_path)
-            pkg_path_lib = os.path.join(install_base, pkg, "lib/python3.10/site-packages")
-            if os.path.exists(pkg_path_lib) and pkg_path_lib not in sys.path:
-                sys.path.append(pkg_path_lib)
 
-setup_ros_paths()
-
-# --- ROS2 & Robot Hardware Imports ---
-ROS_AVAILABLE = False
-try:
-    import rclpy
-    from rclpy.node import Node
-    from rclpy.callback_groups import ReentrantCallbackGroup
-    from cv_bridge import CvBridge
-    from geometry_msgs.msg import Twist
-    from camera_interfaces.srv import GetImage
-    ROS_AVAILABLE = True
-except ImportError as e:
-    ROS_AVAILABLE = False
-    print(f"⚠️ ROS2 environment partially missing: {e}")
-
-# --- Custom Control Library ---
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from robovlm_nav.serve.vla_control_utils import VLAControlManager
-
-
-# --- Configuration ---
-API_URL = "http://localhost:8000"
-API_KEY = os.getenv("VLA_API_KEY", "vla_devel_key_2026")
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_ENV_PATH = PROJECT_ROOT / ".vla_env_settings"
 DEFAULT_INSTRUCTION = "Navigate toward the gray basket until it gets closer"
 LINEAR_SPEED_VLA = 1.15
 ANGULAR_SPEED_VLA = 1.15
 
-# --- Local Model Support ---
-VLA_ROOT = os.getenv("VLA_ROOT", "/home/billy/25-1kp/vla")
-if VLA_ROOT not in sys.path:
-    sys.path.insert(0, VLA_ROOT)
+os.environ.setdefault("MPLCONFIGDIR", "/tmp/matplotlib")
+os.environ.setdefault("ROS_HOME", "/tmp/ros")
+Path(os.environ["MPLCONFIGDIR"]).mkdir(parents=True, exist_ok=True)
+Path(os.environ["ROS_HOME"]).mkdir(parents=True, exist_ok=True)
 
-# Ensure RoboVLMs is searchable as a package
-for root_name in ['RoboVLMs', 'RoboVLMs_upstream', 'third_party/RoboVLMs']:
-    p = os.path.join(VLA_ROOT, root_name)
-    if os.path.exists(p) and p not in sys.path:
-        sys.path.insert(0, p)
+os.environ["ROS_DOMAIN_ID"] = "42"
+os.environ["RMW_IMPLEMENTATION"] = "rmw_fastrtps_cpp"
+print(f"🔧 Forced ROS_DOMAIN_ID={os.environ['ROS_DOMAIN_ID']}, RMW={os.environ['RMW_IMPLEMENTATION']}")
 
+
+def load_env() -> None:
+    env_path = Path(os.getenv("VLA_ENV_PATH", str(DEFAULT_ENV_PATH)))
+    if not env_path.exists():
+        fallback = Path("/home/billy/25-1kp/vla/.vla_env_settings")
+        if fallback.exists():
+            env_path = fallback
+    if not env_path.exists():
+        return
+
+    with env_path.open("r") as f:
+        for raw_line in f:
+            line = raw_line.strip()
+            if not line.startswith("export "):
+                continue
+            try:
+                key, val = line.replace("export ", "", 1).split("=", 1)
+            except ValueError:
+                continue
+            os.environ[key] = val.strip('"').strip("'")
+    print(f"✅ Loaded environment from {env_path}")
+
+
+load_env()
+
+DEFAULT_API_URL = os.getenv("VLA_API_SERVER", "http://localhost:8000")
+API_KEY = os.getenv("VLA_API_KEY", "vla_devel_key_2026")
+DEFAULT_BACKEND_MODE = os.getenv(
+    "VLA_DASHBOARD_BACKEND",
+    "API Server" if os.getenv("VLA_SERVER_ROLE") == "jetson" else "Local Runtime",
+)
+
+sys.path.append(str(PROJECT_ROOT / "scripts"))
 try:
-    from robovlm_nav.serve.inference_server import MobileVLAInference
-    LOCAL_MODEL_AVAILABLE = True
-except ImportError as e:
-    LOCAL_MODEL_AVAILABLE = False
-    print(f"⚠️ Local model modules not found: {e}")
+    from inference_logger import get_logger
 
-local_model_instance = None
+    logger_instance = get_logger()
+except ImportError:
+    logger_instance = None
+
+sys.path.insert(0, str(PROJECT_ROOT))
+from robovlm_nav.serve.inference_server import MobileVLAInference
+from robovlm_nav.serve.vla_control_utils import VLAControlManager
+
+
+def prepend_env_path(key: str, value: str) -> None:
+    current = os.environ.get(key, "")
+    parts = [p for p in current.split(os.pathsep) if p]
+    if value not in parts:
+        os.environ[key] = value if not parts else f"{value}{os.pathsep}{current}"
+
+
+def setup_ros_paths() -> None:
+    ros_ws = Path(os.getenv("VLA_ROS_WS", str(PROJECT_ROOT / "ROS_action")))
+    install_base = ros_ws / "install"
+    if not install_base.exists():
+        return
+
+    prepend_env_path("AMENT_PREFIX_PATH", str(install_base))
+    prepend_env_path("COLCON_PREFIX_PATH", str(install_base))
+    prepend_env_path("CMAKE_PREFIX_PATH", str(install_base))
+
+    for pkg in install_base.iterdir():
+        if not pkg.is_dir():
+            continue
+        lib_path = pkg / "lib"
+        if lib_path.exists():
+            prepend_env_path("LD_LIBRARY_PATH", str(lib_path))
+        share_path = pkg / "share"
+        if share_path.exists():
+            prepend_env_path("AMENT_PREFIX_PATH", str(pkg))
+        local_path = pkg / "local/lib/python3.10/dist-packages"
+        site_path = pkg / "lib/python3.10/site-packages"
+        for candidate in (local_path, site_path):
+            if candidate.exists() and str(candidate) not in sys.path:
+                sys.path.append(str(candidate))
+                prepend_env_path("PYTHONPATH", str(candidate))
+
+
+setup_ros_paths()
+
+ROS_AVAILABLE = False
+try:
+    import rclpy
+    from rclpy.callback_groups import ReentrantCallbackGroup
+    from rclpy.node import Node
+    from cv_bridge import CvBridge
+    from geometry_msgs.msg import Twist
+    from camera_interfaces.srv import GetImage
+
+    ROS_AVAILABLE = True
+except ImportError as e:
+    print(f"⚠️ ROS2 environment partially missing: {e}")
+
+
+CC_PARAMS = {
+    "r_gain": 1.0,
+    "g_gain": 1.0,
+    "b_gain": 1.0,
+}
+
+
+def correct_image(img_pil: Image.Image) -> Image.Image:
+    img_rgb = np.array(img_pil).astype(np.float32)
+    r, g, b = cv2.split(img_rgb)
+    r = r * CC_PARAMS["r_gain"]
+    g = g * CC_PARAMS["g_gain"]
+    b = b * CC_PARAMS["b_gain"]
+    img_corrected = cv2.merge([r, g, b])
+    return Image.fromarray(np.clip(img_corrected, 0, 255).astype(np.uint8))
+
 
 def scan_local_files():
-    """Scan project root for models and configs"""
-    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    # Checkpoints: [(DisplayName, FullPath), ...]
-    ckpt_tuples = [(f, os.path.join(root, f)) for f in os.listdir(root) if f.endswith('.ckpt') or f.endswith('.pth')]
-    
-    # Checkpoints recursively from runs/
-    runs_dir = os.path.join(root, "runs")
-    if os.path.exists(runs_dir):
-        for r, d, f in os.walk(runs_dir):
-            for file in f:
-                if file.endswith(('.ckpt', '.pth')):
-                    full_p = os.path.join(r, file)
-                    # Show as 'Folder/filename.ckpt' for clarity. 
-                    # Use two levels of parent folders if available for better context.
-                    parts = full_p.split(os.sep)
-                    if len(parts) >= 3:
-                        display_name = f"{parts[-3]}/{parts[-2]}/{file}"
-                    else:
-                        display_name = f"{parts[-2]}/{file}"
-                    ckpt_tuples.append((display_name, full_p))
-    
-    # Configs: [(DisplayName, FullPath), ...]
-    configs_dir = os.path.join(root, "configs")
-    conf_tuples = [(f, os.path.join(configs_dir, f)) for f in os.listdir(configs_dir) if f.endswith('.json')]
-    
-    return sorted(ckpt_tuples), sorted(conf_tuples)
+    ckpt_tuples = []
+    for root_dir in (PROJECT_ROOT, PROJECT_ROOT / "runs"):
+        if not root_dir.exists():
+            continue
+        pattern = "**/*" if root_dir.name == "runs" else "*"
+        for path in root_dir.glob(pattern):
+            if path.suffix not in {".ckpt", ".pth"} or not path.is_file():
+                continue
+            try:
+                rel = path.relative_to(PROJECT_ROOT)
+                display_name = str(rel)
+            except ValueError:
+                display_name = path.name
+            ckpt_tuples.append((display_name, str(path)))
 
-def init_local_model(use_quant_str, manual_ckpt=None, manual_conf=None):
-    global local_model_instance
-    if not LOCAL_MODEL_AVAILABLE:
-        return "❌ Module Missing"
-    
-    # Force reload if requested (even if loaded)
-    # Map UI string to boolean: "INT8 (Fast)" -> True, "FP16 (Accurate)" -> False
-    use_quant = (use_quant_str == "INT8 (Fast)")
-    
+    configs_dir = PROJECT_ROOT / "configs"
+    conf_tuples = []
+    if configs_dir.exists():
+        for path in configs_dir.glob("*.json"):
+            conf_tuples.append((path.name, str(path)))
+
+    return sorted(set(ckpt_tuples)), sorted(conf_tuples)
+
+
+def pick_default_choice(choices, env_key: str):
+    preferred = os.getenv(env_key)
+    if preferred:
+        for _label, value in choices:
+            if value == preferred:
+                return value
+    return choices[0][1] if choices else None
+
+
+def to_precision(precision_label: str) -> str:
+    return "int8" if precision_label == "INT8 (Fast)" else "fp16"
+
+
+def short_model_name(path_str: str) -> str:
+    if not path_str or path_str == "N/A":
+        return "N/A"
+    path = Path(path_str)
+    if len(path.parts) >= 2:
+        return f"{path.parent.name}/{path.name}"
+    return path.name
+
+
+def pick_server_port(default_port: int, span: int = 20) -> int:
     try:
-        # Clean up existing model
-        if local_model_instance is not None:
-             del local_model_instance
-             import torch
-             torch.cuda.empty_cache()
-             print("🔄 Unloaded existing model")
+        for port in range(default_port, default_port + span):
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                try:
+                    sock.bind(("127.0.0.1", port))
+                except OSError:
+                    continue
+            return port
+    except PermissionError:
+        return default_port
+    return default_port
 
-        # Dynamically reload env settings to catch VSCode changes
-        env_path = os.getenv("VLA_ENV_PATH", "/home/soda/MoNaVLA/.vla_env_settings")
-        if not os.path.exists(env_path):
-            env_path = "/home/billy/25-1kp/vla/.vla_env_settings" # fallback
-        if os.path.exists(env_path):
-            with open(env_path, "r") as f:
-                for line in f:
-                    line = line.strip()
-                    if line.startswith("export "):
-                        try:
-                            key, val = line.replace("export ", "", 1).split("=", 1)
-                            os.environ[key] = val.strip('"').strip("'")
-                        except ValueError:
-                            continue
-            print("🔄 Reloaded .vla_env_settings dynamically")
 
-        ckpt = manual_ckpt if manual_ckpt else os.getenv("VLA_CHECKPOINT_PATH")
-        if not ckpt:
-            state["model_status"] = "Missing Checkpoint Path"
-            state["model_path"] = "N/A"
-            return "❌ No Checkpoint Selected"
-            
-        # Priority: Manual Selection > Env Variable > Auto-detect
-        config = manual_conf if manual_conf else os.getenv("VLA_CONFIG_PATH", "")
-        if not config or not os.path.exists(config):
-            import re
-            import glob
-            configs_dir = "/home/billy/25-1kp/vla/Mobile_VLA/configs"
-            # Extract identifiers like exp04, exp-04, etc.
-            match = re.search(r'(exp[-_]?\d+)', ckpt.lower())
-            if match:
-                exp_id = match.group(1).replace('-', '').replace('_', '') # e.g. exp04
-                all_configs = glob.glob(os.path.join(configs_dir, "*.json"))
-                # Match normalized strings
-                matched = [c for c in all_configs if exp_id in os.path.basename(c).lower().replace('-', '').replace('_', '')]
-                if matched:
-                    config = matched[0]
-                    print(f"🔍 Auto-detected config based on checkpoint: {os.path.basename(config)}")
-            
-            # Fallback if detection fails
-            if not config or not os.path.exists(config):
-                config = "/home/billy/25-1kp/vla/Mobile_VLA/configs/mobile_vla_v3_exp01_aug.json"
-                print(f"⚠️ Could not auto-detect. Using fallback config: {os.path.basename(config)}")
-        else:
-            print(f"✅ Using explicitly set config from VLA_CONFIG_PATH: {os.path.basename(config)}")
+class LocalSharedRuntime:
+    def __init__(self):
+        self.model = None
+        self.info_cache = {
+            "model_loaded": False,
+            "model_name": "Unavailable",
+            "checkpoint_path": "N/A",
+            "config_path": "N/A",
+            "precision": "N/A",
+            "device": "N/A",
+            "action_dim": 3,
+        }
 
-        print(f"Loading Local Model: {ckpt} (Quant: {use_quant})")
-        
-        # Pass use_quant explicitely
-        local_model_instance = MobileVLAInference(ckpt, config, use_quant=use_quant)
-        
-        # DEBUG: Verify reset method
-        print(f"DEBUG: Model Type: {type(local_model_instance)}")
-        print(f"DEBUG: Has reset method: {hasattr(local_model_instance, 'reset')}")
-        if not hasattr(local_model_instance, 'reset'):
-            print(f"DEBUG: Available methods: {[m for m in dir(local_model_instance) if not m.startswith('_')]}")
-            
-        state["model_status"] = f"Loaded ({'INT8' if use_quant else 'FP16'})"
-        state["model_path"] = ckpt
-        # Get parent directory name for better context instead of just epoch_epoch...ckpt
-        short_name = f"{os.path.basename(os.path.dirname(ckpt))}/{os.path.basename(ckpt)}"
-        return f"✅ Loaded: {short_name} ({'INT8' if use_quant else 'FP16'})"
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        state["model_status"] = "Load Failed"
-        return f"❌ Load Failed: {e}"
+    def unload(self) -> None:
+        if self.model is not None:
+            del self.model
+            self.model = None
+            gc.collect()
+        self.info_cache = {
+            "model_loaded": False,
+            "model_name": "Unavailable",
+            "checkpoint_path": "N/A",
+            "config_path": "N/A",
+            "precision": "N/A",
+            "device": "N/A",
+            "action_dim": 3,
+        }
 
-# --- ROS2 Node ---
+    def load_model(self, checkpoint_path: str, config_path: str, precision: str, refresh: bool = False):
+        if refresh:
+            self.unload()
+
+        use_quant = precision == "int8"
+        device = "cuda" if os.environ.get("CUDA_VISIBLE_DEVICES", "") != "" else "cpu"
+        try:
+            import torch
+
+            if torch.cuda.is_available():
+                device = "cuda"
+            else:
+                device = "cpu"
+        except Exception:
+            device = "cpu"
+
+        self.model = MobileVLAInference(
+            checkpoint_path=checkpoint_path,
+            config_path=config_path,
+            device=device,
+            use_quant=use_quant,
+        )
+        self.info_cache = {
+            "model_loaded": True,
+            "model_name": Path(config_path).stem,
+            "checkpoint_path": checkpoint_path,
+            "config_path": config_path,
+            "precision": precision,
+            "device": device,
+            "action_dim": 3,
+        }
+        return self.model
+
+    def reset(self, instruction: str = "N/A") -> None:
+        if self.model is None:
+            raise RuntimeError("Model not loaded")
+        self.model.reset(instruction=instruction)
+
+    def predict(self, image_base64: str, instruction: str) -> dict:
+        if self.model is None:
+            raise RuntimeError("Model not loaded")
+        action, latency_ms, chunk = self.model.predict(
+            image_base64=image_base64,
+            instruction=instruction,
+        )
+        return {
+            "action": action.tolist(),
+            "latency_ms": float(latency_ms),
+            "chunk": chunk.tolist(),
+        }
+
+    def get_model_info(self) -> dict:
+        return dict(self.info_cache)
+
+
+shared_runtime = LocalSharedRuntime()
+
+
+class LocalInferenceBackend:
+    name = "Local Runtime"
+
+    def load_model(self, checkpoint_path: str, config_path: str, precision: str) -> dict:
+        model = shared_runtime.load_model(
+            checkpoint_path=checkpoint_path,
+            config_path=config_path,
+            precision=precision,
+            refresh=True,
+        )
+        info = shared_runtime.get_model_info()
+        return {
+            "status": "success",
+            "message": f"✅ Loaded: {short_model_name(model.checkpoint_path)} ({info['precision']})",
+            "info": info,
+        }
+
+    def reset(self, instruction: str) -> str:
+        shared_runtime.reset(instruction=instruction)
+        return "✅ Local history cleared"
+
+    def predict(self, image: Image.Image, instruction: str) -> dict:
+        buffered = io.BytesIO()
+        image.save(buffered, format="JPEG")
+        img_b64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
+        return shared_runtime.predict(image_base64=img_b64, instruction=instruction)
+
+    def info(self) -> dict:
+        return shared_runtime.get_model_info()
+
+
+class ApiInferenceBackend:
+    name = "API Server"
+
+    def __init__(self, api_url: str):
+        self.api_url = api_url.rstrip("/")
+
+    def _headers(self) -> dict:
+        return {"X-API-Key": API_KEY}
+
+    def _post(self, path: str, payload: dict) -> dict:
+        response = requests.post(
+            f"{self.api_url}{path}",
+            json=payload,
+            headers=self._headers(),
+            timeout=60,
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def load_model(self, checkpoint_path: str, config_path: str, precision: str) -> dict:
+        payload = {
+            "checkpoint_path": checkpoint_path,
+            "config_path": config_path,
+            "precision": precision,
+            "refresh": True,
+        }
+        result = self._post("/model/load", payload)
+        info = self.info()
+        return {
+            "status": result.get("status", "success"),
+            "message": f"✅ API loaded: {short_model_name(info['checkpoint_path'])} ({info['precision']})",
+            "info": info,
+        }
+
+    def reset(self, instruction: str) -> str:
+        self._post("/reset", {})
+        return f"✅ API history cleared ({instruction})"
+
+    def predict(self, image: Image.Image, instruction: str) -> dict:
+        buffered = io.BytesIO()
+        image.save(buffered, format="JPEG")
+        img_b64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
+        return self._post(
+            "/predict",
+            {
+                "image": img_b64,
+                "instruction": instruction,
+                "strategy": "receding_horizon",
+            },
+        )
+
+    def info(self) -> dict:
+        response = requests.get(
+            f"{self.api_url}/model/info",
+            headers=self._headers(),
+            timeout=10,
+        )
+        response.raise_for_status()
+        return response.json()
+
+
+def make_backend(mode: str, api_url: str):
+    if mode == "API Server":
+        return ApiInferenceBackend(api_url)
+    return LocalInferenceBackend()
+
+
 class ROSDashboardNode(Node):
     def __init__(self):
-        super().__init__('gradio_dashboard_node')
+        super().__init__("gradio_dashboard_node")
         self.callback_group = ReentrantCallbackGroup()
         self.cv_bridge = CvBridge()
         self.get_image_client = self.create_client(
-            GetImage, 'get_image_service', callback_group=self.callback_group)
-        self.cmd_pub = self.create_publisher(Twist, '/cmd_vel', 10, callback_group=self.callback_group)
-        
-        # ✅ Unified Precision Control Manager
+            GetImage, "get_image_service", callback_group=self.callback_group
+        )
+        self.cmd_pub = self.create_publisher(Twist, "/cmd_vel", 10, callback_group=self.callback_group)
         self.control = VLAControlManager(self, default_throttle=50, move_duration=0.4)
 
     def get_inference_frame(self):
@@ -275,7 +413,8 @@ class ROSDashboardNode(Node):
         future = self.get_image_client.call_async(request)
         start_time = time.time()
         while rclpy.ok() and not future.done():
-            if time.time() - start_time > 2.0: return None
+            if time.time() - start_time > 2.0:
+                return None
             time.sleep(0.01)
         if future.done():
             try:
@@ -283,271 +422,217 @@ class ROSDashboardNode(Node):
                 if response and response.image.data:
                     cv_image = self.cv_bridge.imgmsg_to_cv2(response.image, "bgr8")
                     return Image.fromarray(cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB))
-            except: pass
+            except Exception:
+                return None
         return None
 
-    def generate_trajectory_plot(self, full_chunk, model_name="VLA"):
-        """Generate 2D Matplotlib plot for the given chunk"""
+    def generate_trajectory_plot(self, full_chunk):
         if full_chunk is None or len(full_chunk) == 0:
             return None
-        
-        # Trajectory Integration
-        DT = 0.2
-        traj_x = [0]
-        traj_y = [0]
-        curr_x, curr_y = 0, 0
-        
+
+        dt = 0.2
+        traj_x, traj_y = [0.0], [0.0]
+        curr_x, curr_y = 0.0, 0.0
         for step in full_chunk:
-            vx, vy = float(step[0]), float(step[1])
-            curr_x += vx * DT
-            curr_y += vy * DT
+            curr_x += float(step[0]) * dt
+            curr_y += float(step[1]) * dt
             traj_x.append(curr_x)
             traj_y.append(curr_y)
-            
+
         fig, ax = plt.subplots(figsize=(5, 5))
-        # Start point
-        ax.plot(0, 0, 'ko', markersize=8, label='Start')
-        # Orientation arrow (x-axis)
-        ax.arrow(0, 0, 0.2, 0, head_width=0.05, head_length=0.05, fc='k', ec='k')
-        
-        # Trajectory line
-        ax.plot(traj_x, traj_y, 'b-', linewidth=3, alpha=0.8, label=f'{model_name}')
-        ax.plot(traj_x[-1], traj_y[-1], 'b*', markersize=10) # End point
-        
+        ax.plot(0, 0, "ko", markersize=8, label="Start")
+        ax.arrow(0, 0, 0.2, 0, head_width=0.05, head_length=0.05, fc="k", ec="k")
+        ax.plot(traj_x, traj_y, "b-", linewidth=3, alpha=0.8)
+        ax.plot(traj_x[-1], traj_y[-1], "b*", markersize=10)
         ax.set_title("Predicted Trajectory (2D XY)")
         ax.set_xlabel("Forward (X) [m]")
         ax.set_ylabel("Left/Right (Y) [m]")
-        ax.grid(True, linestyle='--', alpha=0.6)
-        ax.set_aspect('equal')
-        
-        # Auto-scale with some margin
+        ax.grid(True, linestyle="--", alpha=0.6)
+        ax.set_aspect("equal")
         all_points = np.column_stack((traj_x, traj_y))
         mins = np.min(all_points, axis=0) - 0.5
         maxs = np.max(all_points, axis=0) + 0.5
         ax.set_xlim(min(mins[0], -0.5), max(maxs[0], 2.0))
         ax.set_ylim(min(mins[1], -1.0), max(maxs[1], 1.0))
-        
         return fig
 
-import re
-def draw_bounding_box_from_text(img, text, patch_size=32, grid_size=32):
-    """
-    Parse <patch_index_XXXX> from text and draw a bounding box.
-    Kosmos-2 divides the image into a grid of 32x32 patches.
-    """
-    # Look for a pair of patch tokens like <patch_index_0015><patch_index_1012>
-    pattern = r"<patch_index_(\d{4})>\s*<patch_index_(\d{4})>"
-    matches = re.finditer(pattern, text)
-    
-    img_cv = np.array(img.convert('RGB'))
-    img_cv = cv2.cvtColor(img_cv, cv2.COLOR_RGB2BGR)
-    
-    h, w = img_cv.shape[:2]
-    patch_w = w / grid_size
-    patch_h = h / grid_size
-    
-    has_boxes = False
-    for match in matches:
-        start_idx = int(match.group(1))
-        end_idx = int(match.group(2))
-        
-        y1 = (start_idx // grid_size) * patch_h
-        x1 = (start_idx % grid_size) * patch_w
-        
-        y2 = ((end_idx // grid_size) + 1) * patch_h
-        x2 = ((end_idx % grid_size) + 1) * patch_w
-        
-        # Draw bounding box (Green)
-        cv2.rectangle(img_cv, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 3)
-        # Add label
-        cv2.putText(img_cv, "Target", (int(x1), int(y1)-10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
-        has_boxes = True
-        
-    if has_boxes:
-        return Image.fromarray(cv2.cvtColor(img_cv, cv2.COLOR_BGR2RGB))
-    return img
 
 ros_node = None
 if ROS_AVAILABLE:
-    if not rclpy.ok(): rclpy.init()
-    ros_node = ROSDashboardNode()
-    threading.Thread(target=lambda: rclpy.spin(ros_node), daemon=True).start()
+    try:
+        if not rclpy.ok():
+            rclpy.init()
+        ros_node = ROSDashboardNode()
+        threading.Thread(target=lambda: rclpy.spin(ros_node), daemon=True).start()
+    except Exception as e:
+        ROS_AVAILABLE = False
+        ros_node = None
+        print(f"⚠️ ROS dashboard node disabled: {e}")
 
-# --- Shared State ---
-# --- Shared State ---
+
 state = {
-    "auto_inference": False, # Flag to run inference loop
-    "is_running": False, # Actual running state (controlled by Start/Stop buttons)
-    "is_busy": False,    # Prevent overlapping calls from Gradio timer (Avoid OOM/Concurrency bugs)
+    "auto_inference": False,
+    "is_running": False,
+    "is_busy": False,
     "step_count": 0,
     "max_steps": 18,
-    "instruction": DEFAULT_INSTRUCTION,
     "last_img": None,
     "current_log": "Ready",
     "camera_status": "Unknown",
     "model_status": "Not Loaded",
-    "model_path": "N/A"
+    "model_path": "N/A",
 }
 
-def update_ui(mode, instr, apply_cc, is_running_ui):
-    # Global Concurrency Guard: If previous tick is still processing VLM inference, skip this tick.
+
+def backend_model_info(mode: str, api_url: str) -> dict:
+    try:
+        return make_backend(mode, api_url).info()
+    except Exception:
+        return {
+            "model_loaded": False,
+            "model_name": "Unavailable",
+            "checkpoint_path": "N/A",
+            "config_path": "N/A",
+            "precision": "N/A",
+            "device": "N/A",
+            "action_dim": 3,
+        }
+
+
+def load_model_wrapper(backend_mode: str, api_url: str, precision_label: str, ckpt_path: str, config_path: str):
+    try:
+        result = make_backend(backend_mode, api_url).load_model(
+            checkpoint_path=ckpt_path,
+            config_path=config_path,
+            precision=to_precision(precision_label),
+        )
+        info = result["info"]
+        state["model_status"] = result["message"]
+        state["model_path"] = info["checkpoint_path"]
+        return result["message"], info["checkpoint_path"]
+    except Exception as e:
+        state["model_status"] = "Load Failed"
+        return f"❌ Load Failed: {e}", state["model_path"]
+
+
+def set_running(running: bool, backend_mode: str, api_url: str, instruction: str):
+    state["is_running"] = running
+    state["step_count"] = 0 if running else state["step_count"]
+    if running:
+        try:
+            make_backend(backend_mode, api_url).reset(instruction)
+        except Exception:
+            pass
+    return "Running..." if running else "Stopped"
+
+
+def run_backend_inference(image: Image.Image, instruction: str, backend_mode: str, api_url: str):
+    backend = make_backend(backend_mode, api_url)
+    result = backend.predict(image=image, instruction=instruction)
+    action = np.asarray(result["action"], dtype=np.float32).reshape(-1)
+    chunk = np.asarray(result.get("chunk", [action.tolist()]), dtype=np.float32)
+    if chunk.ndim == 1:
+        chunk = chunk.reshape(1, -1)
+
+    if ROS_AVAILABLE and ros_node:
+        state["current_log"] = ros_node.control.move_and_stop_timed(
+            float(action[0]),
+            float(action[1]),
+            float(action[2]) if action.size > 2 else 0.0,
+            source="gradio_inference",
+        )
+
+    info = backend.info()
+    state["model_path"] = info["checkpoint_path"]
+    state["model_status"] = f"{backend.name} ({info['precision']})"
+    return {
+        "log_str": f"✅ {backend.name}: {state['current_log']}",
+        "lat_str": f"{float(result['latency_ms']):.1f} ms",
+        "act_str": f"{action[0]:.4f}, {action[1]:.4f}, {action[2] if action.size > 2 else 0.0:.4f}",
+        "chunk_display": f"Chunk (N={len(chunk)}):\n{np.array2string(chunk, precision=2, separator=', ', suppress_small=True)}",
+        "action": action,
+        "chunk": chunk,
+    }
+
+
+def update_ui(mode, backend_mode, api_url, instr, apply_cc, _run_status):
     if state["is_busy"]:
-        return gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update(), gr.update()
-    
-    # Sync UI state to internal state if needed, but primarily controlled by buttons
-    state["auto_inference"] = (mode == "Inference (18-step)")
-    
+        return (
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+            gr.update(),
+        )
+
+    state["auto_inference"] = mode == "Inference (18-step)"
+
     if not ROS_AVAILABLE or ros_node is None:
         state["camera_status"] = "ROS Not Available"
         return None, "ROS Not Available", "N/A", "N/A", "N/A", gr.update(value="Stopped"), state["camera_status"], state["model_path"], None
-    
+
     img = ros_node.get_inference_frame()
     if img is None:
         state["camera_status"] = "Waiting for get_image_service"
         return state["last_img"], "⚠️ Camera Service Waiting...", "N/A", "N/A", "N/A", gr.update(), state["camera_status"], state["model_path"], None
-    
+
     if apply_cc:
-        try:
-            img = correct_image(img)
-        except Exception as e:
-            print(f"CC Error: {e}")
-    
+        img = correct_image(img)
+
     state["camera_status"] = "OK"
     state["last_img"] = img
-    
-    # Logic for Inference Execution
+
     if state["auto_inference"] and state["is_running"]:
-        state["is_busy"] = True # LOCK
+        state["is_busy"] = True
         try:
             state["step_count"] += 1
             current_step = state["step_count"]
-            
-            # Step 1: Force Stop/Wait (Initial Setup) - Matching Data Collector
+
             if current_step == 1:
-                log = "1/18 (Start/Wait)"
-                lat = "0 ms"
-                act = "STOP"
-                chunk_info = "Waiting..."
-                
-                # [LOGGING] Unified session start
-                if logger_instance: 
-                    model_id = os.path.basename(os.getenv("VLA_CHECKPOINT_PATH", "Mobile-VLA"))
-                    logger_instance.start_session(model_id, instr)
-
-                if ROS_AVAILABLE and ros_node:
-                     ros_node.control.robust_stop(source="inference_start")
-                
-                # Reset model history ensuring clean state
-                if local_model_instance: 
-                    try:
-                        local_model_instance.reset(instruction=instr)
-                    except TypeError:
-                        local_model_instance.reset()
-                        
-                # 📸 [Image Cap] Always log step1 image
                 if logger_instance:
-                    logger_instance.log_step(current_step, [0.0, 0.0], 0, image=img)
-                
-                return img, log, lat, act, chunk_info, gr.update(value="Running (1/18)..."), state["camera_status"], state["model_path"], None
-
-            # Step 2~18: Run Inference (17 steps of action)
-            elif current_step <= state["max_steps"]:
-                # Returns: log_str, lat_str, act_str, chunk_str, action, lat, chunk
-                res = run_api_inference(img, instr, use_local=True)
-                log_inf, lat_str, act_str, chunk_str, raw_act, raw_lat, raw_chunk = res
-                
-                # [VISUALIZATION] Generate Trajectory Plot
-                fig = None
-                if ROS_AVAILABLE and ros_node:
-                    fig = ros_node.generate_trajectory_plot(raw_chunk)
-
-                # [VISUALIZATION] Try drawing bounding box if text is available from model
-                # Note: Currently predict() only returns action, lat, chunk. 
-                # For Phase 1.5, we parse from current_log or if predict is updated.
-                # Since we don't have text directly, we apply standard rendering if text is injected later.
+                    logger_instance.start_session(short_model_name(state["model_path"]), instr)
+                    logger_instance.log_step(current_step, [0.0, 0.0, 0.0], 0, image=img)
+                ros_node.control.robust_stop(source="inference_start")
                 try:
-                    if hasattr(local_model_instance, 'last_text_output'):
-                        img = draw_bounding_box_from_text(img, local_model_instance.last_text_output)
+                    make_backend(backend_mode, api_url).reset(instr)
                 except Exception as e:
-                    pass
+                    return img, f"❌ Reset failed: {e}", "0 ms", "STOP", "Waiting...", gr.update(value="Stopped"), state["camera_status"], state["model_path"], None
+                return img, "1/18 (Start/Wait)", "0 ms", "0.0000, 0.0000, 0.0000", "Waiting...", gr.update(value="Running (1/18)..."), state["camera_status"], state["model_path"], None
 
-                # [LOGGING] Unified step logging
-                if logger_instance: 
-                    logger_instance.log_step(current_step, raw_act, raw_lat, raw_chunk, image=img)
-                
-                log = f"{current_step}/18 | {log_inf}"
-                return img, log, lat_str, act_str, chunk_str, gr.update(value=f"Running ({current_step}/18)"), state["camera_status"], state["model_path"], fig
-                
-            # Step > 18: Finish
-            else:
-                state["is_running"] = False
-                state["step_count"] = 0
-                if logger_instance: 
-                    report_path = logger_instance.end_session()
-                    completion_msg = f"✅ Completed (18 Steps) | Log: {os.path.basename(report_path)}"
-                else:
-                    completion_msg = "✅ Completed (18 Steps)"
-                    
-                if ROS_AVAILABLE and ros_node:
-                     ros_node.control.robust_stop(source="inference_done")
-                return img, completion_msg, "0 ms", "STOP", "N/A", gr.update(value="Stopped (Finished)"), state["camera_status"], state["model_path"], None
+            if current_step <= state["max_steps"]:
+                result = run_backend_inference(img, instr, backend_mode, api_url)
+                fig = ros_node.generate_trajectory_plot(result["chunk"])
+                if logger_instance:
+                    logger_instance.log_step(current_step, result["action"], 0, result["chunk"], image=img)
+                log = f"{current_step}/18 | {result['log_str']}"
+                return img, log, result["lat_str"], result["act_str"], result["chunk_display"], gr.update(value=f"Running ({current_step}/18)"), state["camera_status"], state["model_path"], fig
 
+            state["is_running"] = False
+            state["step_count"] = 0
+            ros_node.control.robust_stop(source="inference_done")
+            completion_msg = "✅ Completed (18 Steps)"
+            if logger_instance:
+                report_path = logger_instance.end_session()
+                completion_msg = f"✅ Completed (18 Steps) | Log: {Path(report_path).name}"
+            return img, completion_msg, "0 ms", "STOP", "N/A", gr.update(value="Stopped (Finished)"), state["camera_status"], state["model_path"], None
         finally:
-            state["is_busy"] = False # UNLOCK
-            
-    # Not running or Manual Mode
+            state["is_busy"] = False
+
+    info = backend_model_info(backend_mode, api_url)
+    if info["model_loaded"]:
+        state["model_path"] = info["checkpoint_path"]
+        state["model_status"] = f"{backend_mode} ({info['precision']})"
     return img, f"📡 Live | {state['current_log']}", "N/A", "N/A", "N/A", gr.update(), state["camera_status"], state["model_path"], None
 
 
-def run_api_inference(image, instruction, use_local):
-    """
-    Returns: log_str, lat_str, act_str, chunk_str, action, lat, chunk
-    """
-    # Default return if error
-    error_res = ("❌ Error", "N/A", "N/A", "N/A", np.zeros(2), 0.0, np.zeros((1, 2)))
-
-    # Local Inference Mode
-    if use_local:
-        global local_model_instance
-        if local_model_instance is None:
-            return ("⚠️ Model Not Loaded", "0 ms", "0.0, 0.0", "N/A", np.zeros(2), 0.0, np.zeros((1, 2)))
-        
-        try:
-            buffered = io.BytesIO()
-            image.save(buffered, format="JPEG")
-            img_b64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
-            
-            # Predict returns action, lat, full_chunk
-            action, lat, chunk = local_model_instance.predict(img_b64, instruction)
-            
-            # Format action chunk for display
-            chunk_str = np.array2string(chunk, precision=2, separator=', ', suppress_small=True)
-            chunk_display = f"Chunk (N={len(chunk)}):\n{chunk_str}"
-            
-            if ROS_AVAILABLE and ros_node:
-                # 0.4s Duration matching Data Collector
-                state["current_log"] = ros_node.control.move_and_stop_timed(action[0], action[1], 0.0, source="local_inference")
-            
-            # Format UI strings
-            log_str = f"✅ Local: {state['current_log']}"
-            lat_str = f"{lat:.1f} ms"
-            act_str = f"{action[0]:.4f}, {action[1]:.4f}"
-            
-            return log_str, lat_str, act_str, chunk_display, action, lat, chunk
-        except Exception as e:
-            print(f"Inference Exception: {e}")
-            import traceback
-            traceback.print_exc()
-            return (f"❌ Local Error: {e}", "N/A", "N/A", "N/A", np.zeros(2), 0.0, np.zeros((1, 2)))
-
-    # Remote API Mode (Legacy)
-    return ("❌ API Not Supported", "N/A", "N/A", "N/A", np.zeros(2), 0.0, np.zeros((1, 2)))
-
-# --- Control Handlers ---
 def handle_control(direction):
     if not ROS_AVAILABLE or not ros_node:
         return "ROS Error"
-    
+
     mapping = {
         "W": (LINEAR_SPEED_VLA, 0.0, 0.0),
         "S": (-LINEAR_SPEED_VLA, 0.0, 0.0),
@@ -557,43 +642,65 @@ def handle_control(direction):
         "E": (LINEAR_SPEED_VLA, -LINEAR_SPEED_VLA, 0.0),
         "R": (0.0, 0.0, ANGULAR_SPEED_VLA),
         "T": (0.0, 0.0, -ANGULAR_SPEED_VLA),
-        "STOP": (0.0, 0.0, 0.0)
+        "STOP": (0.0, 0.0, 0.0),
     }
-    
-    if direction in mapping:
-        lx, ly, az = mapping[direction]
-        if direction == "STOP":
-            ros_node.control.robust_stop(source="manual_stop")
-            state["current_log"] = "🛑 Force STOP"
-        else:
-            ros_node.control.move_and_stop_timed(lx, ly, az, source=f"manual_{direction}")
-            state["current_log"] = f"🕹️ Moving {direction} (Bang-Bang)"
+    lx, ly, az = mapping[direction]
+    if direction == "STOP":
+        ros_node.control.robust_stop(source="manual_stop")
+        state["current_log"] = "🛑 Force STOP"
+    else:
+        ros_node.control.move_and_stop_timed(lx, ly, az, source=f"manual_{direction}")
+        state["current_log"] = f"🕹️ Moving {direction} (Bang-Bang)"
     return state["current_log"]
 
-# --- Gradio UI ---
+
+def reset_model_wrapper(backend_mode: str, api_url: str, instruction: str):
+    try:
+        return make_backend(backend_mode, api_url).reset(instruction)
+    except Exception as e:
+        return f"❌ Reset failed: {e}"
+
+
 with gr.Blocks(title="VLA PRO Dashboard") as demo:
     gr.Markdown("# 🚀 Mobile VLA Real-time Dashboard & Teleop")
-    
+
     with gr.Row():
         with gr.Column(scale=2):
             camera_output = gr.Image(label="Live Camera (via Service)", interactive=False)
-            with gr.Row():
-                gr.Markdown("🟢 Continuous polling via GetImage service")
-                # Removed Auto-Inference Checkbox, replaced with Radio Mode
-                
-            
+            gr.Markdown("🟢 Continuous polling via GetImage service")
+
             with gr.Group():
                 gr.Markdown("### 🕹️ Operation Mode")
-                mode_radio = gr.Radio(choices=["Manual Drive", "Inference (18-step)"], value="Manual Drive", label="Controller Mode")
-                
+                mode_radio = gr.Radio(
+                    choices=["Manual Drive", "Inference (18-step)"],
+                    value="Manual Drive",
+                    label="Controller Mode",
+                )
+
                 with gr.Row(visible=False) as inference_panel:
                     with gr.Column():
-                        # --- Manual File Selection Dropdowns ---
+                        backend_radio = gr.Radio(
+                            choices=["Local Runtime", "API Server"],
+                            value=DEFAULT_BACKEND_MODE,
+                            label="Inference Backend",
+                        )
+                        api_url_box = gr.Textbox(label="API URL", value=DEFAULT_API_URL)
                         ckpts, confs = scan_local_files()
-                        ckpt_dropdown = gr.Dropdown(choices=ckpts, label="🎯 Select Checkpoint (.ckpt/.pth)", value=ckpts[0][1] if ckpts else None)
-                        conf_dropdown = gr.Dropdown(choices=confs, label="⚙️ Select Config (.json)", value=confs[0][1] if confs else None)
-                        
-                        quant_radio = gr.Radio(choices=["INT8 (Fast)", "FP16 (Accurate)"], value="FP16 (Accurate)", label="Model Precision")
+                        ckpt_dropdown = gr.Dropdown(
+                            choices=ckpts,
+                            label="🎯 Select Checkpoint (.ckpt/.pth)",
+                            value=pick_default_choice(ckpts, "VLA_CHECKPOINT_PATH"),
+                        )
+                        conf_dropdown = gr.Dropdown(
+                            choices=confs,
+                            label="⚙️ Select Config (.json)",
+                            value=pick_default_choice(confs, "VLA_CONFIG_PATH"),
+                        )
+                        quant_radio = gr.Radio(
+                            choices=["INT8 (Fast)", "FP16 (Accurate)"],
+                            value="FP16 (Accurate)",
+                            label="Model Precision",
+                        )
                         btn_load_model = gr.Button("📂 Load Selected Model", variant="primary")
                         load_status = gr.Textbox(label="Model Status", value="Not Loaded", interactive=False)
                         model_path = gr.Textbox(label="Loaded Checkpoint Path", value="N/A", interactive=False)
@@ -604,97 +711,92 @@ with gr.Blocks(title="VLA PRO Dashboard") as demo:
                             btn_start_inf = gr.Button("▶️ START (18 Steps)", variant="primary")
                             btn_stop_inf = gr.Button("⏹️ STOP", variant="stop")
                         run_status_box = gr.Textbox(label="Run Status", value="Stopped", interactive=False)
-            
-            def on_mode_change(mode):
-                state["auto_inference"] = (mode == "Inference (18-step)")
-                # Reset running state when mode changes
+
+            def on_mode_change(selected_mode):
+                state["auto_inference"] = selected_mode == "Inference (18-step)"
                 state["is_running"] = False
                 state["step_count"] = 0
                 return gr.Row.update(visible=state["auto_inference"])
 
-            def set_running(running):
-                state["is_running"] = running
-                if running:
-                    state["step_count"] = 0 # Reset counter on start
-                    # Reset model history if needed
-                    if local_model_instance: local_model_instance.reset()
-                return "Running..." if running else "Stopped"
-
             mode_radio.change(fn=on_mode_change, inputs=[mode_radio], outputs=[inference_panel])
-            mode_radio.change(fn=on_mode_change, inputs=[mode_radio], outputs=[inference_panel])
-            btn_load_model.click(fn=init_local_model, inputs=[quant_radio, ckpt_dropdown, conf_dropdown], outputs=load_status)
-            
-            btn_start_inf.click(fn=lambda: set_running(True), outputs=run_status_box)
-            btn_stop_inf.click(fn=lambda: set_running(False), outputs=run_status_box)
+            btn_load_model.click(
+                fn=load_model_wrapper,
+                inputs=[backend_radio, api_url_box, quant_radio, ckpt_dropdown, conf_dropdown],
+                outputs=[load_status, model_path],
+            )
 
             with gr.Group():
                 gr.Markdown("### 🎮 Manual Controls")
                 with gr.Row():
-                    btn_q = gr.Button("↖️ Q", scale=1); btn_w = gr.Button("⬆️ W", scale=1); btn_e = gr.Button("↗️ E", scale=1)
+                    btn_q = gr.Button("↖️ Q", scale=1)
+                    btn_w = gr.Button("⬆️ W", scale=1)
+                    btn_e = gr.Button("↗️ E", scale=1)
                 with gr.Row():
-                    btn_a = gr.Button("⬅️ A", scale=1); btn_stop = gr.Button("🛑 SPACE (STOP)", variant="danger", scale=1); btn_d = gr.Button("➡️ D", scale=1)
+                    btn_a = gr.Button("⬅️ A", scale=1)
+                    btn_stop = gr.Button("🛑 SPACE (STOP)", variant="danger", scale=1)
+                    btn_d = gr.Button("➡️ D", scale=1)
                 with gr.Row():
-                    btn_r = gr.Button("🔄 CCW (R)", scale=1); btn_s = gr.Button("⬇️ S", scale=1); btn_t = gr.Button("🔄 CW (T)", scale=1)
-            
+                    btn_r = gr.Button("🔄 CCW (R)", scale=1)
+                    btn_s = gr.Button("⬇️ S", scale=1)
+                    btn_t = gr.Button("🔄 CW (T)", scale=1)
+
         with gr.Column(scale=1):
-            instr_box = gr.Textbox(label="Robot Prompt", value=DEFAULT_INSTRUCTION)
+            instr_box_real = gr.Textbox(label="Robot Prompt", value=DEFAULT_INSTRUCTION)
             camera_status = gr.Textbox(label="Camera Status", value="Unknown", interactive=False)
             status_log = gr.Textbox(label="Status", value="Ready")
             latency_val = gr.Textbox(label="Latency", value="0 ms")
-            action_val = gr.Textbox(label="Predicted Action [v, w]", value="0, 0")
-            chunk_val = gr.Textbox(label="Action Chunk Preview", value="N/A", lines=2)
-            
-            # --- Trajectory Visualization ---
+            action_val = gr.Textbox(label="Predicted Action [lx, ly, az]", value="0, 0, 0")
+            chunk_val = gr.Textbox(label="Action Chunk Preview", value="N/A", lines=3)
             traj_plot = gr.Plot(label="Predicted Trajectory (XY)")
-            
             btn_reset = gr.Button("🔄 Reset Model History")
-            
-            gr.Markdown("---")
-            gr.Markdown("""
-            ### ⌨️ Keyboard Shortcuts
-            - **W/A/S/D/Q/E**: Move (0.4s)
-            - **R/T**: Spin
-            - **Space**: Stop
-            """)
 
-    # Event Bindings
+    btn_start_inf.click(
+        fn=lambda mode, url, instruction: set_running(True, mode, url, instruction),
+        inputs=[backend_radio, api_url_box, instr_box_real],
+        outputs=run_status_box,
+    )
+    btn_stop_inf.click(
+        fn=lambda: state.update({"is_running": False, "step_count": 0}) or "Stopped",
+        outputs=run_status_box,
+    )
+
     directions = {
-        btn_w: "W", btn_s: "S", btn_a: "A", btn_d: "D",
-        btn_q: "Q", btn_e: "E", btn_r: "R", btn_t: "T",
-        btn_stop: "STOP"
+        btn_w: "W",
+        btn_s: "S",
+        btn_a: "A",
+        btn_d: "D",
+        btn_q: "Q",
+        btn_e: "E",
+        btn_r: "R",
+        btn_t: "T",
+        btn_stop: "STOP",
     }
-    for btn, d in directions.items():
-        btn.click(fn=handle_control, inputs=[gr.State(d)], outputs=status_log)
+    for button, direction in directions.items():
+        button.click(fn=handle_control, inputs=[gr.State(direction)], outputs=status_log)
 
-    # Timer: VLA Inference (0.4s move) takes time. We use 0.5s ticks and a busy-lock to prevent OOM.
     timer = gr.Timer(0.5, active=True)
     timer.tick(
         fn=update_ui,
-        inputs=[mode_radio, instr_box, toggle_cc, run_status_box],
-        outputs=[camera_output, status_log, latency_val, action_val, chunk_val, run_status_box, camera_status, model_path, traj_plot]
+        inputs=[mode_radio, backend_radio, api_url_box, instr_box_real, toggle_cc, run_status_box],
+        outputs=[camera_output, status_log, latency_val, action_val, chunk_val, run_status_box, camera_status, model_path, traj_plot],
     )
 
+    btn_reset.click(
+        fn=reset_model_wrapper,
+        inputs=[backend_radio, api_url_box, instr_box_real],
+        outputs=status_log,
+    )
 
-    def reset_model_wrapper():
-        if local_model_instance:
-            local_model_instance.reset()
-            return "✅ Local History Cleared"
-        try:
-            requests.post(f"{API_URL}/reset", headers={"X-API-Key": API_KEY}, timeout=2)
-            return "✅ API Reset Success"
-        except: return "❌ Reset failed"
-    btn_reset.click(fn=reset_model_wrapper, outputs=status_log)
-
-    demo.load(None, None, None, js="""
-    () => {
-        document.addEventListener('keydown', (e) => {
-            const key = e.key.toLowerCase();
-            const mapping = {
-                'w': 'W', 's': 'S', 'a': 'A', 'd': 'D',
-                'q': 'Q', 'e': 'E', 'r': 'R', 't': 'T',
-                ' ': 'STOP'
-            };
-            if (mapping[key]) {
+    demo.load(
+        None,
+        None,
+        None,
+        js="""
+        () => {
+            document.addEventListener('keydown', (e) => {
+                const key = e.key.toLowerCase();
+                const mapping = {'w': 'W', 's': 'S', 'a': 'A', 'd': 'D', 'q': 'Q', 'e': 'E', 'r': 'R', 't': 'T', ' ': 'STOP'};
+                if (!mapping[key]) return;
                 const buttons = document.querySelectorAll('button');
                 for (let b of buttons) {
                     if (b.innerText.includes(mapping[key]) || (mapping[key] === 'STOP' && b.innerText.includes('SPACE'))) {
@@ -702,46 +804,36 @@ with gr.Blocks(title="VLA PRO Dashboard") as demo:
                         break;
                     }
                 }
-            }
-        });
-    }
-    """)
+            });
+        }
+        """,
+    )
+
 
 if __name__ == "__main__":
-    # 🌍 [Fixed URL Setup]
-    # 1. Local Network: Always available at http://<LOCAL_IP>:7865
-    # 2. Public URL: Use ngrok for fixed domain (optional)
-    
     import socket
+
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect(("8.8.8.8", 80))
         local_ip = s.getsockname()[0]
         s.close()
-    except:
+    except Exception:
         local_ip = "127.0.0.1"
-        
-    print("="*60)
-    print(f"✅ Dashboard starting...")
-    print(f"🏠 Local Access: http://{local_ip}:7865")
-    print("="*60)
-    
-    # Optional: Start ngrok if installed and token present
-    # This gives a stable public URL if you have a paid ngrok plan, or a random one otherwise
-    # but it separates the public link management from Gradio's built-in share.
-    
-    # [Gradio Launch]
-    # 1. server_name="0.0.0.0": Allows access from other devices on the same Wi-Fi (Fixed IP)
-    # 2. share=True: Generates a public link (Randomly changes every restart)
-    #    * Note: To get a FIXED public link, you need a paid Ngrok account or persistent tunnel.
-    #    * For local development, use the "Local Access" IP printed above (http://192.168.x.x:7865)
-    
-    print(f"🌍 Public Share: Enabled (Link will be random due to free tier limit)")
-    
+
+    requested_port = int(os.getenv("VLA_INFERENCE_PORT", os.getenv("GRADIO_SERVER_PORT", "7865")))
+    server_port = pick_server_port(requested_port)
+    share_enabled = os.getenv("GRADIO_SHARE", "1").lower() not in {"0", "false", "no"}
+
+    print("=" * 60)
+    print("✅ Dashboard starting...")
+    print(f"🏠 Local Access: http://{local_ip}:{server_port}")
+    print("=" * 60)
+
     demo.launch(
-        server_name="0.0.0.0", 
-        server_port=7865, 
-        share=True,   # ✅ Use Share Link (Random URL) as requested
+        server_name="0.0.0.0",
+        server_port=server_port,
+        share=share_enabled,
         theme=gr.themes.Soft(),
-        ssl_verify=False
+        ssl_verify=False,
     )
