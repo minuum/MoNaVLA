@@ -128,6 +128,7 @@ async def log_requests(request: Request, call_next):
     return response
 
 
+
 # API Key 설정
 API_KEY_NAME = "X-API-Key"
 api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
@@ -445,8 +446,7 @@ class MobileVLAInference:
         
         # [CRITICAL] Sync with nav_h5_dataset_impl.py mapping.
         # 8-class: 0 Stop, 1 F, 2 L, 3 R, 4 FL, 5 FR, 6 turn-L, 7 turn-R.
-        # 6-class: same first six classes, omitting turns.
-        if self.num_classes == 6:
+        # 6-class: same first six classes, omitting turns.        if self.num_classes == 6:
             self.class_index_action_map = {
                 0: [0.0, 0.0, 0.0],   # STOP
                 1: [speed, 0.0, 0.0], # FORWARD
@@ -467,8 +467,7 @@ class MobileVLAInference:
                 6: [0.0, 0.0, angle_speed],  # TURN_L
                 7: [0.0, 0.0, -angle_speed], # TURN_R
             }
-            logger.info("🎯 Applied 8-class V5 sync mapping: 2=L, 3=R, 4=FL, 5=FR, 6=TL, 7=TR")
-        else:
+            logger.info("🎯 Applied 8-class V5 sync mapping: 2=L, 3=R, 4=FL, 5=FR, 6=TL, 7=TR")        else:
             self.class_index_action_map = {
                 0: [0.0, 0.0, 0.0],   # STOP
                 1: [speed, 0.0, 0.0], # FORWARD (W)
@@ -1440,8 +1439,7 @@ def get_model(refresh=False, use_quant=None, checkpoint_path=None, config_path=N
             checkpoint_path = model_override_checkpoint_path
             config_path = model_override_config_path
         else:
-            checkpoint_path, config_path = _resolve_default_model_paths()
-        
+            checkpoint_path, config_path = _resolve_default_model_paths()        
         model_instance = MobileVLAInference(
             checkpoint_path=checkpoint_path,
             config_path=config_path,
@@ -1757,6 +1755,7 @@ async def predict(request: InferenceRequest, api_key: str = Depends(verify_api_k
     except Exception as e:
         import traceback
         logger.error(f"Prediction failed: {e}\n{traceback.format_exc()}")
+<<<<<<< HEAD
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -1824,6 +1823,8 @@ async def debug_reset_history():
         return {"status": "success", "message": "History, buffer, and logging session reset"}
     except Exception as e:
         logger.error(f"Debug reset failed: {e}")
+=======
+>>>>>>> origin/monavla-driving
         raise HTTPException(status_code=500, detail=str(e))
 
 
