@@ -1653,10 +1653,23 @@ class InstructionMLPInference:
         """마지막 vision feature 갱신 후 경과 ms."""
         return (time.time() - self._vision_cache["last_update_time"]) * 1000.0
 
+    def _infer_path_type_from_bbox(self) -> str:
+        """bbox 히스토리 cx 기반으로 방향 추론 (has_bbox=True 마지막 프레임 사용)."""
+        cx = 0.5
+        for frame in reversed(list(self._bbox_history)):
+            if frame[3] > 0.5:  # has_bbox
+                cx = frame[0]
+                break
+        if cx > 0.65:
+            return "right_right"
+        if cx < 0.35:
+            return "left_left"
+        return "center_straight"
+
     def _match_instruction(self, instruction_text: str) -> tuple[str, np.ndarray]:
         """
         instruction text → (matched_path_type, embedding 2048-dim).
-        우선순위: exact path_type → substring → cosine similarity → fallback
+        우선순위: exact path_type → exact text → substring → bbox cx 자동추론 → word overlap
         """
         text = instruction_text.strip()
 
@@ -1675,21 +1688,25 @@ class InstructionMLPInference:
             if pt in text or text in pt:
                 return pt, emb
 
-        # 4. cosine similarity (embedding이 있을 때만)
+        # 4. bbox cx 기반 자동 추론 — text 매칭 실패 시 위치로 결정
+        auto_pt = self._infer_path_type_from_bbox()
+        if auto_pt in self._instr_embeddings:
+            logger.info("[MLP] instruction unrecognized → bbox auto: '%s' → '%s'", text, auto_pt)
+            return auto_pt, self._instr_embeddings[auto_pt]
+
+        # 5. word overlap (최후 수단)
         best_pt, best_sim, best_emb = "center_straight", -1.0, None
         for pt, emb in self._instr_embeddings.items():
-            # 단순 텍스트 overlap score (embedding 비교는 인코더 없이 불가)
             overlap = sum(w in text.lower() for w in pt.split("_"))
-            sim = float(overlap)
-            if sim > best_sim:
-                best_sim = sim
+            if overlap > best_sim:
+                best_sim = overlap
                 best_pt = pt
                 best_emb = emb
 
         if best_emb is None:
             best_emb = self._instr_embeddings.get("center_straight",
                         np.zeros(self.INSTR_DIM, dtype=np.float32))
-        logger.info("[MLP] instruction fallback match: '%s' → '%s'", text, best_pt)
+        logger.info("[MLP] instruction fallback (word overlap): '%s' → '%s'", text, best_pt)
         return best_pt, best_emb
 
     def predict(self, instruction_text: str) -> dict:

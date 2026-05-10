@@ -50,7 +50,9 @@ class MobileVLAAPIClient(Node):
         }
         self.STOP_ACTION = {"linear_x": 0.0, "linear_y": 0.0, "angular_z": 0.0}
         
-        self.default_instruction = "Navigate around obstacles and reach the front of the beverage bottle on the left"
+        # Exp47 path_type 키를 직접 쓰거나 env로 override. 자연어 미매칭 시 bbox cx 자동 추론.
+        # 유효 키: center_straight, left_left, right_right, left_right, right_left, ...
+        self.default_instruction = os.getenv("VLA_INSTRUCTION", "center_straight")
         
         self.inference_mode = False
         self.inference_count = 0

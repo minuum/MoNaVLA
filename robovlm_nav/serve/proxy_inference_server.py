@@ -689,6 +689,7 @@ class ProxyInferenceModel:
     def _get_instruction_embedding(self, instruction: str) -> tuple[np.ndarray, str]:
         """instruction → embedding 반환. 매칭된 path_type도 함께 반환."""
         if not self._instr_embs:
+            logger.warning("instruction_embeddings not loaded — MLP receives zero vector; check %s", INSTR_EMBS_PATH)
             return np.zeros(INSTR_DIM, dtype=np.float32), "none"
         # Direct path_type key match
         if instruction in self._instr_embs:
