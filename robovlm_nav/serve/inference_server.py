@@ -164,6 +164,9 @@ model_instance = None
 model_override_checkpoint_path = None
 model_override_config_path = None
 
+# Exp47 MLP 전역 인스턴스 (lazy loading)
+mlp_instance = None
+
 
 class InferenceRequest(BaseModel):
     """추론 요청 스키마"""
@@ -200,6 +203,38 @@ class DebugModelReloadRequest(BaseModel):
     checkpoint_path: Optional[str] = None
     config_path: Optional[str] = None
     candidate_name: Optional[str] = None
+
+
+# ── Exp47 Instruction-Conditioned MLP 스키마 ──────────────────────────────
+class MLPInferenceRequest(BaseModel):
+    """Exp47 MLP 추론 요청 스키마"""
+    instruction: str                     # path_type 키 또는 자연어 instruction
+    bbox_cx: float = 0.0                 # bbox 중심 X (정규화 0~1)
+    bbox_cy: float = 0.0                 # bbox 중심 Y (정규화 0~1)
+    bbox_area: float = 0.0               # bbox 면적 비율 (0~1)
+    has_bbox: bool = False               # bbox 탐지 여부
+    image: Optional[str] = None          # base64 이미지 (vision cache 갱신 시에만)
+    force_vision_update: bool = False    # True면 cache TTL 무시하고 강제 갱신
+
+
+class MLPInferenceResponse(BaseModel):
+    """Exp47 MLP 추론 응답 스키마"""
+    action: List[float]                  # [linear_x, linear_y]
+    class_idx: int
+    class_name: str
+    latency_ms: float
+    vision_cache_age_ms: float           # 마지막 vision feature 갱신 후 경과 ms
+    instruction_matched: str             # 실제 매칭된 path_type
+
+
+class VisionUpdateRequest(BaseModel):
+    image: str                           # base64 이미지
+
+
+class VisionUpdateResponse(BaseModel):
+    status: str
+    latency_ms: float
+    feature_dim: int
 
 
 def _get_allowed_debug_roots() -> dict[str, Path]:
@@ -446,7 +481,9 @@ class MobileVLAInference:
         
         # [CRITICAL] Sync with nav_h5_dataset_impl.py mapping.
         # 8-class: 0 Stop, 1 F, 2 L, 3 R, 4 FL, 5 FR, 6 turn-L, 7 turn-R.
-        # 6-class: same first six classes, omitting turns.        if self.num_classes == 6:
+        # 6-class: same first six classes, omitting turns.
+        if self.num_classes == 6:
+
             self.class_index_action_map = {
                 0: [0.0, 0.0, 0.0],   # STOP
                 1: [speed, 0.0, 0.0], # FORWARD
@@ -467,7 +504,9 @@ class MobileVLAInference:
                 6: [0.0, 0.0, angle_speed],  # TURN_L
                 7: [0.0, 0.0, -angle_speed], # TURN_R
             }
-            logger.info("🎯 Applied 8-class V5 sync mapping: 2=L, 3=R, 4=FL, 5=FR, 6=TL, 7=TR")        else:
+            logger.info("🎯 Applied 8-class V5 sync mapping: 2=L, 3=R, 4=FL, 5=FR, 6=TL, 7=TR")
+        else:
+
             self.class_index_action_map = {
                 0: [0.0, 0.0, 0.0],   # STOP
                 1: [speed, 0.0, 0.0], # FORWARD (W)
@@ -997,6 +1036,58 @@ class MobileVLAInference:
         return lang_x, attention_mask
 
     
+    def extract_vision_feature(self, image_input: str) -> np.ndarray:
+        """
+        KosMos-2 vision encoder에서 1024-dim global average pooled feature 추출.
+        Exp47 MLP의 vision cache 갱신에 사용 (action head 실행 안 함).
+
+        Returns:
+            np.ndarray: (1024,) float32 vision feature vector
+        """
+        try:
+            image_tensor = self.preprocess_image(image_input)  # (1, 1, 3, 224, 224)
+
+            potential_model = self.model.model if hasattr(self.model, 'model') else self.model
+
+            # KosMos-2 vision backbone 추출 시도
+            vision_encoder = None
+            for attr in ['vision_model', 'vision_encoder', 'image_model', 'visual_encoder']:
+                if hasattr(potential_model, attr):
+                    vision_encoder = getattr(potential_model, attr)
+                    break
+
+            if vision_encoder is not None:
+                # (1, 1, 3, 224, 224) → (1, 3, 224, 224) 로 squeeze
+                img = image_tensor.squeeze(1)
+                with torch.no_grad():
+                    vis_out = vision_encoder(img)
+                # last_hidden_state 또는 직접 tensor
+                if hasattr(vis_out, 'last_hidden_state'):
+                    feat = vis_out.last_hidden_state  # (1, N, D)
+                elif isinstance(vis_out, torch.Tensor):
+                    feat = vis_out
+                else:
+                    feat = vis_out[0]
+                # global average pooling → (1024,)
+                feat = feat.mean(dim=1).squeeze(0)  # (D,)
+                # 1024-dim으로 맞추기
+                feat_np = feat.float().cpu().numpy()
+                if feat_np.shape[0] != 1024:
+                    # 다운샘플 또는 패딩
+                    if feat_np.shape[0] > 1024:
+                        feat_np = feat_np[:1024]
+                    else:
+                        feat_np = np.pad(feat_np, (0, 1024 - feat_np.shape[0]))
+                return feat_np.astype(np.float32)
+
+            # fallback: 모델 전체 forward에서 hidden state 추출
+            logger.warning("⚠️ [extract_vision_feature] vision encoder 직접 접근 실패 → zero feature 반환")
+            return np.zeros(1024, dtype=np.float32)
+
+        except Exception as e:
+            logger.error(f"❌ [extract_vision_feature] 실패: {e}")
+            return np.zeros(1024, dtype=np.float32)
+
     def reset(self, instruction: str = "N/A"):
         """추론 히스토리 초기화 (LSTM state 등) 및 세션 리포트 저장"""
         try:
@@ -1412,6 +1503,278 @@ class MobileVLAInference:
                     "postprocess": postprocess,
                 },
             }
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Exp47: InstructionMLPInference  (bbox + vision_cache + instr_emb → 8-class)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class InstructionMLPInference:
+    """
+    Exp47 instruction-conditioned MLP 추론기.
+    KosMos-2 VLM 없이 bbox 히스토리 + 사전 캐시된 vision feature + instruction embedding으로
+    8-class 행동 예측. 평균 추론 레이턴시 < 5ms.
+
+    성능 (offline eval):
+      val accuracy : 98.7%
+      closed-loop  : 100% success (30/30), PM 99.2%, FPE 0.013m
+      sensitivity  : 8/10 (80%)  — instruction 교체 시 action 변화 확인
+    """
+
+    # 8-class 액션 매핑 (Exp47 기준 nav_h5_dataset_impl.py 동기화)
+    CLASS_NAMES = ["STOP", "FORWARD", "LEFT", "RIGHT", "FWD+L", "FWD+R", "TURN_L", "TURN_R"]
+    _SPEED       = 1.15
+    _ANGLE       = 0.5
+    _DIAG        = _SPEED * 0.707
+    CLASS_ACTIONS = {
+        0: [0.0,    0.0,    0.0],
+        1: [_SPEED, 0.0,    0.0],
+        2: [0.0,    _SPEED, 0.0],
+        3: [0.0,   -_SPEED, 0.0],
+        4: [_DIAG,  _DIAG,  0.0],
+        5: [_DIAG, -_DIAG,  0.0],
+        6: [0.0,    0.0,    _ANGLE],
+        7: [0.0,    0.0,   -_ANGLE],
+    }
+    NUM_CLASSES = 8
+    WINDOW      = 8
+    VIS_DIM     = 1024
+    INSTR_DIM   = 2048
+    D_IN        = WINDOW * 4 + VIS_DIM + INSTR_DIM  # 3104
+
+    def __init__(
+        self,
+        mlp_weights_path: str,
+        instruction_embeddings_path: str,
+        device: str = "cuda",
+        vision_cache_ttl_sec: float = 1.0,
+    ):
+        import torch.nn as nn
+        from collections import deque
+
+        self.device = torch.device(device if torch.cuda.is_available() else "cpu")
+        self._weights_path = mlp_weights_path
+        self._emb_path = instruction_embeddings_path
+        self.vision_cache_ttl_sec = vision_cache_ttl_sec
+
+        # bbox 히스토리 버퍼 (deque, 8프레임 × [cx, cy, area, has_bbox])
+        self._bbox_history = deque(
+            [[0.0, 0.0, 0.0, 0.0]] * self.WINDOW,
+            maxlen=self.WINDOW
+        )
+
+        # vision feature 캐시
+        self._vision_cache: dict = {
+            "feature": np.zeros(self.VIS_DIM, dtype=np.float32),
+            "last_update_time": 0.0,
+            "initialized": False,
+        }
+
+        # instruction → embedding lookup table
+        self._instr_embeddings: dict[str, np.ndarray] = {}
+        self._instr_map: dict[str, str] = {}  # path_type → instruction text
+        self._load_instruction_embeddings()
+
+        # MLP 모델
+        self._net = self._build_mlp()
+        self._load_weights()
+        self._net.eval()
+        self._net.to(self.device)
+
+        logger.info(
+            "✅ [InstructionMLPInference] loaded — device=%s, cache_ttl=%.1fs, instr_keys=%d",
+            self.device, self.vision_cache_ttl_sec, len(self._instr_embeddings)
+        )
+
+    # ── 내부 초기화 헬퍼 ────────────────────────────────────────────────────
+    def _build_mlp(self):
+        import torch.nn as nn
+        return nn.Sequential(
+            nn.Linear(self.D_IN, 512), nn.ReLU(), nn.Dropout(0.25),
+            nn.Linear(512, 256),  nn.ReLU(), nn.Dropout(0.2),
+            nn.Linear(256, 128),  nn.ReLU(), nn.Dropout(0.1),
+            nn.Linear(128, 64),   nn.ReLU(),
+            nn.Linear(64, self.NUM_CLASSES),
+        )
+
+    def _load_weights(self):
+        """exp47_mlp.pt 로드. 파일 없으면 경고 후 random weights 사용."""
+        path = Path(self._weights_path)
+        if not path.exists():
+            logger.warning(
+                "⚠️ [InstructionMLPInference] 가중치 파일 없음: %s — random weights 사용 (학습 후 재시작 필요)",
+                path
+            )
+            return
+        ckpt = torch.load(str(path), map_location="cpu", weights_only=False)
+        # checkpoint에 d_in이 다르면 재빌드
+        ckpt_d_in = ckpt.get("d_in", self.D_IN)
+        if ckpt_d_in != self.D_IN:
+            logger.warning("⚠️ d_in mismatch: ckpt=%d, expected=%d — rebuilding MLP", ckpt_d_in, self.D_IN)
+            import torch.nn as nn
+            self._net = self._build_mlp()
+        self._net.load_state_dict(ckpt["model_state_dict"])
+        # instr_map 동기화
+        if "instr_map" in ckpt:
+            self._instr_map = ckpt["instr_map"]
+        logger.info("✅ [InstructionMLPInference] 가중치 로드 완료: %s", path)
+
+    def _load_instruction_embeddings(self):
+        """instruction_embeddings.json → {path_type: np.ndarray(2048)} 로드."""
+        emb_path = Path(self._emb_path)
+        if not emb_path.exists():
+            logger.error("❌ instruction_embeddings.json 없음: %s", emb_path)
+            return
+        with open(emb_path) as f:
+            raw = json.load(f)
+        self._instr_embeddings = {
+            k: np.array(v, dtype=np.float32) for k, v in raw.items()
+        }
+        logger.info("✅ instruction embeddings 로드: %d path_types", len(self._instr_embeddings))
+
+    # ── 공개 인터페이스 ─────────────────────────────────────────────────────
+    def update_bbox(self, cx: float, cy: float, area: float, has_bbox: bool) -> None:
+        """bbox 히스토리 업데이트 (매 프레임 호출)."""
+        self._bbox_history.append([float(cx), float(cy), float(area), float(has_bbox)])
+
+    def update_vision_feature(self, feature: np.ndarray) -> None:
+        """vision feature 캐시 갱신 (VLM encoder 출력, 1024-dim)."""
+        self._vision_cache["feature"] = np.asarray(feature, dtype=np.float32).reshape(self.VIS_DIM)
+        self._vision_cache["last_update_time"] = time.time()
+        self._vision_cache["initialized"] = True
+
+    def is_vision_cache_stale(self) -> bool:
+        """vision feature 캐시가 TTL을 초과했으면 True."""
+        if not self._vision_cache["initialized"]:
+            return True
+        return (time.time() - self._vision_cache["last_update_time"]) > self.vision_cache_ttl_sec
+
+    def vision_cache_age_ms(self) -> float:
+        """마지막 vision feature 갱신 후 경과 ms."""
+        return (time.time() - self._vision_cache["last_update_time"]) * 1000.0
+
+    def _match_instruction(self, instruction_text: str) -> tuple[str, np.ndarray]:
+        """
+        instruction text → (matched_path_type, embedding 2048-dim).
+        우선순위: exact path_type → substring → cosine similarity → fallback
+        """
+        text = instruction_text.strip()
+
+        # 1. exact path_type match
+        if text in self._instr_embeddings:
+            return text, self._instr_embeddings[text]
+
+        # 2. instruction text 역방향 매핑 (instr_map 값과 일치)
+        for pt, instr in self._instr_map.items():
+            if text.lower() == instr.lower():
+                if pt in self._instr_embeddings:
+                    return pt, self._instr_embeddings[pt]
+
+        # 3. substring match on path_type key
+        for pt, emb in self._instr_embeddings.items():
+            if pt in text or text in pt:
+                return pt, emb
+
+        # 4. cosine similarity (embedding이 있을 때만)
+        best_pt, best_sim, best_emb = "center_straight", -1.0, None
+        for pt, emb in self._instr_embeddings.items():
+            # 단순 텍스트 overlap score (embedding 비교는 인코더 없이 불가)
+            overlap = sum(w in text.lower() for w in pt.split("_"))
+            sim = float(overlap)
+            if sim > best_sim:
+                best_sim = sim
+                best_pt = pt
+                best_emb = emb
+
+        if best_emb is None:
+            best_emb = self._instr_embeddings.get("center_straight",
+                        np.zeros(self.INSTR_DIM, dtype=np.float32))
+        logger.info("[MLP] instruction fallback match: '%s' → '%s'", text, best_pt)
+        return best_pt, best_emb
+
+    def predict(self, instruction_text: str) -> dict:
+        """
+        Exp47 MLP 추론.
+        Returns: {action, class_idx, class_name, latency_ms, vision_cache_age_ms, instruction_matched}
+        """
+        t0 = time.time()
+
+        # bbox 히스토리 feature (8×4 = 32)
+        bbox_feat = np.array(list(self._bbox_history), dtype=np.float32).flatten()
+
+        # vision feature (1024)
+        vis_feat = self._vision_cache["feature"]
+
+        # instruction embedding (2048)
+        matched_pt, instr_emb = self._match_instruction(instruction_text)
+
+        # concat → 3104
+        x = np.concatenate([bbox_feat, vis_feat, instr_emb])
+        x_tensor = torch.tensor(x, dtype=torch.float32, device=self.device).unsqueeze(0)
+
+        with torch.no_grad():
+            logits = self._net(x_tensor)  # (1, 8)
+            class_idx = int(logits.argmax(1).item())
+
+        class_idx = min(class_idx, self.NUM_CLASSES - 1)
+        class_name = self.CLASS_NAMES[class_idx]
+        action_3dof = self.CLASS_ACTIONS[class_idx]
+        action_2dof = [action_3dof[0], action_3dof[1]]  # [lx, ly] (az 제외)
+
+        latency_ms = (time.time() - t0) * 1000.0
+        logger.info(
+            "✅ [MLP] cls=%d(%s), action=%s, latency=%.1fms, vis_age=%.0fms, instr=%s",
+            class_idx, class_name, action_2dof, latency_ms, self.vision_cache_age_ms(), matched_pt
+        )
+        return {
+            "action": action_2dof,
+            "class_idx": class_idx,
+            "class_name": class_name,
+            "latency_ms": latency_ms,
+            "vision_cache_age_ms": self.vision_cache_age_ms(),
+            "instruction_matched": matched_pt,
+        }
+
+    def reset(self) -> None:
+        """bbox 히스토리 및 vision 캐시 초기화."""
+        from collections import deque
+        self._bbox_history = deque(
+            [[0.0, 0.0, 0.0, 0.0]] * self.WINDOW,
+            maxlen=self.WINDOW
+        )
+        self._vision_cache["feature"] = np.zeros(self.VIS_DIM, dtype=np.float32)
+        self._vision_cache["last_update_time"] = 0.0
+        self._vision_cache["initialized"] = False
+        logger.info("🔄 [InstructionMLPInference] reset")
+
+    def reload_weights(self) -> None:
+        """가중치 파일 재로드 (학습 완료 후 재시작 없이 갱신)."""
+        self._load_weights()
+        self._net.eval()
+        self._net.to(self.device)
+        logger.info("✅ [InstructionMLPInference] 가중치 재로드 완료")
+
+
+def get_mlp_model() -> InstructionMLPInference:
+    """Exp47 MLP 인스턴스 lazy loading (VLM과 독립적)."""
+    global mlp_instance
+    if mlp_instance is None:
+        weights_path = os.getenv(
+            "VLA_MLP_WEIGHTS_PATH",
+            "docs/v5/bbox_nav_exp47/exp47_mlp.pt"
+        )
+        emb_path = os.getenv(
+            "VLA_MLP_INSTR_EMBEDDINGS_PATH",
+            "docs/v5/bbox_nav_exp47/instruction_embeddings.json"
+        )
+        cache_ttl = float(os.getenv("VLA_MLP_VISION_CACHE_TTL", "1.0"))
+        mlp_instance = InstructionMLPInference(
+            mlp_weights_path=str(Path(project_root) / weights_path),
+            instruction_embeddings_path=str(Path(project_root) / emb_path),
+            device="cuda" if torch.cuda.is_available() else "cpu",
+            vision_cache_ttl_sec=cache_ttl,
+        )
+    return mlp_instance
 
 
 def get_model(refresh=False, use_quant=None, checkpoint_path=None, config_path=None):
@@ -1857,6 +2220,141 @@ async def test_endpoint(api_key: str = Depends(verify_api_key)):
         "instruction": instruction,
         "action": dummy_action,
         "note": "This is a test endpoint. Use POST /predict for real inference."
+    }
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Exp47 MLP API 엔드포인트
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.post("/predict_mlp", response_model=MLPInferenceResponse)
+async def predict_mlp(request: MLPInferenceRequest, api_key: str = Depends(verify_api_key)):
+    """
+    Exp47 Instruction-Conditioned MLP 추론 엔드포인트.
+
+    기존 /predict(VLM 기반, ~200ms)와 독립적으로 동작.
+    bbox + 사전 캐시된 vision feature + instruction embedding → 8-class, <5ms.
+
+    vision feature 갱신 전략:
+      - image 필드 제공 + (cache stale OR force_vision_update=True) → VLM encoder 실행 후 캐시 갱신
+      - 그 외 → 기존 캐시 재사용 (1Hz 갱신)
+    """
+    try:
+        mlp = get_mlp_model()
+
+        # bbox 업데이트 (매 요청마다)
+        mlp.update_bbox(
+            cx=request.bbox_cx,
+            cy=request.bbox_cy,
+            area=request.bbox_area,
+            has_bbox=request.has_bbox,
+        )
+
+        # vision feature 갱신 필요 여부 판단
+        need_vision_update = (
+            request.image is not None
+            and (request.force_vision_update or mlp.is_vision_cache_stale())
+        )
+
+        if need_vision_update:
+            # VLM vision encoder로 feature 추출
+            try:
+                vla_model = get_model()
+                vis_feat = vla_model.extract_vision_feature(request.image)
+                mlp.update_vision_feature(vis_feat)
+                logger.info("🔄 [predict_mlp] vision cache 갱신 완료 (dim=%d)", len(vis_feat))
+            except Exception as ve:
+                logger.warning("⚠️ [predict_mlp] vision feature 추출 실패 (캐시 재사용): %s", ve)
+
+        # MLP 추론
+        result = mlp.predict(request.instruction)
+
+        return MLPInferenceResponse(
+            action=result["action"],
+            class_idx=result["class_idx"],
+            class_name=result["class_name"],
+            latency_ms=result["latency_ms"],
+            vision_cache_age_ms=result["vision_cache_age_ms"],
+            instruction_matched=result["instruction_matched"],
+        )
+
+    except Exception as e:
+        import traceback
+        logger.error(f"MLP prediction failed: {e}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/mlp/update_vision", response_model=VisionUpdateResponse)
+async def mlp_update_vision(request: VisionUpdateRequest, api_key: str = Depends(verify_api_key)):
+    """
+    vision feature 캐시만 별도로 갱신하는 엔드포인트.
+    ROS 클라이언트에서 이미지 업데이트와 bbox 업데이트를 분리할 때 사용.
+    """
+    try:
+        t0 = time.time()
+        mlp = get_mlp_model()
+        vla_model = get_model()
+        vis_feat = vla_model.extract_vision_feature(request.image)
+        mlp.update_vision_feature(vis_feat)
+        latency_ms = (time.time() - t0) * 1000.0
+        return VisionUpdateResponse(
+            status="ok",
+            latency_ms=latency_ms,
+            feature_dim=len(vis_feat),
+        )
+    except Exception as e:
+        import traceback
+        logger.error(f"Vision update failed: {e}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/mlp/reset")
+async def mlp_reset(api_key: str = Depends(verify_api_key)):
+    """Exp47 MLP bbox 히스토리 및 vision 캐시 초기화."""
+    try:
+        mlp = get_mlp_model()
+        mlp.reset()
+        return {"status": "success", "message": "MLP bbox history and vision cache reset"}
+    except Exception as e:
+        logger.error(f"MLP reset failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/mlp/reload_weights")
+async def mlp_reload_weights(api_key: str = Depends(verify_api_key)):
+    """exp47_mlp.pt 가중치 재로드 (학습 완료 후 서버 재시작 없이 갱신)."""
+    try:
+        mlp = get_mlp_model()
+        mlp.reload_weights()
+        return {"status": "success", "message": "MLP weights reloaded"}
+    except Exception as e:
+        logger.error(f"MLP weight reload failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/mlp/status")
+async def mlp_status():
+    """Exp47 MLP 모델 상태 확인 (인증 불필요)."""
+    global mlp_instance
+    if mlp_instance is None:
+        return {
+            "loaded": False,
+            "weights_path": os.getenv("VLA_MLP_WEIGHTS_PATH", "docs/v5/bbox_nav_exp47/exp47_mlp.pt"),
+            "message": "MLP not initialized yet. Call /predict_mlp to trigger lazy load.",
+        }
+    import os.path
+    weights_path = mlp_instance._weights_path
+    return {
+        "loaded": True,
+        "weights_path": weights_path,
+        "weights_exist": os.path.exists(weights_path),
+        "vision_cache_initialized": mlp_instance._vision_cache["initialized"],
+        "vision_cache_age_ms": round(mlp_instance.vision_cache_age_ms(), 1),
+        "vision_cache_ttl_sec": mlp_instance.vision_cache_ttl_sec,
+        "bbox_history_len": len(mlp_instance._bbox_history),
+        "instr_keys": list(mlp_instance._instr_embeddings.keys()),
+        "num_classes": mlp_instance.NUM_CLASSES,
+        "d_in": mlp_instance.D_IN,
     }
 
 

@@ -24,7 +24,12 @@ warnings.filterwarnings("ignore", message="Unable to import Axes3D")
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_ENV_PATH = PROJECT_ROOT / ".vla_env_settings"
-DEFAULT_INSTRUCTION = "Navigate toward the gray basket until it gets closer"
+# Exp47: path_type 키를 직접 입력하거나 자연어 instruction 사용 가능.
+# path_type 키 목록: center_straight, center_left, center_right,
+#   left_straight, left_left, left_right,
+#   right_straight, right_right, right_left
+# 미매칭 시 bbox cx 위치에서 자동 추론 (right_right / left_left / center_straight).
+DEFAULT_INSTRUCTION = "right_right"
 LINEAR_SPEED_VLA = 1.15
 ANGULAR_SPEED_VLA = 1.15
 

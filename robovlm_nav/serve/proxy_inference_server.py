@@ -35,7 +35,7 @@ import h5py
 import numpy as np
 import torch
 import torch.nn as nn
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Header
 from PIL import Image
 from pydantic import BaseModel
 
@@ -73,10 +73,17 @@ def _resolve_data_dir() -> Path:
 DATA_DIR = _resolve_data_dir()
 DATASET_FILE = ROOT / "docs" / "v5" / "bbox_nav_step1" / "bbox_dataset.json"
 DEFAULT_WEIGHTS_PATH = ROOT / "docs" / "v5" / "bbox_nav_exp19_proxy" / "exp19_proxy_mlp.pt"
+DEFAULT_WEIGHTS_PATH_EXP46 = ROOT / "docs" / "v5" / "bbox_nav_exp46" / "exp46_mlp.pt"
+DEFAULT_WEIGHTS_PATH_EXP47 = ROOT / "docs" / "v5" / "bbox_nav_exp47" / "exp47_mlp.pt"
+INSTR_EMBS_PATH = ROOT / "docs" / "v5" / "bbox_nav_exp47" / "instruction_embeddings.json"
+INSTR_MAP_PATH = ROOT / "docs" / "v5" / "bbox_nav_exp47" / "summary.json"
 DEFAULT_GROUNDING_MODEL = ROOT / ".vlms" / "kosmos-2-patch14-224"
 
 NUM_CLASSES = 8
-WINDOW = 3
+WINDOW = 3          # Exp19
+WINDOW_EXP46 = 8    # Exp46/47
+VIS_DIM = 1024      # Kosmos-2 vision encoder output dim
+INSTR_DIM = 2048    # Kosmos-2 text encoder output dim
 IMG_SIZE = 16
 CONSISTENCY_K = 5
 CX_TOL = 0.08
@@ -128,22 +135,41 @@ class InferenceResponse(BaseModel):
     grounding_latency_ms: Optional[float] = None
     goal_near_proxy: Optional[bool] = None
     instruction_used: bool = False
+    matched_path_type: Optional[str] = None
 
 
 class ProxyMLP(nn.Module):
     def __init__(self, input_dim: int, num_classes: int = NUM_CLASSES):
         super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(input_dim, 256),
-            nn.ReLU(),
-            nn.Dropout(0.25),
-            nn.Linear(256, 128),
-            nn.ReLU(),
-            nn.Dropout(0.2),
-            nn.Linear(128, 64),
-            nn.ReLU(),
-            nn.Linear(64, num_classes),
-        )
+        # Exp47 uses a 5-layer MLP for 3104-dim input
+        if input_dim == 3104:
+            self.net = nn.Sequential(
+                nn.Linear(input_dim, 512),
+                nn.ReLU(),
+                nn.Dropout(0.25),
+                nn.Linear(512, 256),
+                nn.ReLU(),
+                nn.Dropout(0.25),
+                nn.Linear(256, 128),
+                nn.ReLU(),
+                nn.Dropout(0.2),
+                nn.Linear(128, 64),
+                nn.ReLU(),
+                nn.Linear(64, num_classes),
+            )
+        else:
+            # Fallback for Exp46/Exp19 (4 layers)
+            self.net = nn.Sequential(
+                nn.Linear(input_dim, 256),
+                nn.ReLU(),
+                nn.Dropout(0.25),
+                nn.Linear(256, 128),
+                nn.ReLU(),
+                nn.Dropout(0.2),
+                nn.Linear(128, 64),
+                nn.ReLU(),
+                nn.Linear(64, num_classes),
+            )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.net(x)
@@ -287,7 +313,7 @@ class GroundingBackend:
         # caption 방향도 없으면 coarse_clf에 위임 (seed_coarse_agreement=1.0, 오탐 entity보다 정확)
         return None
 
-    def run(self, image_rgb: np.ndarray) -> dict[str, Any]:
+    def run(self, image_rgb: np.ndarray, extract_vis_feat: bool = False) -> dict[str, Any]:
         pil_image = Image.fromarray(image_rgb.astype(np.uint8)).convert("RGB")
         inputs = self.processor(text=GROUNDING_PROMPT, images=pil_image, return_tensors="pt")
         inputs = {k: v.to(self.device) for k, v in inputs.items()}
@@ -317,10 +343,18 @@ class GroundingBackend:
             if cx is not None:
                 bbox = {"entity": "coarse_clf", "cx": cx, "cy": 0.6, "area": 0.06}
 
+        # Exp46/47: extract 1024-dim vision features from vision encoder
+        vis_feat = None
+        if extract_vis_feat:
+            with torch.no_grad():
+                vo = self.model.vision_model(pixel_values=pixel_values)
+                vis_feat = vo.last_hidden_state[0].mean(0).float().cpu().numpy()  # (VIS_DIM,)
+
         return {
             "caption": caption,
             "bbox": bbox,
             "latency_ms": latency_ms,
+            "vis_feat": vis_feat,
         }
 
 
@@ -417,13 +451,18 @@ class ProxyInferenceModel:
         self.epochs = epochs
         self.force_retrain = force_retrain
         self.model_name = "exp19_proxy_mlp"
+        self.model_type = "exp19"     # detected from d_in after load
+        self.effective_window = WINDOW
         self.model: Optional[ProxyMLP] = None
         self.model_info: dict[str, Any] = {}
         self.history: list[dict[str, Any]] = []
         self.inference_count = 0
+        self._instr_embs: dict[str, np.ndarray] = {}
+        self._instr_text_to_path: dict[str, str] = {}
 
         self.grounder = GroundingBackend(grounding_model_path, grounding_device)
         self._load_or_train()
+        self._load_instruction_embeddings()
 
     def _build_windows(self, dataset: list[dict[str, Any]]) -> tuple[np.ndarray, np.ndarray]:
         features, labels = [], []
@@ -500,20 +539,63 @@ class ProxyInferenceModel:
         }
         return model, package
 
+    @staticmethod
+    def _detect_model_type(d_in: int) -> str:
+        if d_in == 3104:
+            return "exp47"
+        if d_in == 1056:
+            return "exp46"
+        return "exp19"
+
+    def _apply_model_type(self, d_in: int) -> None:
+        self.model_type = self._detect_model_type(d_in)
+        self.effective_window = WINDOW_EXP46 if self.model_type in ("exp46", "exp47") else WINDOW
+        if self.model_type != "exp19":
+            self.model_name = f"{self.model_type}_mlp"
+        logger.info("Model type detected: %s (d_in=%d, window=%d)", self.model_type, d_in, self.effective_window)
+
+    def _load_instruction_embeddings(self) -> None:
+        if self.model_type != "exp47":
+            return
+        if not INSTR_EMBS_PATH.exists():
+            logger.warning("Instruction embeddings not found: %s", INSTR_EMBS_PATH)
+            return
+        data = json.loads(INSTR_EMBS_PATH.read_text())
+        self._instr_embs = {k: np.array(v, dtype=np.float32) for k, v in data.items()}
+        # Build reverse map: instruction text → path_type
+        if INSTR_MAP_PATH.exists():
+            summary = json.loads(INSTR_MAP_PATH.read_text())
+            instr_map = summary.get("instr_map", {})
+            self._instr_text_to_path = {v.lower(): k for k, v in instr_map.items()}
+        logger.info("Loaded %d instruction embeddings for Exp47", len(self._instr_embs))
+
     def _load_or_train(self) -> None:
         if self.weights_path.exists() and not self.force_retrain:
             package = torch.load(self.weights_path, map_location="cpu", weights_only=False)
-            input_dim = int(package["input_dim"])
+            input_dim = int(package.get("input_dim", package.get("d_in", 0)))
             model = ProxyMLP(input_dim=input_dim)
-            model.load_state_dict(package["state_dict"])
+            # Support both 'state_dict' and 'model_state_dict'
+            sd = package.get("model_state_dict", package.get("state_dict", package))
+            
+            # Check if keys need 'net.' prefix
+            first_key = next(iter(sd.keys()))
+            if not first_key.startswith("net."):
+                # If keys are like '0.weight', load into self.net
+                model.net.load_state_dict(sd)
+            else:
+                model.load_state_dict(sd)
+                
             self.model = model.to(self.proxy_device).eval()
+            self._apply_model_type(input_dim)
             self.model_info = {
                 "source": "loaded",
                 "weights_path": str(self.weights_path),
-                "test_acc": package.get("test_acc"),
-                "train_windows": package.get("train_windows"),
-                "test_windows": package.get("test_windows"),
+                "model_type": self.model_type,
+                "test_acc": package.get("overall_acc", package.get("test_acc", package.get("best_val_acc"))),
+                "train_windows": package.get("train_windows", package.get("n_train")),
+                "test_windows": package.get("test_windows", package.get("n_val")),
                 "epochs": package.get("epochs"),
+                "d_in": input_dim,
             }
             logger.info("Loaded proxy MLP weights from %s", self.weights_path)
             return
@@ -523,13 +605,17 @@ class ProxyInferenceModel:
         self.weights_path.parent.mkdir(parents=True, exist_ok=True)
         torch.save(package, self.weights_path)
         self.model = model
+        input_dim = int(package["input_dim"])
+        self._apply_model_type(input_dim)
         self.model_info = {
             "source": "trained",
             "weights_path": str(self.weights_path),
+            "model_type": self.model_type,
             "test_acc": package.get("test_acc"),
             "train_windows": package.get("train_windows"),
             "test_windows": package.get("test_windows"),
             "epochs": package.get("epochs"),
+            "d_in": input_dim,
         }
         logger.info("Saved proxy MLP weights to %s", self.weights_path)
 
@@ -553,6 +639,7 @@ class ProxyInferenceModel:
         }
 
     def _build_online_feature(self, current_rgb: np.ndarray) -> np.ndarray:
+        """Exp19 feature: window=3, 16×16 grayscale + proxy features."""
         frame = frame_to_small_feature(current_rgb)
         feat: list[float] = []
         current_idx = len(self.history) - 1
@@ -564,28 +651,123 @@ class ProxyInferenceModel:
         feat.extend(build_proxy_features(self.history, current_idx))
         return np.asarray(feat, dtype=np.float32)
 
+    def _build_exp46_feature(self) -> np.ndarray:
+        """Exp46 feature: window=8, bbox history(32) + vision(1024) = 1056-dim."""
+        feat: list[float] = []
+        current_idx = len(self.history) - 1
+        for k in range(WINDOW_EXP46):
+            idx = max(0, current_idx - (WINDOW_EXP46 - 1 - k))
+            item = self.history[idx]
+            feat.extend([item["cx"], item["cy"], item["area"], float(item["has_bbox"])])
+        vis_feat = self.history[-1].get("vis_feat")
+        if vis_feat is None:
+            vis_feat = np.zeros(VIS_DIM, dtype=np.float32)
+        feat.extend(vis_feat.tolist())
+        return np.asarray(feat, dtype=np.float32)
+
+    def _infer_path_type_from_bbox(self) -> str:
+        """bbox cx 기반으로 path_type 자동 추론. instruction 미매칭 시 폴백으로 사용.
+
+        이미지 좌표: cx=0 → 왼쪽, cx=1 → 오른쪽
+        basket이 오른쪽(cx > 0.65) → right_right (오른쪽으로 커브)
+        basket이 왼쪽(cx < 0.35)  → left_left  (왼쪽으로 커브)
+        """
+        if not self.history:
+            return "center_straight"
+        # NO_BBOX 프레임(has_bbox=False)은 cx=0.5 기본값이므로 마지막 유효 cx 사용
+        cx = 0.5
+        for item in reversed(self.history):
+            if item.get("has_bbox", False):
+                cx = item.get("cx", 0.5)
+                break
+        if cx > 0.65:
+            return "right_right"
+        if cx < 0.35:
+            return "left_left"
+        return "center_straight"
+
+    def _get_instruction_embedding(self, instruction: str) -> tuple[np.ndarray, str]:
+        """instruction → embedding 반환. 매칭된 path_type도 함께 반환."""
+        if not self._instr_embs:
+            return np.zeros(INSTR_DIM, dtype=np.float32), "none"
+        # Direct path_type key match
+        if instruction in self._instr_embs:
+            return self._instr_embs[instruction], instruction
+        # Match against known instruction text
+        path_type = self._instr_text_to_path.get(instruction.lower())
+        if path_type and path_type in self._instr_embs:
+            return self._instr_embs[path_type], path_type
+        # Partial text match
+        for text, pt in self._instr_text_to_path.items():
+            if text in instruction.lower() or instruction.lower() in text:
+                if pt in self._instr_embs:
+                    return self._instr_embs[pt], pt
+        # Auto-infer from bbox cx (unrecognized instruction)
+        auto_pt = self._infer_path_type_from_bbox()
+        if auto_pt in self._instr_embs:
+            logger.info("Instruction unrecognized → bbox auto path_type: %s (cx=%.3f)",
+                        auto_pt, self.history[-1].get("cx", 0.5) if self.history else 0.5)
+            return self._instr_embs[auto_pt], f"auto:{auto_pt}"
+        return next(iter(self._instr_embs.values())), "fallback"
+
+    def _build_exp47_feature(self, instruction: str) -> tuple[np.ndarray, str]:
+        """Exp47 feature: bbox(32) + vision(1024) + instruction_emb(2048) = 3104-dim."""
+        exp46_feat = self._build_exp46_feature()
+        instr_emb, matched_path = self._get_instruction_embedding(instruction)
+        return np.concatenate([exp46_feat, instr_emb]), matched_path
+
     def predict(self, image_base64: str, instruction: str) -> dict[str, Any]:
         if self.model is None:
             raise RuntimeError("Proxy model is not loaded")
 
         start = time.time()
         image_rgb = self._decode_image(image_base64)
-        grounding = self.grounder.run(image_rgb)
+        extract_vis = self.model_type in ("exp46", "exp47")
+        grounding = self.grounder.run(image_rgb, extract_vis_feat=extract_vis)
         bbox = grounding["bbox"]
+        vis_feat = grounding.get("vis_feat")
 
-        self.history.append(self._bbox_frame(bbox))
-        if len(self.history) > max(WINDOW, CONSISTENCY_K):
-            self.history = self.history[-max(WINDOW, CONSISTENCY_K) :]
+        history_item = self._bbox_frame(bbox)
+        history_item["vis_feat"] = vis_feat
+        self.history.append(history_item)
+        keep = max(self.effective_window, CONSISTENCY_K)
+        if len(self.history) > keep:
+            self.history = self.history[-keep:]
 
-        feature = self._build_online_feature(image_rgb)
+        matched_path = "n/a"
+        if self.model_type == "exp47":
+            feature, matched_path = self._build_exp47_feature(instruction)
+            instruction_used = bool(self._instr_embs)
+        elif self.model_type == "exp46":
+            feature = self._build_exp46_feature()
+            instruction_used = False
+        else:
+            feature = self._build_online_feature(image_rgb)
+            instruction_used = False
+
         x = torch.tensor(feature[None, :], dtype=torch.float32, device=self.proxy_device)
         with torch.no_grad():
             logits = self.model(x)
+            probs = torch.softmax(logits, dim=-1)[0].cpu().tolist()
             pred_class = int(logits.argmax(dim=-1).item())
+
+        bbox_summary = (
+            f"cx={bbox['cx']:.3f} area={bbox['area']:.3f} entity={bbox.get('entity','?')}"
+            if bbox else "NO_BBOX"
+        )
+        logger.info(
+            "[#%d] %s | bbox: %s | path: %s | caption: %s | probs: %s",
+            self.inference_count + 1,
+            CLASS_NAMES[pred_class],
+            bbox_summary,
+            matched_path,
+            (grounding["caption"] or "")[:60],
+            " ".join(f"{CLASS_NAMES[i]}={probs[i]:.2f}" for i in range(NUM_CLASSES)),
+        )
 
         self.inference_count += 1
         return {
-            "action": ACTION_2D[pred_class],
+            "action": ACTION_2D[pred_class],   # 2D [lx, ly] — api contract; az preserved in action_3d
             "action_3d": ACTION_3D[pred_class],
             "latency_ms": (time.time() - start) * 1000.0,
             "predicted_class": pred_class,
@@ -596,11 +778,13 @@ class ProxyInferenceModel:
             "goal_near_proxy": goal_near_proxy(self.history[-1]),
             "buffer_status": {
                 "history_size": len(self.history),
-                "window": WINDOW,
+                "window": self.effective_window,
                 "consistency_k": CONSISTENCY_K,
+                "model_type": self.model_type,
             },
             "source": self.model_info.get("source", "loaded"),
-            "instruction_used": False,
+            "instruction_used": instruction_used,
+            "matched_path_type": matched_path,
             "instruction": instruction,
         }
 
@@ -642,14 +826,65 @@ def get_model(refresh: bool = False) -> ProxyInferenceModel:
     return model_instance
 
 
+class ModelLoadRequest(BaseModel):
+    checkpoint_path: str = str(DEFAULT_WEIGHTS_PATH)
+    config_path: str = "N/A"
+    precision: str = "fp32"
+    refresh: bool = True
+
+
 @app.get("/")
 async def root() -> dict[str, Any]:
+    model = model_instance
+    model_type = getattr(model, "model_type", "exp19") if model else "exp19"
     return {
-        "name": "Mobile VLA Exp19 Proxy API",
-        "version": "0.1.0",
+        "name": "Mobile VLA Proxy API",
+        "version": "0.2.0",
         "status": "running",
-        "auth": "API Key required (X-API-Key header)",
-        "note": "Instruction is accepted for API compatibility but Exp19 proxy ignores text.",
+        "model_type": model_type,
+        "note": "Supports Exp19 (bbox proxy), Exp46 (bbox+vision), Exp47 (bbox+vision+instruction).",
+    }
+
+
+@app.get("/model/info")
+async def model_info() -> dict[str, Any]:
+    model = model_instance
+    if model is None:
+        return {
+            "model_loaded": False,
+            "model_name": "proxy_mlp",
+            "checkpoint_path": str(DEFAULT_WEIGHTS_PATH),
+            "config_path": "N/A",
+            "precision": "fp32",
+            "device": "cuda" if torch.cuda.is_available() else "cpu",
+            "action_dim": 3,
+        }
+    return {
+        "model_loaded": True,
+        "model_name": model.model_name,
+        "checkpoint_path": str(model.weights_path),
+        "config_path": "N/A",
+        "precision": "fp32",
+        "device": str(model.proxy_device),
+        "action_dim": 3,
+        "model_type": model.model_type,
+        "effective_window": model.effective_window,
+        "proxy_info": model.model_info,
+    }
+
+
+@app.post("/model/load")
+async def load_model(request: ModelLoadRequest) -> dict[str, Any]:
+    os.environ["VLA_PROXY_WEIGHTS_PATH"] = request.checkpoint_path
+    get_model(refresh=request.refresh)
+    model = model_instance
+    return {
+        "status": "success",
+        "message": f"Proxy model loaded from {request.checkpoint_path}",
+        "model_name": model.model_name if model else "unknown",
+        "model_type": getattr(model, "model_type", "exp19") if model else "exp19",
+        "checkpoint_path": request.checkpoint_path,
+        "precision": request.precision,
     }
 
 
@@ -678,8 +913,15 @@ async def health_check() -> dict[str, Any]:
     }
 
 
+def _verify_api_key(x_api_key: Optional[str]) -> None:
+    expected = os.getenv("VLA_API_KEY", "")
+    if expected and x_api_key != expected:
+        raise HTTPException(status_code=403, detail="Invalid API Key")
+
+
 @app.post("/predict", response_model=InferenceResponse)
-async def predict(request: InferenceRequest) -> InferenceResponse:
+async def predict(request: InferenceRequest, x_api_key: Optional[str] = Header(default=None)) -> InferenceResponse:
+    _verify_api_key(x_api_key)
     try:
         model = get_model()
         result = model.predict(request.image, request.instruction)
@@ -698,14 +940,18 @@ async def predict(request: InferenceRequest) -> InferenceResponse:
             grounding_latency_ms=result["grounding_latency_ms"],
             goal_near_proxy=result["goal_near_proxy"],
             instruction_used=result["instruction_used"],
+            matched_path_type=result.get("matched_path_type"),
         )
+    except HTTPException:
+        raise
     except Exception as exc:
         logger.exception("Proxy prediction failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @app.post("/reset")
-async def reset_history() -> dict[str, Any]:
+async def reset_history(x_api_key: Optional[str] = Header(default=None)) -> dict[str, Any]:
+    _verify_api_key(x_api_key)
     model = get_model()
     model.reset()
     return {"status": "success", "message": "Proxy history reset"}
@@ -732,7 +978,8 @@ if __name__ == "__main__":
     parser.add_argument("--host", type=str, default="0.0.0.0")
     args = parser.parse_args()
 
-    logger.info("Pre-loading Exp19 proxy model before server start...")
-    get_model()
-    logger.info("Proxy model ready. Starting uvicorn...")
+    weights = os.getenv("VLA_PROXY_WEIGHTS_PATH", str(DEFAULT_WEIGHTS_PATH))
+    logger.info("Pre-loading proxy model from %s ...", weights)
+    m = get_model()
+    logger.info("Proxy model ready: type=%s window=%d. Starting uvicorn...", m.model_type, m.effective_window)
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")

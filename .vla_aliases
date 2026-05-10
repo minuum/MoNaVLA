@@ -521,7 +521,7 @@ unalias vla-inference-gradio 2>/dev/null || true
 vla-inference-gradio() {
     local profile_name="${1:-${VLA_PROFILE:-end_to_end_default}}"
     eval "$(python3 "$VLA_PROJECT_DIR/scripts/vla_profile.py" env --profile "$profile_name")"
-    if [ "$VLA_MODEL_RUNTIME" != "api_server" ]; then
+    if [ "$VLA_MODEL_RUNTIME" != "api_server" ] && [ "$VLA_MODEL_RUNTIME" != "proxy_server" ]; then
         echo "⚠️  Profile $VLA_PROFILE uses runtime $VLA_MODEL_RUNTIME and is not launchable via gradio inference dashboard."
         echo "    Try: vla-profile $VLA_PROFILE"
         return 1

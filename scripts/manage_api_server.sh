@@ -10,7 +10,9 @@ NC='\033[0m'
 
 PROJECT_DIR="${VLA_PROJECT_DIR:-/home/soda/MoNaVLA}"
 PROFILE_SCRIPT="$PROJECT_DIR/scripts/vla_profile.py"
-SERVER_SCRIPT="$PROJECT_DIR/robovlm_nav/serve/inference_server.py"
+E2E_SERVER_SCRIPT="$PROJECT_DIR/robovlm_nav/serve/inference_server.py"
+PROXY_SERVER_SCRIPT="$PROJECT_DIR/robovlm_nav/serve/proxy_inference_server.py"
+SERVER_SCRIPT="$E2E_SERVER_SCRIPT"  # overridden by resolve_profile_env for proxy_server runtime
 LOG_DIR="$PROJECT_DIR/logs"
 LOG_FILE="$LOG_DIR/api_server.log"
 PID_FILE="$LOG_DIR/api_server.pid"
@@ -48,6 +50,11 @@ resolve_profile_env() {
     if [ "${VLA_MODEL_RUNTIME:-}" = "mlp_step2" ]; then
         echo -e "${YELLOW}Profile ${PROFILE_NAME} resolves to runtime ${VLA_MODEL_RUNTIME}, which is not served by inference_server.py${NC}"
         return 1
+    elif [ "${VLA_MODEL_RUNTIME:-}" = "proxy_server" ]; then
+        SERVER_SCRIPT="$PROXY_SERVER_SCRIPT"
+        export VLA_PROXY_WEIGHTS_PATH="${VLA_PROXY_WEIGHTS_PATH:-${VLA_CHECKPOINT_PATH:-}}"
+    else
+        SERVER_SCRIPT="$E2E_SERVER_SCRIPT"
     fi
     return 0
 }
