@@ -80,7 +80,7 @@ bbox_history(32) + vision(1024) + goal(3) = 1059-dim → MLP → 8-class
 - [x] Step 2: `scripts/train_v5_exp51_crop_aug.py` 작성 및 학습 (val acc 93.3%)
 - [x] Step 3: PM 평가 완료
 - [x] Step 4: robustness 재측정 (crop_left 22→78% ✅, crop_right 33→100% ✅, flip 6/9 유지)
-- [ ] Step 5: 결과 문서화
+- [x] Step 5: 결과 문서화 (PROF_UPDATE_20260511_EXP51_CRITICAL.md + 6 figures)
 
 ---
 
