@@ -108,8 +108,10 @@ def build_mlp(d_in):
     )
 
 
-def load_exp49():
-    ckpt = torch.load(str(EXP49_DIR / "exp49_mlp.pt"), map_location="cpu", weights_only=False)
+def load_model(ckpt_path=None):
+    if ckpt_path is None:
+        ckpt_path = EXP49_DIR / "exp49_mlp.pt"
+    ckpt = torch.load(str(ckpt_path), map_location="cpu", weights_only=False)
     net  = build_mlp(ckpt["d_in"])
     net.load_state_dict(ckpt["model_state_dict"])
     net.eval()
@@ -169,9 +171,18 @@ def predict_action(net, bbox_feat_t0, vis_feat, goal_cx, goal_cy, goal_area, dev
 # ─────────────────────────────────────────────
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--ckpt", type=str, default=None, help="MLP checkpoint path")
+    parser.add_argument("--out",  type=str, default=None, help="Output JSON path")
+    args = parser.parse_args()
+
+    ckpt_path = Path(args.ckpt) if args.ckpt else None
+    out_path  = Path(args.out)  if args.out  else OUT_PATH
+
     np.random.seed(42)
     print("=" * 65)
-    print("Exp49 이미지 로버스트니스 테스트")
+    print("이미지 로버스트니스 테스트")
     print("=" * 65)
 
     bbox_data = json.loads((EXP46_DIR / "bbox_dataset_full.json").read_text())
@@ -194,7 +205,7 @@ def main():
             break
     print(f"테스트 에피소드: {len(test_eps)}개")
 
-    net    = load_exp49()
+    net    = load_model(ckpt_path)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     net    = net.to(device)
 
@@ -309,13 +320,14 @@ def main():
         n, m = stat["total"], stat["match"]
         aug_rows.append({"aug": aug_name, "match": m, "total": n, "rate": m/n})
 
-    OUT_PATH.write_text(json.dumps({
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps({
         "flip_correct": flip_correct,
         "n_episodes": len(test_eps),
         "aug_summary": aug_rows,
         "per_episode": all_results,
     }, indent=2))
-    print(f"\n저장: {OUT_PATH}")
+    print(f"\n저장: {out_path}")
 
 
 if __name__ == "__main__":

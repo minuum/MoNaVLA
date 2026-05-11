@@ -1,150 +1,86 @@
-# Plan: Exp49 — Language-Grounded Goal Navigation (진짜 VLA)
+# Plan: Exp50 — Flip Augmentation (기하 Robustness 개선)
 작성일: 2026-05-11
 
 ## 1. 목표
 
 **현재 문제:**
-- Exp47: instruction = path_type별 고정 텍스트 임베딩 (2048-dim fingerprint)
-- paraphrase 교체 시 PM 99.2% → 74.1% 급락 → 의미 이해 아님
+- Exp49: 조명/색상 89~100% ✅, 카메라 10% 이동 22% ❌
+- 모델이 학습 때 본 시야각에 과적합됨
 
 **달성 목표:**
-- 언어 → Kosmos-2 grounding → 기하학적 목표 위치 (cx, cy)
-- 다른 표현이라도 같은 물체를 grounding하면 동일한 cx,cy → 동일한 행동
-- paraphrase-robust navigation 실증 → 진짜 VLA 클레임 가능
+- flip augmentation으로 거울 대칭 데이터 추가 → 카메라 위치 robustness 개선
+- crop/shift 22% → 목표 ≥60%
+- flip 대칭 action 반전율 0/9 → 목표 ≥7/9
 
-## 2. 핵심 아이디어
+## 2. 리서치 요약
 
-```
-[Exp47 — fingerprint 기반]
-언어 문장 → Kosmos-2 text encoder → 2048-dim 벡터 (외운 것)
-           → paraphrase 시 벡터 바뀜 → 행동 바뀜 (FAIL)
+### 2.1 flip 시 변환 규칙
 
-[Exp49 — grounding 기반]
-"왼쪽 바구니로 가" → Kosmos-2 grounding → cx=0.35, cy=0.60
-"왼편 컨테이너로 이동" → Kosmos-2 grounding → cx=0.35, cy=0.60  (같음!)
-           → MLP 입력 동일 → 행동 동일 (PASS)
-```
+| 항목 | 원본 | flip 후 |
+|------|------|---------|
+| image | 원본 | 좌우 반전 |
+| cx | 0.35 | **0.65** (1-cx) |
+| cy, area | 유지 | 유지 |
+| action | LEFT(2) | **RIGHT(3)** |
+| action | FWD+L(4) | **FWD+R(5)** |
+| action | ROT_L(6) | **ROT_R(7)** |
+| action | STOP/FORWARD | 유지 |
+| goal_cx0 | 0.35 | **0.65** |
+| vision feature | 원본 | **재추출 필요** (패치 내용 바뀜) |
 
-언어 변화를 기하학(위치)으로 흡수 → fingerprint 문제 해결.
-
-## 3. 리서치 요약
-
-### 3.1 기존 데이터 재사용 가능 여부
-
-| 항목 | 현황 | Exp49 사용 |
-|------|------|-----------|
-| bbox_dataset_full.json | 150ep, 프레임별 cx/cy/area/gt_class | ✅ 그대로 |
-| vision_features.npz | 150ep, 프레임별 Kosmos-2 1024-dim | ✅ 그대로 |
-| instruction_embeddings.json (Exp47) | 2048-dim text embedding | ❌ 제거 |
-
-→ **새 grounding 실행 불필요.** bbox_dataset_full.json의 frame 0 cx/cy가 "언어로 지정된 목표 위치" 역할.
-
-### 3.2 frame 0 cx 분포 (언어-기하학 구분력 확인)
-
-| path_type | mean_cx | std |
-|-----------|---------|-----|
-| left_*    | 0.35~0.39 | 0.15~0.20 |
-| center_*  | 0.50      | 0.00~0.01 |
-| right_*   | 0.52~0.60 | 0.05~0.14 |
-
-**단, center_left vs center_right는 cx 동일 (0.50).** → vision_feat와 bbox_history로 구분 가능 (Exp46이 93.2% 달성한 근거).
-
-### 3.3 모델 비교
-
-| 모델 | d_in | 입력 구성 | val acc | CL |
-|------|------|----------|---------|-----|
-| Exp46 | 1056 | bbox(32) + vision(1024) | 93.2% | 100% |
-| Exp47 | 3104 | bbox(32) + vision(1024) + text_emb(2048) | 98.7% | 100% |
-| **Exp49** | **1059** | **bbox(32) + vision(1024) + goal(3)** | 목표 ≥93% | 목표 100% |
-
-goal = (cx0, cy0, area0) — 에피소드 시작 프레임의 grounded 바구니 위치.
-
-## 4. 아키텍처
+### 2.2 데이터 변화
 
 ```
-입력:
-  bbox_history   (8 × 4 = 32-dim)   ← 현재까지의 BBox 궤적
-  vision_feat    (1024-dim)          ← 현재 프레임 Kosmos-2 visual feature
-  goal_pos       (3-dim)             ← (cx0, cy0, area0) 에피소드 시작 grounded 위치
-  ──────────────────────────────────
-  합계           1059-dim
-
-MLP (Exp46/47과 동일 깊이):
-  Linear(1059→512) ReLU Dropout(0.25)
-  Linear(512→256)  ReLU Dropout(0.2)
-  Linear(256→128)  ReLU Dropout(0.1)
-  Linear(128→64)   ReLU
-  Linear(64→8)     → 8-class action
+원본: 150 에피소드, 2626 프레임
+flip: 150 에피소드, 2626 프레임 (거울상)
+합계: 300 에피소드, 5252 프레임
 ```
 
-## 5. 학습 계획
+flip 에피소드는 기존 path_type의 거울상 (`left_left` flip ≡ `right_right` 시나리오).
+새 환경 데이터는 아니지만 Kosmos-2 vision encoder는 뒤집힌 이미지를 다르게 처리
+→ 카메라 위치 불변성 학습에 유효.
 
-- 각 에피소드의 frame 0에서 (cx0, cy0, area0) 추출 → 에피소드 전체에서 goal 고정
-- 80/20 stratified split, seed=42 (Exp47과 동일)
-- AdamW (lr=1e-3, weight_decay=1e-4), CosineAnnealingLR, epochs=300, batch=128
-- class_weights: 역빈도 (Exp46/47 동일)
+### 2.3 작업 순서
 
-## 6. 검증 계획
+1. **Flipped vision feature 추출** — 가장 비싼 작업 (Exp46 추출과 동일한 규모)
+   - 150 에피소드 × 각 프레임 flip → Kosmos-2 vision encoder → `flipped_vision_features.npz`
+2. **Flipped bbox 계산** — bbox_dataset_full.json에서 cx → 1-cx (빠름, 추가 grounding 불필요)
+3. **MLP 학습** — 원본 + flip 합쳐서 Exp49와 동일한 구조로 학습
+4. **평가** — PM, crop robustness, flip 대칭 검증
 
-### 6.1 PM 평가
-- 목표: ≥ 93.2% (Exp46 baseline)
+## 3. 아키텍처
 
-### 6.2 Paraphrase-Grounding 일관성 테스트 (핵심)
-
-동일 이미지 + 다른 언어 → Kosmos-2 grounding → cx0 비교:
-
-| 표현 | 예상 cx0 |
-|------|---------|
-| "The gray basket is at" (원본) | 0.35 |
-| "The container on the left" | ~0.35 |
-| "The gray box nearby" | ~0.35 |
-
-→ 같은 물체, 다른 표현 → 같은 cx0 → Exp49는 같은 행동 → **paraphrase generalization PASS**
-
-### 6.3 Closed-loop 평가
-- 목표: ≥ 100% (Exp47 유지)
-
-## 7. 실배포 추론 파이프라인
-
+Exp49와 동일:
 ```
-사용자: "왼쪽 바구니로 가"
-  → 언어에서 target entity 추출: "gray basket"
-  → 첫 프레임 grounding: cx0=0.35, cy0=0.60
-  → goal = (0.35, 0.60, 0.05)
-  → 매 스텝: MLP(bbox_hist, vision, goal) → action
+bbox_history(32) + vision(1024) + goal(3) = 1059-dim → MLP → 8-class action
 ```
 
-## 8. 연구 기여 포인트
+변경점: 학습 데이터만 2배 (원본 + flip)
 
-1. **언어 → 기하학 변환**: fingerprinting 대신 grounding으로 언어 변화 흡수
-2. **Paraphrase-robust VLA**: 표현이 달라도 같은 목표 → 동일 행동
-3. **해석 가능성**: cx0=0.35 → "왼쪽에 있음" → 왼쪽으로 이동 (블랙박스 아님)
-4. **경량성**: d_in 3104 → 1059 (Exp47 대비 34%)
+## 4. 구현 단계
 
-## 9. 리스크
+- [x] Step 1: flipped vision feature 추출 → `docs/v5/bbox_nav_exp50/flipped_vision_features.npz`
+- [x] Step 2: `scripts/train_v5_exp50_flip_aug.py` 작성 및 학습
+- [x] Step 3: PM 평가 (val acc 92.0%, -4.4%p vs Exp49)
+- [x] Step 4: 이미지 robustness 재측정 (flip 0→6/9 ✅, crop 22% → 22~33% ❌)
+- [ ] Step 5: 결과 문서화
+
+## 5. 예상 결과
+
+| 테스트 | Exp49 | Exp50 목표 |
+|--------|-------|-----------|
+| val PM | 96.4% | ≥95% (소폭 하락 가능) |
+| crop 10% | 22% | **≥50%** |
+| flip 대칭 | 0/9 | **≥7/9** |
+| paraphrase | 100% | 100% 유지 |
+
+## 6. 리스크
 
 | 리스크 | 가능성 | 대응 |
 |--------|--------|------|
-| center_left/right 혼동 | 중간 | vision_feat가 이미 구분 (Exp46 93.2%) |
-| grounding 실패 (has_bbox=False) | 낮음 | fallback: (0.5, 0.5, 0.0) |
-| Exp46 대비 PM 하락 | 낮음 | goal(3)은 추가 신호, 제거 신호 아님 |
-
-## 10. 구현 단계
-
-- [x] Step 1: `scripts/train_v5_exp49_goal_nav.py` 작성 및 학습 → val acc 96.4%
-- [x] Step 2: PM 평가 → 96.4%, Bootstrap CI [94.7%, 97.9%], 5-seed 95.1%±0.7%
-- [x] Step 3: paraphrase-grounding 일관성 테스트 → 34/34 (100%) action 일치
-- [x] Step 4: closed-loop 평가 → SR 100%, FPE 0.081
-- [x] Step 5: 이미지 로버스트니스 테스트 → 조명/색상 89~100%, crop/blur 취약
-- [ ] Step 6: 결과 문서화 (commit)
-
-## 11. 실험 맥락
-
-```
-Exp46 (93.2%, 100% CL) — bbox + vision
-Exp47 (98.7%, 100% CL) — + text fingerprint [paraphrase FAIL 74.1%]
-Exp49 (96.4%, 100% CL) — + grounded goal [paraphrase PASS 100%] ✅
-```
+| PM 소폭 하락 | 중간 | flip data가 거울상이라 mixed signal 가능 |
+| flip 대칭 여전히 실패 | 낮음 | bbox_history도 flip하므로 일관성 확보 |
+| vision feature 추출 오래 걸림 | 높음 | 백그라운드 실행 |
 
 ---
-**완료 (2026-05-11)**
+**승인 후 구현 시작.**
