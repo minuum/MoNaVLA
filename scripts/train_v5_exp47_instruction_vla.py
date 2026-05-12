@@ -31,10 +31,12 @@ VIS_CACHE   = ROOT / "docs" / "v5" / "bbox_nav_exp46" / "vision_features.npz"
 VIS_IDX     = ROOT / "docs" / "v5" / "bbox_nav_exp46" / "vision_features_index.json"
 CANDS_PATH  = ROOT / "docs" / "v5" / "instruction_candidates.json"
 OUT_DIR     = ROOT / "docs" / "v5" / "bbox_nav_exp47"
+MLP_DIR     = ROOT / "runs" / "v5_nav" / "mlp" / "exp47"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
+MLP_DIR.mkdir(parents=True, exist_ok=True)
 
 INSTR_CACHE = OUT_DIR / "instruction_embeddings.json"
-CKPT_PATH   = OUT_DIR / "exp47_mlp.pt"
+CKPT_PATH   = MLP_DIR / "exp47_mlp.pt"
 
 CLASS_NAMES = ["STOP","FORWARD","LEFT","RIGHT","FWD+L","FWD+R","ROT_L","ROT_R"]
 NUM_CLASSES = 8

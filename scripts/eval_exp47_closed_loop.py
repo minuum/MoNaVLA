@@ -24,6 +24,7 @@ from scripts.sim.rollout_core import (
 
 EXP46_DIR  = ROOT / "docs" / "v5" / "bbox_nav_exp46"
 EXP47_DIR  = ROOT / "docs" / "v5" / "bbox_nav_exp47"
+MLP47_DIR  = ROOT / "runs" / "v5_nav" / "mlp" / "exp47"
 OUT_DIR    = ROOT / "docs" / "v5" / "closed_loop_eval"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -45,7 +46,7 @@ def build_mlp(d_in=D_IN):
 
 
 def load_model():
-    ckpt = torch.load(str(EXP47_DIR / "exp47_mlp.pt"), map_location="cpu", weights_only=False)
+    ckpt = torch.load(str(MLP47_DIR / "exp47_mlp.pt"), map_location="cpu", weights_only=False)
     net  = build_mlp(ckpt["d_in"])
     net.load_state_dict(ckpt["model_state_dict"])
     net.eval()
