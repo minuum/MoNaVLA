@@ -79,6 +79,13 @@ INSTR_EMBS_PATH = ROOT / "docs" / "v5" / "bbox_nav_exp47" / "instruction_embeddi
 INSTR_MAP_PATH = ROOT / "docs" / "v5" / "bbox_nav_exp47" / "summary.json"
 DEFAULT_GROUNDING_MODEL = ROOT / ".vlms" / "kosmos-2-patch14-224"
 
+_GOAL_NAV_WEIGHTS: dict[str, Path] = {
+    "exp46": ROOT / "docs" / "v5" / "bbox_nav_exp46" / "exp46_mlp.pt",
+    "exp49": ROOT / "docs" / "v5" / "bbox_nav_exp49" / "exp49_mlp.pt",
+    "exp50": ROOT / "docs" / "v5" / "bbox_nav_exp50" / "exp50_mlp.pt",
+    "exp51": ROOT / "docs" / "v5" / "bbox_nav_exp51" / "exp51_mlp.pt",
+}
+
 NUM_CLASSES = 8
 WINDOW = 3          # Exp19
 WINDOW_EXP46 = 8    # Exp46/47
@@ -113,6 +120,7 @@ ACTION_3D = {
 }
 
 model_instance = None
+goal_nav_instance = None
 
 
 class InferenceRequest(BaseModel):
@@ -170,6 +178,23 @@ class ProxyMLP(nn.Module):
                 nn.ReLU(),
                 nn.Linear(64, num_classes),
             )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.net(x)
+
+
+class GoalNavMLP(nn.Module):
+    """Exp49/50/51 MLP: 5-layer (512→256→128→64→8), d_in from checkpoint."""
+
+    def __init__(self, d_in: int, num_classes: int = NUM_CLASSES):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(d_in, 512), nn.ReLU(), nn.Dropout(0.25),
+            nn.Linear(512, 256),  nn.ReLU(), nn.Dropout(0.2),
+            nn.Linear(256, 128),  nn.ReLU(), nn.Dropout(0.1),
+            nn.Linear(128, 64),   nn.ReLU(),
+            nn.Linear(64, num_classes),
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.net(x)
@@ -790,6 +815,135 @@ class ProxyInferenceModel:
         }
 
 
+class GoalNavInferenceModel:
+    """Exp46/49/50/51: Kosmos-2 vis feat (1024-dim) + bbox history + grounded goal → GoalNavMLP.
+
+    Set VLA_MODEL=exp49 (recommended: 96.4% acc, 100% CL success).
+    """
+
+    def __init__(
+        self,
+        weights_path: Path,
+        grounding_model_path: Path,
+        grounding_device: torch.device,
+        device: torch.device,
+    ):
+        self.device = device
+        self.model: Optional[GoalNavMLP] = None
+        self.window: int = 8
+        self.goal_dim: int = 0
+        self.history: list[dict[str, Any]] = []
+        self.goal: Optional[np.ndarray] = None
+        self.inference_count = 0
+        self.model_info: dict[str, Any] = {}
+        self.model_name = weights_path.stem
+
+        self.grounder = GroundingBackend(grounding_model_path, grounding_device)
+        self._load(weights_path)
+
+    def _load(self, weights_path: Path) -> None:
+        if not weights_path.exists():
+            raise FileNotFoundError(f"GoalNav weights not found: {weights_path}")
+        ckpt = torch.load(weights_path, map_location="cpu", weights_only=False)
+        d_in = int(ckpt["d_in"])
+        self.window = int(ckpt.get("window", 8))
+        self.goal_dim = int(ckpt.get("goal_dim") or 0)
+
+        net = GoalNavMLP(d_in=d_in)
+        net.net.load_state_dict(ckpt["model_state_dict"])
+        self.model = net.to(self.device).eval()
+        self.model_info = {
+            "source": "loaded",
+            "weights_path": str(weights_path),
+            "d_in": d_in,
+            "window": self.window,
+            "goal_dim": self.goal_dim,
+            "overall_acc": ckpt.get("overall_acc"),
+        }
+        logger.info(
+            "Loaded GoalNav MLP from %s (d_in=%d, window=%d, goal_dim=%d, acc=%.4f)",
+            weights_path, d_in, self.window, self.goal_dim, ckpt.get("overall_acc", 0.0),
+        )
+
+    def reset(self) -> None:
+        self.history.clear()
+        self.goal = None
+        self.inference_count = 0
+
+    def _build_feature(self, vis_feat: np.ndarray) -> np.ndarray:
+        feat: list[float] = []
+        cur_idx = len(self.history) - 1
+        for k in range(self.window):
+            idx = max(0, cur_idx - (self.window - 1 - k))
+            item = self.history[idx]
+            feat.extend([item["cx"], item["cy"], item["area"], float(item["has_bbox"])])
+        feat.extend(vis_feat.tolist())
+        if self.goal_dim > 0 and self.goal is not None:
+            feat.extend(self.goal.tolist())
+        return np.asarray(feat, dtype=np.float32)
+
+    def _decode_image(self, image_base64: str) -> np.ndarray:
+        image_bytes = base64.b64decode(image_base64)
+        pil = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        return np.array(pil)
+
+    def predict(self, image_base64: str, instruction: str) -> dict[str, Any]:
+        if self.model is None:
+            raise RuntimeError("GoalNav model not loaded")
+
+        start = time.time()
+        image_rgb = self._decode_image(image_base64)
+
+        grounding = self.grounder.run(image_rgb, extract_vis_feat=True)
+        bbox = grounding["bbox"]
+        vis_feat: np.ndarray = grounding["vis_feat"]
+
+        if self.goal_dim > 0 and self.goal is None:
+            if bbox is not None:
+                self.goal = np.array([bbox["cx"], bbox["cy"], bbox["area"]], dtype=np.float32)
+            else:
+                self.goal = np.array([0.5, 0.5, 0.0], dtype=np.float32)
+            logger.info("GoalNav: goal initialized to [%.3f, %.3f, %.3f]", *self.goal)
+
+        bbox_frame: dict[str, Any] = {
+            "cx": float(bbox["cx"]) if bbox else 0.5,
+            "cy": float(bbox["cy"]) if bbox else 0.5,
+            "area": float(bbox["area"]) if bbox else 0.0,
+            "has_bbox": bbox is not None,
+        }
+        self.history.append(bbox_frame)
+        if len(self.history) > self.window:
+            self.history = self.history[-self.window:]
+
+        feature = self._build_feature(vis_feat)
+        x = torch.tensor(feature[None, :], dtype=torch.float32, device=self.device)
+        with torch.no_grad():
+            logits = self.model(x)
+            pred_class = int(logits.argmax(dim=-1).item())
+
+        self.inference_count += 1
+        return {
+            "action": ACTION_2D[pred_class],
+            "action_3d": ACTION_3D[pred_class],
+            "latency_ms": (time.time() - start) * 1000.0,
+            "predicted_class": pred_class,
+            "predicted_label": CLASS_NAMES[pred_class],
+            "bbox": bbox,
+            "grounding_caption": grounding["caption"],
+            "grounding_latency_ms": grounding["latency_ms"],
+            "goal_near_proxy": goal_near_proxy(bbox_frame),
+            "buffer_status": {
+                "history_size": len(self.history),
+                "window": self.window,
+                "goal": self.goal.tolist() if self.goal is not None else None,
+            },
+            "source": self.model_info.get("source", "loaded"),
+            "instruction_used": self.goal_dim > 0,
+            "matched_path_type": "goal_nav",
+            "instruction": instruction,
+        }
+
+
 def resolve_device(raw: str, fallback_cuda: bool = True) -> torch.device:
     raw = raw.strip().lower()
     if raw == "cpu":
@@ -799,13 +953,12 @@ def resolve_device(raw: str, fallback_cuda: bool = True) -> torch.device:
     return torch.device("cuda" if fallback_cuda and torch.cuda.is_available() else "cpu")
 
 
-def get_model(refresh: bool = False) -> ProxyInferenceModel:
+def _get_proxy_model(refresh: bool = False) -> ProxyInferenceModel:
     global model_instance
     if refresh:
         model_instance = None
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
-
     if model_instance is None:
         dataset_file = Path(os.getenv("VLA_PROXY_DATASET_FILE", str(DATASET_FILE)))
         weights_path = Path(os.getenv("VLA_PROXY_WEIGHTS_PATH", str(DEFAULT_WEIGHTS_PATH)))
@@ -814,7 +967,6 @@ def get_model(refresh: bool = False) -> ProxyInferenceModel:
         grounding_device = resolve_device(os.getenv("VLA_PROXY_GROUNDING_DEVICE", "auto"))
         epochs = int(os.getenv("VLA_PROXY_TRAIN_EPOCHS", "220"))
         force_retrain = os.getenv("VLA_PROXY_FORCE_RETRAIN", "false").lower() == "true"
-
         model_instance = ProxyInferenceModel(
             dataset_file=dataset_file,
             weights_path=weights_path,
@@ -825,6 +977,35 @@ def get_model(refresh: bool = False) -> ProxyInferenceModel:
             force_retrain=force_retrain,
         )
     return model_instance
+
+
+def _get_goal_nav_model(model_name: str, refresh: bool = False) -> GoalNavInferenceModel:
+    global goal_nav_instance
+    if refresh:
+        goal_nav_instance = None
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    if goal_nav_instance is None:
+        override = os.getenv("VLA_GOAL_NAV_WEIGHTS_PATH")
+        weights_path = Path(override) if override else _GOAL_NAV_WEIGHTS[model_name]
+        grounding_model_path = Path(os.getenv("VLA_GROUNDING_MODEL_PATH", str(DEFAULT_GROUNDING_MODEL)))
+        device = resolve_device(os.getenv("VLA_GOAL_NAV_DEVICE", "auto"))
+        grounding_device = resolve_device(os.getenv("VLA_PROXY_GROUNDING_DEVICE", "auto"))
+        goal_nav_instance = GoalNavInferenceModel(
+            weights_path=weights_path,
+            grounding_model_path=grounding_model_path,
+            grounding_device=grounding_device,
+            device=device,
+        )
+    return goal_nav_instance
+
+
+def get_model(refresh: bool = False):
+    """VLA_MODEL=exp49 (or exp46/50/51) → GoalNavInferenceModel. Default → ProxyInferenceModel."""
+    vla_model = os.getenv("VLA_MODEL", "exp19").lower()
+    if vla_model in _GOAL_NAV_WEIGHTS:
+        return _get_goal_nav_model(vla_model, refresh)
+    return _get_proxy_model(refresh)
 
 
 class ModelLoadRequest(BaseModel):
@@ -926,11 +1107,12 @@ async def predict(request: InferenceRequest, x_api_key: Optional[str] = Header(d
     try:
         model = get_model()
         result = model.predict(request.image, request.instruction)
+        strategy = "goal_nav" if isinstance(model, GoalNavInferenceModel) else "proxy_mlp"
         return InferenceResponse(
             action=result["action"],
             latency_ms=result["latency_ms"],
             model_name=model.model_name,
-            strategy="proxy_mlp",
+            strategy=strategy,
             source=result["source"],
             buffer_status=result["buffer_status"],
             predicted_class=result["predicted_class"],
@@ -979,8 +1161,8 @@ if __name__ == "__main__":
     parser.add_argument("--host", type=str, default="0.0.0.0")
     args = parser.parse_args()
 
-    weights = os.getenv("VLA_PROXY_WEIGHTS_PATH", str(DEFAULT_WEIGHTS_PATH))
-    logger.info("Pre-loading proxy model from %s ...", weights)
+    vla_model = os.getenv("VLA_MODEL", "exp19")
+    logger.info("Pre-loading model (VLA_MODEL=%s) ...", vla_model)
     m = get_model()
-    logger.info("Proxy model ready: type=%s window=%d. Starting uvicorn...", m.model_type, m.effective_window)
+    logger.info("Model ready (%s). Starting uvicorn...", m.model_name)
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
