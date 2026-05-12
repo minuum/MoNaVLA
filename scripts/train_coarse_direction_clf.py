@@ -13,7 +13,7 @@ Evaluation:
   mini mode:  leave-one-out cross-validation (no val set, only 72 frames)
   full mode:  stratified 80/20 episode-split (train on 80% of episodes)
 
-Output: docs/v5/bbox_nav_step1/coarse_direction_clf.pt
+Output: runs/v5_nav/mlp/step1/coarse_direction_clf.pt
 
 Usage:
     python3 scripts/train_coarse_direction_clf.py           # mini, LOO eval
@@ -39,7 +39,7 @@ from transformers import AutoModelForVision2Seq, AutoProcessor
 
 BBOX_TRUTH_PATH  = ROOT / "docs" / "v5" / "bbox_truth_mini.json"
 BBOX_FULL_PATH   = ROOT / "docs" / "v5" / "bbox_nav_step1" / "bbox_dataset_full.json"
-OUTPUT_PATH      = ROOT / "docs" / "v5" / "bbox_nav_step1" / "coarse_direction_clf.pt"
+OUTPUT_PATH      = ROOT / "runs" / "v5_nav" / "mlp" / "step1" / "coarse_direction_clf.pt"
 GROUNDING_MODEL  = ROOT / ".vlms" / "kosmos-2-patch14-224"
 
 _DATA_PATH_CANDIDATES = [

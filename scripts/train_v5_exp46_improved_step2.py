@@ -29,8 +29,10 @@ DATA_DIR       = ROOT / "ROS_action" / "mobile_vla_dataset_v5"
 OUT_DIR        = ROOT / "docs" / "v5" / "bbox_nav_exp46"
 BBOX_CACHE     = OUT_DIR / "bbox_dataset_full.json"
 VIS_CACHE      = OUT_DIR / "vision_features.npz"
+MLP_DIR        = ROOT / "runs" / "v5_nav" / "mlp" / "exp46"
 
 OUT_DIR.mkdir(parents=True, exist_ok=True)
+MLP_DIR.mkdir(parents=True, exist_ok=True)
 
 PATH_TYPES = [
     "center_straight","center_left","center_right",
@@ -371,7 +373,7 @@ def main():
     confusion, overall = evaluate(net, X_te, y_te)
 
     # 저장
-    ckpt_path = OUT_DIR / "exp46_mlp.pt"
+    ckpt_path = MLP_DIR / "exp46_mlp.pt"
     torch.save({
         "model_state_dict": net.state_dict(),
         "d_in":    X.shape[1],

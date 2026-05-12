@@ -31,6 +31,7 @@ sys.path.insert(0, str(ROOT))
 HF_KOSMOS  = ROOT / ".vlms" / "kosmos-2-patch14-224"
 EXP46_DIR  = ROOT / "docs" / "v5" / "bbox_nav_exp46"
 EXP49_DIR  = ROOT / "docs" / "v5" / "bbox_nav_exp49"
+MLP49_DIR  = ROOT / "runs" / "v5_nav" / "mlp" / "exp49"
 OUT_PATH   = EXP49_DIR / "image_robustness_results.json"
 
 WINDOW      = 8
@@ -110,7 +111,7 @@ def build_mlp(d_in):
 
 def load_model(ckpt_path=None):
     if ckpt_path is None:
-        ckpt_path = EXP49_DIR / "exp49_mlp.pt"
+        ckpt_path = MLP49_DIR / "exp49_mlp.pt"
     ckpt = torch.load(str(ckpt_path), map_location="cpu", weights_only=False)
     net  = build_mlp(ckpt["d_in"])
     net.load_state_dict(ckpt["model_state_dict"])

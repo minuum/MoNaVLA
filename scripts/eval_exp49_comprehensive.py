@@ -28,6 +28,7 @@ from scripts.sim.rollout_core import build_trajectory, compute_metrics, CLASS_NA
 EXP46_DIR = ROOT / "docs" / "v5" / "bbox_nav_exp46"
 EXP47_DIR = ROOT / "docs" / "v5" / "bbox_nav_exp47"
 EXP49_DIR = ROOT / "docs" / "v5" / "bbox_nav_exp49"
+MLP49_DIR = ROOT / "runs" / "v5_nav" / "mlp" / "exp49"
 OUT_PATH  = EXP49_DIR / "comprehensive_eval.json"
 
 WINDOW      = 8
@@ -52,7 +53,7 @@ def build_mlp(d_in):
 
 
 def load_exp49():
-    ckpt = torch.load(str(EXP49_DIR / "exp49_mlp.pt"), map_location="cpu", weights_only=False)
+    ckpt = torch.load(str(MLP49_DIR / "exp49_mlp.pt"), map_location="cpu", weights_only=False)
     net  = build_mlp(ckpt["d_in"])
     net.load_state_dict(ckpt["model_state_dict"])
     net.eval()

@@ -26,9 +26,11 @@ sys.path.insert(0, str(ROOT))
 
 EXP46_DIR = ROOT / "docs" / "v5" / "bbox_nav_exp46"
 OUT_DIR   = ROOT / "docs" / "v5" / "bbox_nav_exp49"
+MLP_DIR   = ROOT / "runs" / "v5_nav" / "mlp" / "exp49"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
+MLP_DIR.mkdir(parents=True, exist_ok=True)
 
-CKPT_PATH = OUT_DIR / "exp49_mlp.pt"
+CKPT_PATH = MLP_DIR / "exp49_mlp.pt"
 
 CLASS_NAMES = ["STOP","FORWARD","LEFT","RIGHT","FWD+L","FWD+R","ROT_L","ROT_R"]
 NUM_CLASSES = 8

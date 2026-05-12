@@ -28,6 +28,7 @@ sys.path.insert(0, str(ROOT))
 HF_KOSMOS  = ROOT / ".vlms" / "kosmos-2-patch14-224"
 EXP46_DIR  = ROOT / "docs" / "v5" / "bbox_nav_exp46"
 EXP49_DIR  = ROOT / "docs" / "v5" / "bbox_nav_exp49"
+MLP49_DIR  = ROOT / "runs" / "v5_nav" / "mlp" / "exp49"
 DATA_DIR   = ROOT / "ROS_action" / "mobile_vla_dataset_v5"
 OUT_PATH   = EXP49_DIR / "grounding_consistency_results.json"
 
@@ -60,7 +61,7 @@ def build_mlp(d_in):
 
 
 def load_exp49():
-    ckpt = torch.load(str(EXP49_DIR / "exp49_mlp.pt"), map_location="cpu", weights_only=False)
+    ckpt = torch.load(str(MLP49_DIR / "exp49_mlp.pt"), map_location="cpu", weights_only=False)
     d_in = ckpt["d_in"]
     net  = build_mlp(d_in)
     net.load_state_dict(ckpt["model_state_dict"])

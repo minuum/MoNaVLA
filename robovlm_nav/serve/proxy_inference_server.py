@@ -68,14 +68,14 @@ def _resolve_data_dir() -> Path:
 
 DATA_DIR = _resolve_data_dir()
 DATASET_FILE = ROOT / "docs" / "v5" / "bbox_nav_step1" / "bbox_dataset.json"
-DEFAULT_WEIGHTS_PATH = ROOT / "docs" / "v5" / "bbox_nav_exp19_proxy" / "exp19_proxy_mlp.pt"
+DEFAULT_WEIGHTS_PATH = ROOT / "runs" / "v5_nav" / "mlp" / "exp19" / "exp19_proxy_mlp.pt"
 DEFAULT_GROUNDING_MODEL = ROOT / ".vlms" / "kosmos-2-patch14-224"
 
 _GOAL_NAV_WEIGHTS: dict[str, Path] = {
-    "exp46": ROOT / "docs" / "v5" / "bbox_nav_exp46" / "exp46_mlp.pt",
-    "exp49": ROOT / "docs" / "v5" / "bbox_nav_exp49" / "exp49_mlp.pt",
-    "exp50": ROOT / "docs" / "v5" / "bbox_nav_exp50" / "exp50_mlp.pt",
-    "exp51": ROOT / "docs" / "v5" / "bbox_nav_exp51" / "exp51_mlp.pt",
+    "exp46": ROOT / "runs" / "v5_nav" / "mlp" / "exp46" / "exp46_mlp.pt",
+    "exp49": ROOT / "runs" / "v5_nav" / "mlp" / "exp49" / "exp49_mlp.pt",
+    "exp50": ROOT / "runs" / "v5_nav" / "mlp" / "exp50" / "exp50_mlp.pt",
+    "exp51": ROOT / "runs" / "v5_nav" / "mlp" / "exp51" / "exp51_mlp.pt",
 }
 
 NUM_CLASSES = 8
@@ -170,7 +170,7 @@ class GoalNavMLP(nn.Module):
         return self.net(x)
 
 
-_COARSE_CLF_PATH   = ROOT / "docs" / "v5" / "bbox_nav_step1" / "coarse_direction_clf.pt"
+_COARSE_CLF_PATH   = ROOT / "runs" / "v5_nav" / "mlp" / "step1" / "coarse_direction_clf.pt"
 _GROUNDING_LORA    = ROOT / "docs" / "v5" / "bbox_nav_step1" / "grounding_lora"
 _COARSE_LABEL_CX   = {0: 0.25, 1: 0.5, 2: 0.75}
 

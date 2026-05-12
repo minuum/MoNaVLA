@@ -31,10 +31,12 @@ HF_KOSMOS   = ROOT / ".vlms" / "kosmos-2-patch14-224"
 EXP46_DIR   = ROOT / "docs" / "v5" / "bbox_nav_exp46"
 EXP49_DIR   = ROOT / "docs" / "v5" / "bbox_nav_exp49"
 EXP50_DIR   = ROOT / "docs" / "v5" / "bbox_nav_exp50"
+MLP_DIR     = ROOT / "runs" / "v5_nav" / "mlp" / "exp50"
 EXP50_DIR.mkdir(parents=True, exist_ok=True)
+MLP_DIR.mkdir(parents=True, exist_ok=True)
 
 FLIP_VIS_CACHE = EXP50_DIR / "flipped_vision_features.npz"
-CKPT_PATH      = EXP50_DIR / "exp50_mlp.pt"
+CKPT_PATH      = MLP_DIR / "exp50_mlp.pt"
 
 CLASS_NAMES = ["STOP","FORWARD","LEFT","RIGHT","FWD+L","FWD+R","ROT_L","ROT_R"]
 NUM_CLASSES = 8
