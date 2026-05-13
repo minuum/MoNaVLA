@@ -29,16 +29,16 @@ DEFAULT_ENV_PATH = PROJECT_ROOT / ".vla_env_settings"
 #   left_straight, left_left, left_right,
 #   right_straight, right_right, right_left
 # 미매칭 시 bbox cx 위치에서 자동 추론 (right_right / left_left / center_straight).
-DEFAULT_INSTRUCTION = "the brown pot on the left"
+DEFAULT_INSTRUCTION = "the gray basket on right"
 PATH_TYPES = [
     "right_right", "right_left", "right_straight",
     "center_straight", "center_left", "center_right",
     "left_straight", "left_left", "left_right",
 ]
 GOAL_NAV_PRESETS = [
-    "the brown pot on the left",
-    "the brown pot on the right",
-    "the brown pot",
+    "the gray basket on right",
+    "the gray basket on left",
+    "the gray basket",
     "the door",
     "the corridor on the left",
     "the corridor on the right",
@@ -806,7 +806,7 @@ with gr.Blocks(title="VLA PRO Dashboard") as demo:
                     label="Path Type 선택",
                     visible=False,
                 )
-                instr_box_real = gr.Textbox(label="Robot Prompt", value=DEFAULT_INSTRUCTION)
+                instr_box_real = gr.Textbox(label="Robot Prompt (GoalNav: 자연어 물체 설명 / PathType: 경로 코드)", value=DEFAULT_INSTRUCTION)
             camera_status = gr.Textbox(label="Camera Status", value="Unknown", interactive=False)
             status_log = gr.Textbox(label="Status", value="Ready")
             latency_val = gr.Textbox(label="Latency", value="0 ms")
