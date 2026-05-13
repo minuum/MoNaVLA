@@ -79,7 +79,9 @@ def resolve_profile(registry: dict, profile_name: str) -> dict:
                 "launchable": False,
             }
 
-        if checkpoint_ok and config_ok and launchable:
+        # proxy_server: MLP 체크포인트만 있으면 실행 가능, config 불필요
+        config_required = runtime != "proxy_server"
+        if checkpoint_ok and (config_ok or not config_required) and launchable:
             return {
                 "profile": profile_name,
                 "profile_label": profile["label"],
