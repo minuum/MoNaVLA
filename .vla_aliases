@@ -338,10 +338,12 @@ vla-camera() {
 
 unalias vla-inference-server 2>/dev/null || true
 vla-inference-server() {
-    local model="${VLA_MODEL:-exp49}"
+    # exp47: VLA_PROXY_WEIGHTS_PATH 사용 (path_type 명령 지원 - right_right 등)
+    # exp49: VLA_MODEL=exp49 사용 (GoalNav - 시각 물체 grounding)
+    local weights="${VLA_PROXY_WEIGHTS_PATH:-/home/soda/MoNaVLA/runs/v5_nav/mlp/exp47/exp47_mlp.pt}"
     local port="${VLA_PORT:-8001}"
-    echo "🤖 Starting proxy inference server (VLA_MODEL=$model, port=$port)..."
-    cd "$VLA_PROJECT_DIR" && nohup env VLA_MODEL="$model" python3 robovlm_nav/serve/proxy_inference_server.py --port "$port" </dev/null >>/tmp/proxy_server.log 2>&1 & disown
+    echo "🤖 Starting proxy inference server (weights=$(basename $weights), port=$port)..."
+    cd "$VLA_PROJECT_DIR" && nohup env VLA_PROXY_WEIGHTS_PATH="$weights" python3 robovlm_nav/serve/proxy_inference_server.py --port "$port" </dev/null >>/tmp/proxy_server.log 2>&1 & disown
     echo "PID $! — logs: tail -f /tmp/proxy_server.log"
 }
 
