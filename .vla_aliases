@@ -12,18 +12,25 @@
 # ========================================
 
 # 현재 서버가 어느 역할인지 자동 감지
-_vla_hostname="$(hostname)"
-if [ "$_vla_hostname" = "fevers" ] || [ "$_vla_hostname" = "encroaches" ]; then
-    export VLA_SERVER_ROLE="jetson"
-    export VLA_SERVER_NAME="MoNaVLA Jetson Robot"
-elif [ "$_vla_hostname" = "billy" ]; then
-    export VLA_SERVER_ROLE="model"
-    export VLA_SERVER_NAME="MoNaVLA Billy Server"
-else
-    export VLA_SERVER_ROLE="unknown"
-    export VLA_SERVER_NAME="MoNaVLA Unknown Server"
+# VLA_SERVER_ROLE을 외부에서 미리 지정하면 그것을 우선함
+if [ -z "${VLA_SERVER_ROLE:-}" ]; then
+    _vla_h="${HOST:-${HOSTNAME:-$(hostname 2>/dev/null)}}"
+    case "$_vla_h" in
+        fevers|encroaches)
+            export VLA_SERVER_ROLE="jetson"
+            export VLA_SERVER_NAME="MoNaVLA Jetson Robot"
+            ;;
+        billy)
+            export VLA_SERVER_ROLE="model"
+            export VLA_SERVER_NAME="MoNaVLA Billy Server"
+            ;;
+        *)
+            export VLA_SERVER_ROLE="unknown"
+            export VLA_SERVER_NAME="MoNaVLA Unknown Server"
+            ;;
+    esac
+    unset _vla_h
 fi
-unset _vla_hostname
 
 # ========================================
 # 공통 환경 변수
