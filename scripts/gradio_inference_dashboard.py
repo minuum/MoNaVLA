@@ -29,7 +29,20 @@ DEFAULT_ENV_PATH = PROJECT_ROOT / ".vla_env_settings"
 #   left_straight, left_left, left_right,
 #   right_straight, right_right, right_left
 # 미매칭 시 bbox cx 위치에서 자동 추론 (right_right / left_left / center_straight).
-DEFAULT_INSTRUCTION = "right_right"
+DEFAULT_INSTRUCTION = "the brown pot on the left"
+PATH_TYPES = [
+    "right_right", "right_left", "right_straight",
+    "center_straight", "center_left", "center_right",
+    "left_straight", "left_left", "left_right",
+]
+GOAL_NAV_PRESETS = [
+    "the brown pot on the left",
+    "the brown pot on the right",
+    "the brown pot",
+    "the door",
+    "the corridor on the left",
+    "the corridor on the right",
+]
 LINEAR_SPEED_VLA = 1.15
 ANGULAR_SPEED_VLA = 1.15
 
@@ -769,7 +782,25 @@ with gr.Blocks(title="VLA PRO Dashboard") as demo:
                     btn_t = gr.Button("🔄 CW (T)", scale=1)
 
         with gr.Column(scale=1):
-            instr_box_real = gr.Textbox(label="Robot Prompt", value=DEFAULT_INSTRUCTION)
+            with gr.Group():
+                instr_mode = gr.Radio(
+                    choices=["GoalNav (exp49)", "PathType (exp47)"],
+                    value="GoalNav (exp49)",
+                    label="Instruction Mode",
+                )
+                goal_dropdown = gr.Dropdown(
+                    choices=["(직접 입력)"] + GOAL_NAV_PRESETS,
+                    value=GOAL_NAV_PRESETS[0],
+                    label="Goal Object 선택",
+                    visible=True,
+                )
+                path_dropdown = gr.Dropdown(
+                    choices=PATH_TYPES,
+                    value="right_right",
+                    label="Path Type 선택",
+                    visible=False,
+                )
+                instr_box_real = gr.Textbox(label="Robot Prompt", value=DEFAULT_INSTRUCTION)
             camera_status = gr.Textbox(label="Camera Status", value="Unknown", interactive=False)
             status_log = gr.Textbox(label="Status", value="Ready")
             latency_val = gr.Textbox(label="Latency", value="0 ms")
@@ -813,6 +844,37 @@ with gr.Blocks(title="VLA PRO Dashboard") as demo:
         fn=reset_model_wrapper,
         inputs=[backend_radio, api_url_box, instr_box_real],
         outputs=status_log,
+    )
+
+    def on_instr_mode_change(mode):
+        is_goal = mode == "GoalNav (exp49)"
+        return (
+            gr.update(visible=is_goal),
+            gr.update(visible=not is_goal),
+            GOAL_NAV_PRESETS[0] if is_goal else "right_right",
+        )
+
+    instr_mode.change(
+        fn=on_instr_mode_change,
+        inputs=[instr_mode],
+        outputs=[goal_dropdown, path_dropdown, instr_box_real],
+    )
+
+    def on_goal_select(choice):
+        if choice == "(직접 입력)":
+            return gr.update()
+        return choice
+
+    goal_dropdown.change(
+        fn=on_goal_select,
+        inputs=[goal_dropdown],
+        outputs=[instr_box_real],
+    )
+
+    path_dropdown.change(
+        fn=lambda v: v,
+        inputs=[path_dropdown],
+        outputs=[instr_box_real],
     )
 
     demo.load(
