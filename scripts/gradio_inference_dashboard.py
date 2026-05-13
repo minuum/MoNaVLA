@@ -534,7 +534,9 @@ def set_running(running: bool, backend_mode: str, api_url: str, instruction: str
 def run_backend_inference(image: Image.Image, instruction: str, backend_mode: str, api_url: str):
     backend = make_backend(backend_mode, api_url)
     result = backend.predict(image=image, instruction=instruction)
-    action = np.asarray(result["action"], dtype=np.float32).reshape(-1)
+    # action_3d includes az for ROT_L/ROT_R; fall back to 2D action if not present
+    action_raw = result.get("action_3d") or result["action"]
+    action = np.asarray(action_raw, dtype=np.float32).reshape(-1)
     chunk = np.asarray(result.get("chunk", [action.tolist()]), dtype=np.float32)
     if chunk.ndim == 1:
         chunk = chunk.reshape(1, -1)
@@ -547,16 +549,32 @@ def run_backend_inference(image: Image.Image, instruction: str, backend_mode: st
             source="gradio_inference",
         )
 
-    info = backend.info()
-    state["model_path"] = info["checkpoint_path"]
-    state["model_status"] = f"{backend.name} ({info['precision']})"
+    strategy = result.get("strategy", "")
+    pred_label = result.get("predicted_label") or ""
+    goal_near = result.get("goal_near_proxy")
+
+    label_prefix = f"[{pred_label}] " if pred_label else ""
+    act_str = f"{label_prefix}{action[0]:.4f}, {action[1]:.4f}, {action[2] if action.size > 2 else 0.0:.4f}"
+
+    if strategy == "goal_nav":
+        near_str = ("✅ NEAR" if goal_near else "⬜ far") if goal_near is not None else "?"
+        goal = result.get("goal")
+        goal_str = f"[{goal[0]:.2f},{goal[1]:.2f},{goal[2]:.2f}]" if goal else "init"
+        caption = result.get("grounding_caption") or ""
+        chunk_display = f"[GoalNav] goal={goal_str}  near={near_str}"
+        if caption:
+            chunk_display += f"\ngrounding: {caption}"
+    else:
+        chunk_display = f"Chunk (N={len(chunk)}):\n{np.array2string(chunk, precision=2, separator=', ', suppress_small=True)}"
+
     return {
         "log_str": f"✅ {backend.name}: {state['current_log']}",
         "lat_str": f"{float(result['latency_ms']):.1f} ms",
-        "act_str": f"{action[0]:.4f}, {action[1]:.4f}, {action[2] if action.size > 2 else 0.0:.4f}",
-        "chunk_display": f"Chunk (N={len(chunk)}):\n{np.array2string(chunk, precision=2, separator=', ', suppress_small=True)}",
+        "act_str": act_str,
+        "chunk_display": chunk_display,
         "action": action,
         "chunk": chunk,
+        "goal_near": goal_near,
     }
 
 
@@ -614,6 +632,11 @@ def update_ui(mode, backend_mode, api_url, instr, apply_cc, _run_status):
                 if logger_instance:
                     logger_instance.log_step(current_step, result["action"], 0, result["chunk"], image=img)
                 log = f"{current_step}/18 | {result['log_str']}"
+                if result.get("goal_near"):
+                    state["is_running"] = False
+                    state["step_count"] = 0
+                    ros_node.control.robust_stop(source="goal_reached")
+                    return img, f"🎯 Goal Reached! (step {current_step})", result["lat_str"], result["act_str"], result["chunk_display"], gr.update(value="Stopped (Goal Reached)"), state["camera_status"], state["model_path"], fig
                 return img, log, result["lat_str"], result["act_str"], result["chunk_display"], gr.update(value=f"Running ({current_step}/18)"), state["camera_status"], state["model_path"], fig
 
             state["is_running"] = False

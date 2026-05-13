@@ -1030,7 +1030,7 @@ async def root() -> dict[str, Any]:
 
 @app.get("/model/info")
 async def model_info() -> dict[str, Any]:
-    model = model_instance
+    model = get_model()
     if model is None:
         return {
             "model_loaded": False,
@@ -1040,6 +1040,19 @@ async def model_info() -> dict[str, Any]:
             "precision": "fp32",
             "device": "cuda" if torch.cuda.is_available() else "cpu",
             "action_dim": 3,
+        }
+    if isinstance(model, GoalNavInferenceModel):
+        return {
+            "model_loaded": True,
+            "model_name": model.model_name,
+            "checkpoint_path": str(model.weights_path),
+            "config_path": "N/A",
+            "precision": "fp32",
+            "device": str(model.device),
+            "action_dim": 3,
+            "model_type": "goal_nav",
+            "strategy": "goal_nav",
+            "goal_nav_info": model.model_info,
         }
     return {
         "model_loaded": True,
