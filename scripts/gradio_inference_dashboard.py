@@ -499,7 +499,6 @@ state = {
     "is_running": False,
     "is_busy": False,
     "step_count": 0,
-    "max_steps": 18,
     "last_img": None,
     "current_log": "Ready",
     "camera_status": "Unknown",
@@ -611,7 +610,7 @@ def update_ui(mode, backend_mode, api_url, instr, apply_cc, _run_status):
             gr.update(),
         )
 
-    state["auto_inference"] = mode == "Inference (18-step)"
+    state["auto_inference"] = mode == "Inference (Auto)"
 
     if not ROS_AVAILABLE or ros_node is None:
         state["camera_status"] = "ROS Not Available"
@@ -643,29 +642,24 @@ def update_ui(mode, backend_mode, api_url, instr, apply_cc, _run_status):
                     make_backend(backend_mode, api_url).reset(instr)
                 except Exception as e:
                     return img, f"❌ Reset failed: {e}", "0 ms", "STOP", "Waiting...", gr.update(value="Stopped"), state["camera_status"], state["model_path"], None
-                return img, "1/18 (Start/Wait)", "0 ms", "0.0000, 0.0000, 0.0000", "Waiting...", gr.update(value="Running (1/18)..."), state["camera_status"], state["model_path"], None
+                return img, "Step 1 (Start/Wait)", "0 ms", "0.0000, 0.0000, 0.0000", "Waiting...", gr.update(value="Running (step 1)..."), state["camera_status"], state["model_path"], None
 
-            if current_step <= state["max_steps"]:
-                result = run_backend_inference(img, instr, backend_mode, api_url)
-                fig = ros_node.generate_trajectory_plot(result["chunk"])
-                if logger_instance:
-                    logger_instance.log_step(current_step, result["action"], 0, result["chunk"], image=img)
-                log = f"{current_step}/18 | {result['log_str']}"
-                if result.get("goal_near"):
-                    state["is_running"] = False
-                    state["step_count"] = 0
-                    ros_node.control.robust_stop(source="goal_reached")
-                    return img, f"🎯 Goal Reached! (step {current_step})", result["lat_str"], result["act_str"], result["chunk_display"], gr.update(value="Stopped (Goal Reached)"), state["camera_status"], state["model_path"], fig
-                return img, log, result["lat_str"], result["act_str"], result["chunk_display"], gr.update(value=f"Running ({current_step}/18)"), state["camera_status"], state["model_path"], fig
-
-            state["is_running"] = False
-            state["step_count"] = 0
-            ros_node.control.robust_stop(source="inference_done")
-            completion_msg = "✅ Completed (18 Steps)"
+            result = run_backend_inference(img, instr, backend_mode, api_url)
+            fig = ros_node.generate_trajectory_plot(result["chunk"])
             if logger_instance:
-                report_path = logger_instance.end_session()
-                completion_msg = f"✅ Completed (18 Steps) | Log: {Path(report_path).name}"
-            return img, completion_msg, "0 ms", "STOP", "N/A", gr.update(value="Stopped (Finished)"), state["camera_status"], state["model_path"], None
+                logger_instance.log_step(current_step, result["action"], 0, result["chunk"], image=img)
+            log = f"Step {current_step} | {result['log_str']}"
+            if result.get("goal_near"):
+                state["is_running"] = False
+                state["step_count"] = 0
+                ros_node.control.robust_stop(source="goal_reached")
+                if logger_instance:
+                    report_path = logger_instance.end_session()
+                    log = f"🎯 Goal Reached! (step {current_step}) | Log: {Path(report_path).name}"
+                else:
+                    log = f"🎯 Goal Reached! (step {current_step})"
+                return img, log, result["lat_str"], result["act_str"], result["chunk_display"], gr.update(value="Stopped (Goal Reached)"), state["camera_status"], state["model_path"], fig
+            return img, log, result["lat_str"], result["act_str"], result["chunk_display"], gr.update(value=f"Running (step {current_step})"), state["camera_status"], state["model_path"], fig
         finally:
             state["is_busy"] = False
 
@@ -719,7 +713,7 @@ with gr.Blocks(title="VLA PRO Dashboard") as demo:
             with gr.Group():
                 gr.Markdown("### 🕹️ Operation Mode")
                 mode_radio = gr.Radio(
-                    choices=["Manual Drive", "Inference (18-step)"],
+                    choices=["Manual Drive", "Inference (Auto)"],
                     value="Manual Drive",
                     label="Controller Mode",
                 )
@@ -755,12 +749,12 @@ with gr.Blocks(title="VLA PRO Dashboard") as demo:
                     with gr.Column():
                         gr.Markdown("#### 🏁 Inference Control")
                         with gr.Row():
-                            btn_start_inf = gr.Button("▶️ START (18 Steps)", variant="primary")
+                            btn_start_inf = gr.Button("▶️ START", variant="primary")
                             btn_stop_inf = gr.Button("⏹️ STOP", variant="stop")
                         run_status_box = gr.Textbox(label="Run Status", value="Stopped", interactive=False)
 
             def on_mode_change(selected_mode):
-                state["auto_inference"] = selected_mode == "Inference (18-step)"
+                state["auto_inference"] = selected_mode == "Inference (Auto)"
                 state["is_running"] = False
                 state["step_count"] = 0
                 return gr.Row.update(visible=state["auto_inference"])
