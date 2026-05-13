@@ -1045,7 +1045,7 @@ async def model_info() -> dict[str, Any]:
         return {
             "model_loaded": True,
             "model_name": model.model_name,
-            "checkpoint_path": str(model.weights_path),
+            "checkpoint_path": model.model_info.get("weights_path", "N/A"),
             "config_path": "N/A",
             "precision": "fp32",
             "device": str(model.device),
