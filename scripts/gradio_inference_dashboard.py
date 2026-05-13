@@ -149,6 +149,12 @@ try:
 except ImportError as e:
     print(f"⚠️ ROS2 environment partially missing: {e}")
 
+    class Node:  # stub so class definitions below don't NameError
+        pass
+
+    class ReentrantCallbackGroup:
+        pass
+
 
 CC_PARAMS = {
     "r_gain": 1.0,
