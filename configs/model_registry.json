@@ -78,6 +78,17 @@
       "evidence": ["docs/v5/bbox_nav_exp47/summary.json"],
       "notes": "val acc 98.7%, instruction sensitivity 80%. bbox(32)+vision(1024)+instr(2048)=3104-dim."
     },
+    "exp49_goal_nav": {
+      "label": "Exp49 GoalNav MLP (Recommended)",
+      "kind": "decomposition",
+      "runtime": "proxy_server",
+      "checkpoint": "runs/v5_nav/mlp/exp49/exp49_mlp.pt",
+      "config": "N/A",
+      "status": "validated",
+      "pinned": true,
+      "evidence": ["runs/v5_nav/mlp/exp49/exp49_mlp.pt"],
+      "notes": "acc 96.4%, CL 100% success. GoalNav: vis(1024)+bbox_history+goal(3)=1059-dim, window=8."
+    },
     "local_v4_balanced_fallback": {
       "label": "Local V4 Balanced Fallback",
       "kind": "end_to_end",
@@ -134,8 +145,14 @@
       ]
     },
     "proxy_default": {
-      "label": "Proxy Default (Exp47 Instruction-Conditioned)",
-      "default_model": "exp47_proxy",
+      "label": "Proxy Default (Exp49 GoalNav)",
+      "default_model": "exp49_goal_nav",
+      "fallback_models": ["exp47_proxy", "exp46_proxy"],
+      "allow_runtimes": ["proxy_server"]
+    },
+    "exp49_proxy": {
+      "label": "Exp49 GoalNav (VLA_MODEL=exp49)",
+      "default_model": "exp49_goal_nav",
       "fallback_models": ["exp46_proxy"],
       "allow_runtimes": ["proxy_server"]
     },
