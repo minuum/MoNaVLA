@@ -161,7 +161,7 @@ def scan_local_files():
             continue
         pattern = "**/*" if root_dir.name == "runs" else "*"
         for path in root_dir.glob(pattern):
-            if path.suffix not in {".ckpt", ".pth"} or not path.is_file():
+            if path.suffix not in {".ckpt", ".pth", ".pt"} or not path.is_file():
                 continue
             try:
                 rel = path.relative_to(PROJECT_ROOT)
