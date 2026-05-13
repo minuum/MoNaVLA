@@ -610,7 +610,7 @@ def update_ui(mode, backend_mode, api_url, instr, apply_cc, _run_status):
             gr.update(),
         )
 
-    state["auto_inference"] = mode == "Inference (Auto)"
+    state["auto_inference"] = mode in ("Inference (Auto)", "Inference (18-step)")
 
     if not ROS_AVAILABLE or ros_node is None:
         state["camera_status"] = "ROS Not Available"
@@ -713,7 +713,7 @@ with gr.Blocks(title="VLA PRO Dashboard") as demo:
             with gr.Group():
                 gr.Markdown("### 🕹️ Operation Mode")
                 mode_radio = gr.Radio(
-                    choices=["Manual Drive", "Inference (Auto)"],
+                    choices=["Manual Drive", "Inference (Auto)", "Inference (18-step)"],
                     value="Manual Drive",
                     label="Controller Mode",
                 )
@@ -754,7 +754,7 @@ with gr.Blocks(title="VLA PRO Dashboard") as demo:
                         run_status_box = gr.Textbox(label="Run Status", value="Stopped", interactive=False)
 
             def on_mode_change(selected_mode):
-                state["auto_inference"] = selected_mode == "Inference (Auto)"
+                state["auto_inference"] = selected_mode in ("Inference (Auto)", "Inference (18-step)")
                 state["is_running"] = False
                 state["step_count"] = 0
                 return gr.Row.update(visible=state["auto_inference"])
