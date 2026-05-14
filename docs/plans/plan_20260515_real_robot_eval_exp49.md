@@ -1,7 +1,7 @@
 # Plan — Exp49 실로봇 평가 프로토콜
 
 작성: 2026-05-15  
-브랜치: `monavla-driving`
+브랜치: 계획 `inference-integration` / 구현 `monavla-driving`
 
 ---
 
@@ -72,34 +72,39 @@ python3 scripts/gradio_session_eval.py --port 7861
 # → grounding_success_rate 확인 (< 50% 이면 조명/바스켓 위치 조정)
 ```
 
-### Step 3 — 로봇 실행
+### Step 3 — Trial Logger 실행 (별도 터미널)
 ```bash
-# ROS2 launch
-cd ROS_action
-source /opt/ros/humble/setup.bash
-# (기존 launch 명령어 사용)
+# soda 서버에서 (모니터 또는 laptop 브라우저로 접근)
+python3 scripts/real_robot_trial_logger.py --port 7862
+# 브라우저: http://100.85.118.58:7862
 ```
 
-### Step 4 — 결과 기록
+Trial Logger UI:
+- **Path Type** 드롭다운 → **성공/실패** 라디오 → **실패 원인** (실패 시 표시) → **기록** 버튼
+- 오른쪽 패널에 오프라인 CL vs 실로봇 비교 테이블 실시간 갱신
+- 자동 저장: `docs/v5/eval/real_robot_exp49_YYYYMMDD_HHMMSS.json`
 
-각 시도마다 기록:
-- 시작 위치(path_type)
-- 성공 여부 (바스켓 도달 O/X)
-- 실패 원인 (방향 오류 / 조기 정지 / 충돌)
-- 육안 관찰: 방향 전환이 자연스러운가
+### Step 4 — 로봇 실행 + 기록
+
+각 시도 순서:
+1. Gradio 메인 대시보드(7865)에서 path_type instruction 설정 → **Inference (Auto)** 시작
+2. 로봇 완주 또는 중단 확인
+3. Trial Logger(7862)에서 결과 기록 → 📝 기록 버튼
 
 ---
 
-## 4. 기록 양식
+## 4. 기록 형식 (자동 저장)
 
 ```json
 {
-  "date": "2026-05-15",
   "model": "exp49",
+  "date": "2026-05-15",
   "server": "soda@100.85.118.58:8001",
+  "total_trials": 18,
   "trials": [
     {
       "trial_id": 1,
+      "timestamp": "2026-05-15T14:23:11",
       "path_type": "center_straight",
       "success": true,
       "failure_reason": null,
@@ -109,7 +114,8 @@ source /opt/ros/humble/setup.bash
 }
 ```
 
-저장 위치: `docs/v5/eval/real_robot_exp49_YYYYMMDD.json`
+저장 위치: `docs/v5/eval/real_robot_exp49_YYYYMMDD_HHMMSS.json`  
+구현: `scripts/real_robot_trial_logger.py` (monavla-driving 브랜치)
 
 ---
 
@@ -139,9 +145,27 @@ source /opt/ros/humble/setup.bash
 
 ## 7. 체크리스트
 
-- [ ] 서버 health 응답 model_name=exp49 확인
-- [ ] Gradio 세션 eval로 데이터 품질 사전 점검
-- [ ] 9개 path type × 2회 이상 실시
-- [ ] 결과 JSON 저장
-- [ ] 오프라인 CL과 비교 분석
-- [ ] 실패 원인 분류 기록
+**사전 준비 (soda에서)**
+- [ ] `curl localhost:8001/health` → model_name=exp49 확인
+- [ ] `python3 scripts/real_robot_trial_logger.py --port 7862` 실행
+- [ ] Gradio session eval (7861)로 최근 H5 품질 사전 점검
+
+**테스트 중**
+- [ ] 9개 path type × 2회(최소) 실시
+- [ ] 매 시도 후 Trial Logger에 즉시 기록
+
+**테스트 후**
+- [ ] Trial Logger에서 JSON 경로 확인 버튼 → 파일 커밋
+- [ ] 오프라인 CL과 비교: 차이 > 20%p 이면 원인 분석
+- [ ] `inference-integration` 브랜치에 결과 JSON 커밋
+
+## 8. 실로봇 결과 커밋 방법
+
+```bash
+# 테스트 완료 후 (minum 로컬에서)
+scp soda@100.85.118.58:MoNaVLA/docs/v5/eval/real_robot_exp49_*.json \
+    docs/v5/eval/
+git add docs/v5/eval/real_robot_exp49_*.json
+git commit -m "eval(real-robot): Exp49 실로봇 결과 YYYYMMDD"
+git push origin inference-integration
+```
