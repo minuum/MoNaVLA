@@ -1,208 +1,133 @@
-# Plan: Exp52 — Language-Conditioned Visual Features (True VLA)
-작성일: 2026-05-12
+# Plan: 5/15 미팅 결정 — CLIP Vision LoRA + 정량 검증
+작성일: 2026-05-15
 
 ---
 
-## 1. 목표
+## 1. 핵심 과학적 질문 (from 미팅)
 
-**현재 문제 (Exp49):**
-- `model.vision_model(image_only)` → 1024-dim feature (언어 영향 없음)
-- 언어는 episode 시작 시 goal_cx0(3-dim)으로만 관여, 이후 MLP에 언어 없음
+> **"3개 트라젝토리만으로 왜 됐나? LEFT를 외운 건가, 박스를 본 건가?"**
 
-**달성 목표:**
-- `model(image + text)` joint forward → LM last hidden state의 image token 추출 → 2048-dim
-- 이 feature는 Kosmos-2 LM의 self-attention을 거쳐 **언어가 이미지를 어떻게 보는지에 영향**
-- 이것이 True VLA의 핵심 조건: 언어가 visual feature 추출 과정 자체에 참여
+현재 상태:
+- 9 에피소드 (좌/중앙/우 × 3개), ~150 샘플
+- 3번 테스트 → 3번 성공
+- 인스트럭션: `"basket under left"` 등 방향어 포함
 
-**검증 질문:**
-- Exp49 대비 val acc가 오르는가?
-- paraphrase robustness: 다른 표현으로도 같은 행동이 나오는가?
-- Exp47(fingerprinting 74%)과 구조적으로 다른가?
+**문제:** 모델이 아래 중 어느 이유로 성공하는지 불명확
+- (A) `"left"` 텍스트 패턴 암기 → left 액션 출력
+- (B) CLIP 비전이 박스 위치를 시각적으로 인식 → 방향 결정
 
 ---
 
-## 2. 왜 이게 True VLA인가
+## 2. 교수님 지시 사항 (5/15 미팅)
 
 ```
-Exp46/49 (언어 독립):
-  vision_model(image) → 1024-dim
-  언어는 goal_cx0으로만 참여
-
-Exp47 (fingerprinting):
-  text_embed(instruction) → 2048-dim (문장 패턴 암기)
-  언어 이해 없음, paraphrase 74%
-
-Exp52 (True VLA):
-  full_kosmos2(image + text) → LM last hidden state
-  image_embeds_position_mask로 64개 image token 추출
-  → mean pool → 2048-dim (언어가 이미지 처리에 영향)
-
-핵심: Kosmos-2 LM의 self-attention에서
-  text token ←→ image token 이 서로 어텐드함
-  → image token hidden state에 언어 의미가 녹아있음
-  → "왼쪽 바구니"라고 하면 왼쪽 영역 image token이 강조됨
+1. CLIP 비전 인코더 16~24번 레이어에만 LoRA 적용
+2. 언어(LM) 쪽은 완전 frozen
+3. 데이터: 좌/중앙/우 각 10개 트라젝토리 (조이스틱 비동기 수집)
+4. 테스트: "box를 찾아가라" 방향어 없는 프롬프트로도 동작하는지
+5. 정량 결과: 각 방향 N번 시도 → N번 성공 테이블
 ```
 
-**실험 확인값 (방금 측정):**
-```
-inputs: pixel_values, input_ids(seq_len=76), image_embeds_position_mask
-image token count: 64개 (positions 2~65)
-LM last hidden: (1, 76, 2048)
-image token hidden: (64, 2048) → mean → (2048,) ← 이게 Exp52의 vision feat
-```
+**가설:** CLIP high-level 블락(시맨틱 정렬 레이어)에 LoRA를 걸면
+박스 객체 인식이 명시적으로 강화되고, 9개가 아닌 30개 트라젝토리로
+generalizable한 visual grounding이 가능해진다.
 
 ---
 
 ## 3. 아키텍처
 
 ```
-[에피소드 시작]
-  instruction → processor → input_ids
-  frame_0 + instruction → Kosmos-2 joint → goal_cx0 (grounding, 3-dim)
+현재 Exp49/Step2 (변경 없음):
+  CLIP(frozen) → vision_feat(1024) → MLP → action
 
-[매 타임스텝 t]
-  frame_t + instruction → Kosmos-2 joint forward
-    → out.hidden_states[-1]        # (1, 76, 2048)
-    → mask = image_embeds_position_mask[0].bool()
-    → img_tokens = hidden[0][mask]  # (64, 2048)
-    → vis_feat = img_tokens.mean(0) # (2048,)  ← language-conditioned!
+신규 (이 플랜):
+  CLIP(layers 0-15 frozen, layers 16-23 LoRA) → vision_feat(1024) → MLP → action
 
-  bbox_history(window=8) = [cx,cy,area,has_bbox] × 8 = 32-dim
-
-[MLP 입력]
-  [bbox_history(32) + lang_vis(2048) + goal(3)] = 2083-dim
-
-[MLP 구조]
-  2083 → 512 → 256 → 128 → 64 → 8 (action)
-  (Exp49와 동일 구조, d_in만 1059→2083)
+핵심 변경: CLIP 마지막 8블락(16~23, 0-indexed)에 LoRA(r=16)
+LM 쪽: 완전 frozen (건드리지 않음)
 ```
 
----
-
-## 4. Exp47과의 차이 (왜 fingerprinting이 아닌가)
-
-| 항목 | Exp47 (fingerprinting) | Exp52 (language-conditioned) |
-|------|----------------------|------------------------------|
-| 입력 | text만 encode → 2048-dim | image + text jointly → image token hidden |
-| 언어 역할 | "경로 label" 역할 | 이미지를 어떻게 볼지 결정 |
-| paraphrase 예측 | 표현 바뀌면 vector 달라짐 → 74% | 시각적 attention이 결정 → 이론상 강인 |
-| MLP이 학습하는 것 | 고정 문장 패턴 | 언어에 의해 변조된 visual scene |
+**왜 16~24인가:**
+- CLIP ViT-L/14의 24블락 중 마지막 8개가 semantic alignment layer
+- 이 레이어들이 객체 인식과 언어 정렬에 직접 관여
+- Low(0~7), Mid(8~15)는 엣지/텍스처 — 건드릴 이유 없음
 
 ---
 
-## 5. 데이터 파이프라인
+## 4. 단계별 실행 계획
 
-### 5.1 에피소드별 instruction (path_type 기반)
+### Phase 0: 조이스틱 확인 (선행 조건)
+- [ ] 조이스틱 박스 동작 여부 확인
+- [ ] 비동기 데이터 수집 스크립트와 연결 테스트
 
-```python
-INSTRUCTIONS = {
-    "center_straight": "Navigate straight ahead to the basket in the center",
-    "center_left":     "Navigate to the basket on the left",
-    "center_right":    "Navigate to the basket on the right",
-    "left_straight":   "Turn left and navigate straight to the basket",
-    "left_left":       "Turn left and go to the basket on the left side",
-    "left_right":      "Turn left then right to reach the basket",
-    "right_straight":  "Turn right and navigate straight to the basket",
-    "right_left":      "Turn right then left to reach the basket",
-    "right_right":     "Turn right and go to the basket on the right side",
-}
-```
+### Phase 1: 데이터 수집
+- [ ] 방식: 조이스틱 비동기 (기존 고정 격자 방식 → 교체)
+- [ ] 목표: 좌 10개 + 중앙 10개 + 우 10개 = **30 트라젝토리**
+- [ ] 에피소드당 ~15-20 프레임 → 총 450~600 샘플
+- [ ] 인스트럭션 두 가지 준비:
+  - 방향어 포함: `"basket under left"` / `"basket in center"` / `"basket under right"`
+  - 방향어 없음: `"go to the box"` (테스트케이스용)
 
-기존 Exp49의 goal_cx0 grounding도 유지 (Exp49 bbox_dataset_full.json 재사용).
+### Phase 2: CLIP LoRA 구현
+- [ ] `robovlm_nav/models/` 또는 proxy server 내 CLIP 레이어 접근 경로 파악
+- [ ] LoRA 적용 대상: `model.vision_model.encoder.layers[16:24]`
+  - target modules: `q_proj`, `v_proj` (attention만, r=16, alpha=32)
+- [ ] layers 0-15: `requires_grad_(False)` 유지
+- [ ] LM 전체: frozen 유지
+- [ ] MLP 헤드: 기존 Exp49 구조 재사용 (1024-dim 입력)
 
-### 5.2 feature 추출 (사전 캐싱)
+### Phase 3: 학습
+- [ ] 데이터: 30 트라젝토리 bbox_dataset
+- [ ] LoRA 파라미터만 학습, MLP 헤드 같이 학습
+- [ ] epochs: 300, AdamW, CosineAnnealing
 
-```python
-# 입력: bbox_dataset_full.json (150 ep, 2626 frames)
-# 출력: lang_vis_features_exp52.npz (ep_path → np.ndarray (N_frames, 2048))
+### Phase 4: 테스트케이스 (정량 결과)
 
-proc = AutoProcessor.from_pretrained('.vlms/kosmos-2-patch14-224')
-model = AutoModelForVision2Seq.from_pretrained(
-    '.vlms/kosmos-2-patch14-224', torch_dtype=torch.float16
-).cuda().eval()
+교수님 요구 형식:
 
-for ep in episodes:
-    instr = INSTRUCTIONS[ep['path_type']]
-    imgs = load_episode_images(ep)
-    feats = []
-    for img in imgs:
-        inputs = proc(text=instr, images=img, return_tensors='pt').to('cuda')
-        with torch.no_grad():
-            out = model(**inputs, output_hidden_states=True)
-        hs = out.hidden_states[-1]                            # (1, 76, 2048)
-        mask = inputs['image_embeds_position_mask'][0].bool() # (76,)
-        feat = hs[0][mask].mean(0).float().cpu().numpy()     # (2048,)
-        feats.append(feat)
-    cache[ep_path] = np.stack(feats)  # (N_frames, 2048)
-```
+| 프롬프트 타입 | 방향 | 시도 횟수 | 성공 횟수 | 성공률 |
+|---|---|---|---|---|
+| 방향어 포함 | 왼쪽 | 5 | ? | ?% |
+| 방향어 포함 | 중앙 | 5 | ? | ?% |
+| 방향어 포함 | 오른쪽 | 5 | ? | ?% |
+| **방향어 없음** | 왼쪽 | 5 | ? | ?% |
+| **방향어 없음** | 중앙 | 5 | ? | ?% |
+| **방향어 없음** | 오른쪽 | 5 | ? | ?% |
 
-**예상 추출 시간:** 2626 frames × ~0.5s = ~22분
-
-### 5.3 MLP 학습 (Exp49와 동일 구조)
-
-- 입력: 2083-dim (32 + 2048 + 3)
-- Exp49 bbox_dataset_full.json, goal 3-dim 재사용
-- 학습: 300 epochs, AdamW, CosineAnnealingLR
+**판별 기준:**
+- 방향어 있을 때 성공 + 방향어 없을 때도 성공 → **박스 시각 인식** 근거
+- 방향어 있을 때만 성공 → **텍스트 패턴 암기** 의심
+- 방향어 없을 때 무작위 → **언어 의존적**
 
 ---
 
-## 6. 평가
+## 5. 코드 변경 범위
 
-### 6.1 baseline 비교
-
-| 실험 | 입력 | val acc | paraphrase |
-|------|------|---------|-----------|
-| Exp46 | bbox+vis(1024) | 93.2% | — |
-| Exp47 | +text_embed(2048) | 98.7% | 74.1% ❌ |
-| Exp49 | +goal_cx0(3) | 96.4% | 100% ✅ |
-| **Exp52** | **lang_vis(2048)+goal(3)** | **?** | **?** |
-
-### 6.2 paraphrase 테스트
-
-Exp49와 동일한 방식: 9 path_type × 5 표현 = 45개 테스트
-- 단, 다른 표현으로 feature를 **새로 추출** (캐시 없이 on-the-fly)
-- 같은 action이 나오면 → 진짜 language generalization
-- 같은 action이 나오지 않으면 → 여전히 visual feature fingerprinting
+| 파일 | 변경 내용 |
+|---|---|
+| `robovlm_nav/serve/proxy_inference_server.py` | CLIP 16-24 LoRA 로드 지원 |
+| `scripts/train_clip_lora_exp53.py` | 신규 학습 스크립트 |
+| `configs/bbox_nav_exp53_clip_lora.json` | 실험 config |
+| `scripts/test_clip_lora_testcases.py` | 테스트케이스 자동화 |
 
 ---
 
-## 7. 구현 단계
+## 6. Exp52와의 관계
 
-- [x] Step 1: `scripts/extract_lang_vis_features_exp52.py` — feature 추출 스크립트
-- [x] Step 1b: `scripts/train_v5_exp52_true_vla.py` — MLP 학습 스크립트
-- [ ] Step 2: feature 추출 실행 (150 ep × all frames, ~22분)
-- [ ] Step 3: `scripts/train_v5_exp52_true_vla.py` — MLP 학습
-- [ ] Step 4: val acc 평가
-- [ ] Step 5: paraphrase robustness 테스트
-- [ ] Step 6: 결과 문서화 (`docs/v5/bbox_nav_exp52/`)
+Exp52 (Language-Conditioned Visual Features)는 **별도 보존**.
+이 플랜(Exp53)과 방향이 다름:
 
----
-
-## 8. 리스크
-
-| 리스크 | 가능성 | 대응 |
-|--------|--------|------|
-| visual feature가 여전히 언어와 무관 | 중간 | 실험 전에 두 instruction의 feature cosine sim 비교로 확인 |
-| paraphrase 여전히 낮음 | 중간 | goal_cx0 path가 백업으로 작동하므로 baseline 이하는 안 됨 |
-| val acc Exp49보다 낮음 | 낮음 | 2048-dim이 더 많은 정보 — 낮을 이유 없음 |
-| OOM (joint forward 부담) | 낮음 | float16, batch=1, 캐싱 방식이라 inference만 함 |
+| 항목 | Exp52 | Exp53 (이 플랜) |
+|---|---|---|
+| 접근 | LM joint forward → image token | CLIP 16-24 LoRA → visual grounding |
+| LM 역할 | 이미지 처리에 언어 attention 개입 | 완전 frozen |
+| 목표 | True VLA (언어가 시각 변조) | 박스 인식 강화 + 검증 |
+| 데이터 | 기존 150 ep | 신규 30 트라젝토리 |
 
 ---
 
-## 9. 선행 검증 (구현 전)
+## 7. 완료 기준
 
-두 instruction으로 같은 이미지를 넣었을 때 feature 차이 확인:
-
-```python
-feat_left  = extract(img, "Navigate to the basket on the left")
-feat_right = extract(img, "Navigate to the basket on the right")
-feat_para  = extract(img, "Go to the container on the left side")  # paraphrase
-
-cos_sim_lr = cosine(feat_left, feat_right)  # 기대: 낮음 (다른 지시)
-cos_sim_pp = cosine(feat_left, feat_para)   # 기대: 높음 (같은 의미)
-```
-
-- cos_sim_lr << cos_sim_pp → 언어가 visual feature에 차별적으로 영향 → Exp52 진행 가치 있음
-- cos_sim_lr ≈ cos_sim_pp → 언어 영향 없음 → 접근 수정 필요
-
-**승인 후 구현 시작.**
+- [ ] 방향어 없이 `"go to the box"`만으로 좌/중/우 각 5회 중 4회 이상 성공
+- [ ] 정량 테이블 완성 (교수님 보고용)
+- [ ] 박스 인식 vs 텍스트 암기 판별 근거 제시
