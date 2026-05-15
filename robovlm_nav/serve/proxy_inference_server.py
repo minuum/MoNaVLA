@@ -142,6 +142,13 @@ class InferenceResponse(BaseModel):
     goal_near_proxy: Optional[bool] = None
     instruction_used: bool = False
     matched_path_type: Optional[str] = None
+    speed_scale: Optional[float] = None
+    grounding_cached: Optional[bool] = None
+
+
+class ConfigRequest(BaseModel):
+    speed_scaling: Optional[bool] = None
+    grounding_skip_n: Optional[int] = None
 
 
 class ProxyMLP(nn.Module):
@@ -862,9 +869,11 @@ class GoalNavInferenceModel:
         self.grounder = GroundingBackend(grounding_model_path, grounding_device)
         self._load(weights_path)
 
-        # grounding 캐시: GROUNDING_SKIP_N 스텝마다 1번만 Kosmos-2 실행
+        # grounding 캐시: _grounding_skip_n 스텝마다 1번만 Kosmos-2 실행 (1=캐시 없음)
         self._grounding_skip_n: int = int(os.getenv("VLA_GROUNDING_SKIP_N", "3"))
         self._grounding_cache: Optional[dict] = None
+        # 속도 스케일링: bbox area 기반 감속 활성화 여부
+        self.speed_scaling_enabled: bool = os.getenv("VLA_SPEED_SCALING", "1") != "0"
 
     def _load(self, weights_path: Path) -> None:
         if not weights_path.exists():
@@ -895,6 +904,21 @@ class GoalNavInferenceModel:
         self.goal = None
         self.inference_count = 0
         self._grounding_cache = None
+
+    def set_config(
+        self,
+        speed_scaling: Optional[bool] = None,
+        grounding_skip_n: Optional[int] = None,
+    ) -> dict:
+        if speed_scaling is not None:
+            self.speed_scaling_enabled = speed_scaling
+        if grounding_skip_n is not None:
+            self._grounding_skip_n = max(1, grounding_skip_n)
+            self._grounding_cache = None
+        return {
+            "speed_scaling_enabled": self.speed_scaling_enabled,
+            "grounding_skip_n": self._grounding_skip_n,
+        }
 
     def _build_feature(self, vis_feat: np.ndarray) -> np.ndarray:
         feat: list[float] = []
@@ -961,23 +985,27 @@ class GoalNavInferenceModel:
             logits = self.model(x)
             pred_class = int(logits.argmax(dim=-1).item())
 
-        # bbox area 기반 속도 스케일링
-        area = bbox_frame["area"]
-        if not bbox_frame["has_bbox"]:
-            speed_scale = 0.7   # bbox 없음 — 감속
-        elif area > 0.18:
-            speed_scale = 0.25  # 매우 가까움 — 거의 정지
-        elif area > 0.10:
-            speed_scale = 0.5   # 가까움 — 절반 속도
-        elif area > 0.05:
-            speed_scale = 0.75  # 중간 거리
-        else:
-            speed_scale = 1.0   # 멀리 있음 — 전속력
-
         raw_2d = ACTION_2D[pred_class]
         raw_3d = ACTION_3D[pred_class]
-        scaled_2d = [raw_2d[0] * speed_scale, raw_2d[1] * speed_scale]
-        scaled_3d = [raw_3d[0] * speed_scale, raw_3d[1] * speed_scale, raw_3d[2] * speed_scale]
+
+        if self.speed_scaling_enabled:
+            area = bbox_frame["area"]
+            if not bbox_frame["has_bbox"]:
+                speed_scale = 0.7
+            elif area > 0.18:
+                speed_scale = 0.25
+            elif area > 0.10:
+                speed_scale = 0.5
+            elif area > 0.05:
+                speed_scale = 0.75
+            else:
+                speed_scale = 1.0
+            scaled_2d = [raw_2d[0] * speed_scale, raw_2d[1] * speed_scale]
+            scaled_3d = [raw_3d[0] * speed_scale, raw_3d[1] * speed_scale, raw_3d[2] * speed_scale]
+        else:
+            speed_scale = 1.0
+            scaled_2d = list(raw_2d)
+            scaled_3d = list(raw_3d)
 
         self.inference_count += 1
         return {
@@ -1220,6 +1248,22 @@ async def reset_history(x_api_key: Optional[str] = Header(default=None)) -> dict
     model = get_model()
     model.reset()
     return {"status": "success", "message": "Proxy history reset"}
+
+
+@app.post("/config")
+async def set_config(
+    request: ConfigRequest,
+    x_api_key: Optional[str] = Header(default=None),
+) -> dict[str, Any]:
+    _verify_api_key(x_api_key)
+    model = get_model()
+    if isinstance(model, GoalNavInferenceModel):
+        cfg = model.set_config(
+            speed_scaling=request.speed_scaling,
+            grounding_skip_n=request.grounding_skip_n,
+        )
+        return {"status": "success", "config": cfg}
+    return {"status": "skipped", "reason": "Not a GoalNavInferenceModel"}
 
 
 @app.get("/recent")

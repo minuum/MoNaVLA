@@ -43,6 +43,29 @@ GOAL_NAV_PRESETS = [
     "the corridor on the left",
     "the corridor on the right",
 ]
+
+# 실험 모드: (표시 이름, instruction, backend_instruction_mode, speed_scaling, grounding_skip_n)
+EXP_MODES = {
+    "GoalNav-fixed (Exp49, 고정속도)": {
+        "instruction": GOAL_NAV_PRESETS[0],
+        "backend_mode": "GoalNav (exp49)",
+        "speed_scaling": False,
+        "grounding_skip_n": 3,
+    },
+    "GoalNav-scaled (Exp49, 거리비례속도)": {
+        "instruction": GOAL_NAV_PRESETS[0],
+        "backend_mode": "GoalNav (exp49)",
+        "speed_scaling": True,
+        "grounding_skip_n": 3,
+    },
+    "PathType-fixed (Exp47, 고정속도)": {
+        "instruction": "right_right",
+        "backend_mode": "PathType (exp47)",
+        "speed_scaling": False,
+        "grounding_skip_n": 1,
+    },
+}
+EXP_MODE_NAMES = list(EXP_MODES.keys())
 LINEAR_SPEED_VLA = 1.15
 ANGULAR_SPEED_VLA = 1.15
 
@@ -403,6 +426,12 @@ class ApiInferenceBackend:
             },
         )
 
+    def set_config(self, speed_scaling: bool, grounding_skip_n: int) -> dict:
+        try:
+            return self._post("/config", {"speed_scaling": speed_scaling, "grounding_skip_n": grounding_skip_n})
+        except Exception as e:
+            return {"status": "error", "reason": str(e)}
+
     def info(self) -> dict:
         response = requests.get(
             f"{self.api_url}/model/info",
@@ -574,12 +603,19 @@ def run_backend_inference(image: Image.Image, instruction: str, backend_mode: st
     label_prefix = f"[{pred_label}] " if pred_label else ""
     act_str = f"{label_prefix}{action[0]:.4f}, {action[1]:.4f}, {action[2] if action.size > 2 else 0.0:.4f}"
 
+    speed_scale = result.get("speed_scale")
+    grounding_cached = result.get("grounding_cached")
+
     if strategy == "goal_nav":
         near_str = ("✅ NEAR" if goal_near else "⬜ far") if goal_near is not None else "?"
         goal = result.get("goal")
         goal_str = f"[{goal[0]:.2f},{goal[1]:.2f},{goal[2]:.2f}]" if goal else "init"
         caption = result.get("grounding_caption") or ""
         chunk_display = f"[GoalNav] goal={goal_str}  near={near_str}"
+        if speed_scale is not None:
+            chunk_display += f"  spd={speed_scale:.2f}"
+        if grounding_cached is not None:
+            chunk_display += f"  cache={'✓' if grounding_cached else '✗'}"
         if caption:
             chunk_display += f"\ngrounding: {caption}"
     else:
@@ -601,6 +637,8 @@ def run_backend_inference(image: Image.Image, instruction: str, backend_mode: st
         "bbox": result.get("bbox"),
         "instruction_used": result.get("instruction_used"),
         "matched_path_type": result.get("matched_path_type"),
+        "speed_scale": speed_scale,
+        "grounding_cached": grounding_cached,
     }
 
 
@@ -668,6 +706,8 @@ def update_ui(mode, backend_mode, api_url, instr, apply_cc, _run_status):
                     bbox=result.get("bbox"),
                     instruction_used=result.get("instruction_used"),
                     matched_path_type=result.get("matched_path_type"),
+                    speed_scale=result.get("speed_scale"),
+                    grounding_cached=result.get("grounding_cached"),
                 )
             log = f"Step {current_step} | {result['log_str']}"
             if result.get("goal_near"):
@@ -804,11 +844,12 @@ with gr.Blocks(title="VLA PRO Dashboard") as demo:
 
         with gr.Column(scale=1):
             with gr.Group():
-                instr_mode = gr.Radio(
-                    choices=["GoalNav (exp49)", "PathType (exp47)"],
-                    value="GoalNav (exp49)",
-                    label="Instruction Mode",
+                exp_mode = gr.Dropdown(
+                    choices=EXP_MODE_NAMES,
+                    value=EXP_MODE_NAMES[0],
+                    label="실험 모드",
                 )
+                exp_config_status = gr.Textbox(label="서버 Config 상태", value="미적용", interactive=False)
                 goal_dropdown = gr.Dropdown(
                     choices=["(직접 입력)"] + GOAL_NAV_PRESETS,
                     value=GOAL_NAV_PRESETS[0],
@@ -867,18 +908,34 @@ with gr.Blocks(title="VLA PRO Dashboard") as demo:
         outputs=status_log,
     )
 
-    def on_instr_mode_change(mode):
-        is_goal = mode == "GoalNav (exp49)"
+    def on_exp_mode_change(mode_name, api_url, backend_mode):
+        cfg = EXP_MODES.get(mode_name, EXP_MODES[EXP_MODE_NAMES[0]])
+        is_goal = "GoalNav" in mode_name
+        instr = cfg["instruction"]
+        # Apply /config to server if using API backend
+        cfg_status = "미적용 (Local 모드)"
+        if backend_mode == "API Server":
+            try:
+                result = ApiInferenceBackend(api_url).set_config(
+                    speed_scaling=cfg["speed_scaling"],
+                    grounding_skip_n=cfg["grounding_skip_n"],
+                )
+                speed_on = cfg["speed_scaling"]
+                skip_n = cfg["grounding_skip_n"]
+                cfg_status = f"✅ 적용: speed_scaling={speed_on}, skip_n={skip_n}"
+            except Exception as e:
+                cfg_status = f"⚠️ 적용 실패: {e}"
         return (
             gr.update(visible=is_goal),
             gr.update(visible=not is_goal),
-            GOAL_NAV_PRESETS[0] if is_goal else "right_right",
+            instr,
+            cfg_status,
         )
 
-    instr_mode.change(
-        fn=on_instr_mode_change,
-        inputs=[instr_mode],
-        outputs=[goal_dropdown, path_dropdown, instr_box_real],
+    exp_mode.change(
+        fn=on_exp_mode_change,
+        inputs=[exp_mode, api_url_box, backend_radio],
+        outputs=[goal_dropdown, path_dropdown, instr_box_real, exp_config_status],
     )
 
     def on_goal_select(choice):
