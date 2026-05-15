@@ -774,7 +774,7 @@ class ProxyInferenceModel:
         start = time.time()
         image_rgb = self._decode_image(image_base64)
         extract_vis = self.model_type in ("exp46", "exp47")
-        grounding = self.grounder.run(image_rgb, extract_vis_feat=extract_vis)
+        grounding = self.grounder.run(image_rgb, extract_vis=extract_vis)
         bbox = grounding["bbox"]
         vis_feat = grounding.get("vis_feat")
 
@@ -839,136 +839,6 @@ class ProxyInferenceModel:
             "instruction": instruction,
         }
 
-
-class GoalNavInferenceModel:
-    """Exp46/49/50/51: Kosmos-2 vis feat (1024-dim) + bbox history + grounded goal → GoalNavMLP.
-
-    Set VLA_MODEL=exp49 (recommended: 96.4% acc, 100% CL success).
-    """
-
-    def __init__(
-        self,
-        weights_path: Path,
-        grounding_model_path: Path,
-        grounding_device: torch.device,
-        device: torch.device,
-    ):
-        self.device = device
-        self.model: Optional[GoalNavMLP] = None
-        self.window: int = 8
-        self.goal_dim: int = 0
-        self.history: list[dict[str, Any]] = []
-        self.goal: Optional[np.ndarray] = None
-        self.inference_count = 0
-        self.model_info: dict[str, Any] = {}
-        self.model_name = weights_path.stem
-
-        self.grounder = GroundingBackend(grounding_model_path, grounding_device)
-        self._load(weights_path)
-
-    def _load(self, weights_path: Path) -> None:
-        if not weights_path.exists():
-            raise FileNotFoundError(f"GoalNav weights not found: {weights_path}")
-        ckpt = torch.load(weights_path, map_location="cpu", weights_only=False)
-        d_in = int(ckpt["d_in"])
-        self.window = int(ckpt.get("window", 8))
-        self.goal_dim = int(ckpt.get("goal_dim") or 0)
-
-        net = GoalNavMLP(d_in=d_in)
-        net.net.load_state_dict(ckpt["model_state_dict"])
-        self.model = net.to(self.device).eval()
-        self.model_info = {
-            "source": "loaded",
-            "weights_path": str(weights_path),
-            "d_in": d_in,
-            "window": self.window,
-            "goal_dim": self.goal_dim,
-            "overall_acc": ckpt.get("overall_acc"),
-        }
-        logger.info(
-            "Loaded GoalNav MLP from %s (d_in=%d, window=%d, goal_dim=%d, acc=%.4f)",
-            weights_path, d_in, self.window, self.goal_dim, ckpt.get("overall_acc", 0.0),
-        )
-
-    def reset(self) -> None:
-        self.history.clear()
-        self.goal = None
-        self.inference_count = 0
-
-    def _build_feature(self, vis_feat: np.ndarray) -> np.ndarray:
-        feat: list[float] = []
-        cur_idx = len(self.history) - 1
-        for k in range(self.window):
-            idx = max(0, cur_idx - (self.window - 1 - k))
-            item = self.history[idx]
-            feat.extend([item["cx"], item["cy"], item["area"], float(item["has_bbox"])])
-        feat.extend(vis_feat.tolist())
-        if self.goal_dim > 0 and self.goal is not None:
-            feat.extend(self.goal.tolist())
-        return np.asarray(feat, dtype=np.float32)
-
-    def _decode_image(self, image_base64: str) -> np.ndarray:
-        image_bytes = base64.b64decode(image_base64)
-        pil = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-        return np.array(pil)
-
-    def predict(self, image_base64: str, instruction: str) -> dict[str, Any]:
-        if self.model is None:
-            raise RuntimeError("GoalNav model not loaded")
-
-        start = time.time()
-        image_rgb = self._decode_image(image_base64)
-
-        grounding = self.grounder.run(image_rgb, extract_vis_feat=True)
-        bbox = grounding["bbox"]
-        vis_feat: np.ndarray = grounding["vis_feat"]
-
-        if self.goal_dim > 0 and self.goal is None:
-            if bbox is not None:
-                self.goal = np.array([bbox["cx"], bbox["cy"], bbox["area"]], dtype=np.float32)
-            else:
-                self.goal = np.array([0.5, 0.5, 0.0], dtype=np.float32)
-            logger.info("GoalNav: goal initialized to [%.3f, %.3f, %.3f]", *self.goal)
-
-        bbox_frame: dict[str, Any] = {
-            "cx": float(bbox["cx"]) if bbox else 0.5,
-            "cy": float(bbox["cy"]) if bbox else 0.5,
-            "area": float(bbox["area"]) if bbox else 0.0,
-            "has_bbox": bbox is not None,
-        }
-        self.history.append(bbox_frame)
-        if len(self.history) > self.window:
-            self.history = self.history[-self.window:]
-
-        feature = self._build_feature(vis_feat)
-        x = torch.tensor(feature[None, :], dtype=torch.float32, device=self.device)
-        with torch.no_grad():
-            logits = self.model(x)
-            pred_class = int(logits.argmax(dim=-1).item())
-
-        self.inference_count += 1
-        return {
-            "action": ACTION_2D[pred_class],
-            "action_3d": ACTION_3D[pred_class],
-            "latency_ms": (time.time() - start) * 1000.0,
-            "predicted_class": pred_class,
-            "predicted_label": CLASS_NAMES[pred_class],
-            "bbox": bbox,
-            "grounding_caption": grounding["caption"],
-            "grounding_latency_ms": grounding["latency_ms"],
-            "goal_near_proxy": goal_near_proxy(bbox_frame),
-            "buffer_status": {
-                "history_size": len(self.history),
-                "window": self.window,
-                "goal": self.goal.tolist() if self.goal is not None else None,
-            },
-            "source": self.model_info.get("source", "loaded"),
-            "instruction_used": self.goal_dim > 0,
-            "matched_path_type": "goal_nav",
-            "instruction": instruction,
-        }
-
-
 class GoalNavInferenceModel:
     """Exp46/49/50/51: Kosmos-2 vis feat (1024-dim) + bbox history + grounded goal → GoalNavMLP."""
 
@@ -992,6 +862,10 @@ class GoalNavInferenceModel:
         self.grounder = GroundingBackend(grounding_model_path, grounding_device)
         self._load(weights_path)
 
+        # grounding 캐시: GROUNDING_SKIP_N 스텝마다 1번만 Kosmos-2 실행
+        self._grounding_skip_n: int = int(os.getenv("VLA_GROUNDING_SKIP_N", "3"))
+        self._grounding_cache: Optional[dict] = None
+
     def _load(self, weights_path: Path) -> None:
         if not weights_path.exists():
             raise FileNotFoundError(f"GoalNav weights not found: {weights_path}")
@@ -1020,6 +894,7 @@ class GoalNavInferenceModel:
         self.history.clear()
         self.goal = None
         self.inference_count = 0
+        self._grounding_cache = None
 
     def _build_feature(self, vis_feat: np.ndarray) -> np.ndarray:
         feat: list[float] = []
@@ -1045,7 +920,20 @@ class GoalNavInferenceModel:
         start = time.time()
         image_rgb = self._decode_image(image_base64)
 
-        grounding = self.grounder.run(image_rgb, extract_vis=True)
+        # Grounding 캐시: _grounding_skip_n 스텝마다 1번만 Kosmos-2 실행
+        use_cache = (
+            self._grounding_skip_n > 1
+            and self.inference_count > 0
+            and self.inference_count % self._grounding_skip_n != 0
+            and self._grounding_cache is not None
+        )
+        if use_cache:
+            grounding = self._grounding_cache
+            grounding = dict(grounding, latency_ms=0.0)  # 캐시 히트 표시
+        else:
+            grounding = self.grounder.run(image_rgb, extract_vis=True)
+            self._grounding_cache = grounding
+
         bbox = grounding["bbox"]
         vis_feat: np.ndarray = grounding["vis_feat"]
 
@@ -1073,10 +961,28 @@ class GoalNavInferenceModel:
             logits = self.model(x)
             pred_class = int(logits.argmax(dim=-1).item())
 
+        # bbox area 기반 속도 스케일링
+        area = bbox_frame["area"]
+        if not bbox_frame["has_bbox"]:
+            speed_scale = 0.7   # bbox 없음 — 감속
+        elif area > 0.18:
+            speed_scale = 0.25  # 매우 가까움 — 거의 정지
+        elif area > 0.10:
+            speed_scale = 0.5   # 가까움 — 절반 속도
+        elif area > 0.05:
+            speed_scale = 0.75  # 중간 거리
+        else:
+            speed_scale = 1.0   # 멀리 있음 — 전속력
+
+        raw_2d = ACTION_2D[pred_class]
+        raw_3d = ACTION_3D[pred_class]
+        scaled_2d = [raw_2d[0] * speed_scale, raw_2d[1] * speed_scale]
+        scaled_3d = [raw_3d[0] * speed_scale, raw_3d[1] * speed_scale, raw_3d[2] * speed_scale]
+
         self.inference_count += 1
         return {
-            "action": ACTION_2D[pred_class],
-            "action_3d": ACTION_3D[pred_class],
+            "action": scaled_2d,
+            "action_3d": scaled_3d,
             "latency_ms": (time.time() - start) * 1000.0,
             "predicted_class": pred_class,
             "predicted_label": CLASS_NAMES[pred_class],
@@ -1084,6 +990,8 @@ class GoalNavInferenceModel:
             "grounding_caption": grounding["caption"],
             "grounding_latency_ms": grounding["latency_ms"],
             "goal_near_proxy": goal_near_proxy(bbox_frame),
+            "speed_scale": speed_scale,
+            "grounding_cached": use_cache,
             "buffer_status": {
                 "history_size": len(self.history),
                 "window": self.window,
