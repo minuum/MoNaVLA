@@ -59,8 +59,17 @@ def empty_state() -> dict:
 
 # ── 로직 ──────────────────────────────────────────────────────────────
 
+def _latest_session_files() -> list[str]:
+    """inference_reports/ 에서 최근 10개 session 파일명 반환."""
+    reports_dir = ROOT / "docs" / "inference_reports"
+    if not reports_dir.exists():
+        return ["(없음)"]
+    files = sorted(reports_dir.glob("session_*.json"), reverse=True)[:10]
+    return ["(연결 안 함)"] + [f.name for f in files]
+
+
 def log_trial(state: dict, position: str, success_radio: str,
-              failure_reason: str, notes: str):
+              failure_reason: str, session_file: str, notes: str):
     is_ok = success_radio == "✅ 성공"
     trial = {
         "trial_id": len(state["trials"]) + 1,
@@ -68,6 +77,7 @@ def log_trial(state: dict, position: str, success_radio: str,
         "basket_position": position,
         "success": is_ok,
         "failure_reason": None if is_ok else failure_reason,
+        "session_log": None if session_file == "(연결 안 함)" else session_file,
         "notes": notes.strip(),
     }
     state["trials"].append(trial)
@@ -202,6 +212,11 @@ def build_ui() -> gr.Blocks:
                     label="실패 원인",
                     visible=False,
                 )
+                session_file = gr.Dropdown(
+                    choices=_latest_session_files(),
+                    value="(연결 안 함)",
+                    label="연결할 Session 로그 (선택)",
+                )
                 notes = gr.Textbox(
                     label="메모 (선택)",
                     placeholder="예: 조명 어두움, 첫 회전 느림...",
@@ -254,7 +269,7 @@ def build_ui() -> gr.Blocks:
 
         btn_log.click(
             fn=log_trial,
-            inputs=[state, position, success_radio, failure_reason, notes],
+            inputs=[state, position, success_radio, failure_reason, session_file, notes],
             outputs=[state, summary_md, comparison, status_box, notes],
         )
 
