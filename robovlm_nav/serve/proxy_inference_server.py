@@ -406,7 +406,7 @@ class GroundingBackend:
             "caption": caption,
             "bbox": bbox,
             "latency_ms": latency_ms,
-            "vis_feat": vis_feat,
+            "vis_feat": None,
         }
         if extract_vis:
             with torch.no_grad():
@@ -989,9 +989,14 @@ class GoalNavInferenceModel:
         raw_3d = ACTION_3D[pred_class]
 
         if self.speed_scaling_enabled:
+            # area 기반 스케일링은 실제 entity bbox(x1/y1/x2/y2)일 때만 신뢰 가능.
+            # caption/coarse 폴백은 area=0.06 하드코딩이라 거리 정보 없음 → 스케일 1.0.
+            real_bbox = bbox is not None and "x1" in bbox
             area = bbox_frame["area"]
             if not bbox_frame["has_bbox"]:
-                speed_scale = 0.7
+                speed_scale = 0.7   # 감지 완전 실패 → 조심
+            elif not real_bbox:
+                speed_scale = 1.0   # caption/coarse 폴백 → 거리 불명, 풀스피드
             elif area > 0.18:
                 speed_scale = 0.25
             elif area > 0.10:
