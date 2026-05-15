@@ -523,6 +523,42 @@ if ROS_AVAILABLE:
         print(f"⚠️ ROS dashboard node disabled: {e}")
 
 
+def annotate_image(img: Image.Image, bbox: dict | None = None, draw_grid: bool = True) -> Image.Image:
+    """카메라 이미지에 3x3 격자 + bbox 오버레이를 그려 반환."""
+    arr = np.array(img)
+    h, w = arr.shape[:2]
+
+    if draw_grid:
+        color = (100, 255, 100)
+        cv2.line(arr, (w // 3, 0), (w // 3, h), color, 1)
+        cv2.line(arr, (2 * w // 3, 0), (2 * w // 3, h), color, 1)
+        cv2.line(arr, (0, h // 3), (w, h // 3), color, 1)
+        cv2.line(arr, (0, 2 * h // 3), (w, 2 * h // 3), color, 1)
+
+    if bbox:
+        cx_px = int(bbox["cx"] * w)
+        cy_px = int(bbox["cy"] * h)
+        label = str(bbox.get("entity", "bbox"))
+
+        if "x1" in bbox:
+            x1 = int(bbox["x1"] * w)
+            y1 = int(bbox["y1"] * h)
+            x2 = int(bbox["x2"] * w)
+            y2 = int(bbox["y2"] * h)
+            cv2.rectangle(arr, (x1, y1), (x2, y2), (255, 80, 80), 2)
+        else:
+            # cx/cy만 있으면 십자선
+            r = 10
+            cv2.line(arr, (cx_px - r, cy_px), (cx_px + r, cy_px), (255, 80, 80), 2)
+            cv2.line(arr, (cx_px, cy_px - r), (cx_px, cy_px + r), (255, 80, 80), 2)
+
+        cv2.circle(arr, (cx_px, cy_px), 4, (255, 80, 80), -1)
+        cv2.putText(arr, label[:20], (max(cx_px - 40, 0), max(cy_px - 8, 12)),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 80, 80), 1, cv2.LINE_AA)
+
+    return Image.fromarray(arr)
+
+
 state = {
     "auto_inference": False,
     "is_running": False,
@@ -671,7 +707,7 @@ def update_ui(mode, backend_mode, api_url, instr, apply_cc, _run_status):
         img = correct_image(img)
 
     state["camera_status"] = "OK"
-    state["last_img"] = img
+    state["last_img"] = img  # raw image for logging
 
     if state["auto_inference"] and state["is_running"]:
         state["is_busy"] = True
@@ -687,10 +723,11 @@ def update_ui(mode, backend_mode, api_url, instr, apply_cc, _run_status):
                 try:
                     make_backend(backend_mode, api_url).reset(instr)
                 except Exception as e:
-                    return img, f"❌ Reset failed: {e}", "0 ms", "STOP", "Waiting...", gr.update(value="Stopped"), state["camera_status"], state["model_path"], None
-                return img, "Step 1 (Start/Wait)", "0 ms", "0.0000, 0.0000, 0.0000", "Waiting...", gr.update(value="Running (step 1)..."), state["camera_status"], state["model_path"], None
+                    return annotate_image(img), f"❌ Reset failed: {e}", "0 ms", "STOP", "Waiting...", gr.update(value="Stopped"), state["camera_status"], state["model_path"], None
+                return annotate_image(img), "Step 1 (Start/Wait)", "0 ms", "0.0000, 0.0000, 0.0000", "Waiting...", gr.update(value="Running (step 1)..."), state["camera_status"], state["model_path"], None
 
             result = run_backend_inference(img, instr, backend_mode, api_url)
+            display_img = annotate_image(img, bbox=result.get("bbox"))
             fig = ros_node.generate_trajectory_plot(result["chunk"])
             if logger_instance:
                 logger_instance.log_step(
@@ -719,8 +756,8 @@ def update_ui(mode, backend_mode, api_url, instr, apply_cc, _run_status):
                     log = f"🎯 Goal Reached! (step {current_step}) | Log: {Path(report_path).name}"
                 else:
                     log = f"🎯 Goal Reached! (step {current_step})"
-                return img, log, result["lat_str"], result["act_str"], result["chunk_display"], gr.update(value="Stopped (Goal Reached)"), state["camera_status"], state["model_path"], fig
-            return img, log, result["lat_str"], result["act_str"], result["chunk_display"], gr.update(value=f"Running (step {current_step})"), state["camera_status"], state["model_path"], fig
+                return display_img, log, result["lat_str"], result["act_str"], result["chunk_display"], gr.update(value="Stopped (Goal Reached)"), state["camera_status"], state["model_path"], fig
+            return display_img, log, result["lat_str"], result["act_str"], result["chunk_display"], gr.update(value=f"Running (step {current_step})"), state["camera_status"], state["model_path"], fig
         finally:
             state["is_busy"] = False
 
@@ -728,7 +765,7 @@ def update_ui(mode, backend_mode, api_url, instr, apply_cc, _run_status):
     if info["model_loaded"]:
         state["model_path"] = info["checkpoint_path"]
         state["model_status"] = f"{backend_mode} ({info['precision']})"
-    return img, f"📡 Live | {state['current_log']}", "N/A", "N/A", "N/A", gr.update(), state["camera_status"], state["model_path"], None
+    return annotate_image(img), f"📡 Live | {state['current_log']}", "N/A", "N/A", "N/A", gr.update(), state["camera_status"], state["model_path"], None
 
 
 def handle_control(direction):
