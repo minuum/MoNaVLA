@@ -22,19 +22,19 @@ class InferenceLogger:
             "history": []
         }
             
-    def start_session(self, model_name, instruction):
+    def start_session(self, model_name, instruction, instruction_mode=None):
         self.session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.log_file = os.path.join(self.log_dir, f"session_{self.session_id}.json")
         self.image_log_dir = os.path.join(self.log_dir, f"session_{self.session_id}_images")
-        
-        # Create directory for images
+
         os.makedirs(self.image_log_dir, exist_ok=True)
-        
+
         self.data = {
             "session_id": self.session_id,
             "timestamp": datetime.now().isoformat(),
             "model_name": model_name,
             "instruction": instruction,
+            "instruction_mode": instruction_mode,
             "history": []
         }
         print(f"📝 Logging session started: {self.log_file}")
@@ -68,7 +68,7 @@ class InferenceLogger:
             print(f"⚠️ Failed to log image at step {step_idx}: {e}")
             return None
         
-    def log_step(self, step_idx, action, latency, chunk=None, image=None):
+    def log_step(self, step_idx, action, latency, chunk=None, image=None, **extra):
         if not hasattr(self, "data") or self.data is None:
             self.data = {"history": []}
 
@@ -79,14 +79,22 @@ class InferenceLogger:
             "latency_ms": latency,
         }
         if chunk is not None:
-             step_data["chunk_preview"] = chunk.tolist() if isinstance(chunk, np.ndarray) else chunk
-             
+            step_data["chunk_preview"] = chunk.tolist() if isinstance(chunk, np.ndarray) else chunk
+
+        # 추가 필드 (predicted_label, grounding_caption, goal_near, strategy, bbox, instruction_used, matched_path_type 등)
+        for k, v in extra.items():
+            if v is None:
+                continue
+            if isinstance(v, np.ndarray):
+                step_data[k] = v.tolist()
+            else:
+                step_data[k] = v
+
         if image is not None:
-             img_path = self.log_image(step_idx, image)
-             if img_path:
-                 # Ensure we log relative path into JSON
-                 step_data["image_file"] = os.path.relpath(img_path, self.log_dir)
-             
+            img_path = self.log_image(step_idx, image)
+            if img_path:
+                step_data["image_file"] = os.path.relpath(img_path, self.log_dir)
+
         self.data["history"].append(step_data)
         
     def end_session(self, status="completed"):
@@ -107,10 +115,16 @@ class InferenceLogger:
             
             avg_lat = sum(latencies) / len(latencies) if latencies else 0
             
+            labels = [h.get("predicted_label") for h in self.data["history"] if h.get("predicted_label")]
+            label_counts: dict = {}
+            for lb in labels:
+                label_counts[lb] = label_counts.get(lb, 0) + 1
+
             self.data["summary"] = {
-                "avg_latency": avg_lat,
+                "avg_latency_ms": round(avg_lat, 1),
                 "total_steps": len(self.data["history"]),
-                "last_action": self.data["history"][-1]["action"]
+                "last_action": self.data["history"][-1]["action"],
+                "action_label_counts": label_counts,
             }
         
         with open(self.log_file, 'w') as f:

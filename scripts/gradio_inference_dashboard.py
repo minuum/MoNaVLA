@@ -593,6 +593,14 @@ def run_backend_inference(image: Image.Image, instruction: str, backend_mode: st
         "action": action,
         "chunk": chunk,
         "goal_near": goal_near,
+        # logger용 raw 필드
+        "latency_ms": result.get("latency_ms"),
+        "predicted_label": result.get("predicted_label"),
+        "grounding_caption": result.get("grounding_caption"),
+        "strategy": result.get("strategy"),
+        "bbox": result.get("bbox"),
+        "instruction_used": result.get("instruction_used"),
+        "matched_path_type": result.get("matched_path_type"),
     }
 
 
@@ -635,7 +643,7 @@ def update_ui(mode, backend_mode, api_url, instr, apply_cc, _run_status):
 
             if current_step == 1:
                 if logger_instance:
-                    logger_instance.start_session(short_model_name(state["model_path"]), instr)
+                    logger_instance.start_session(short_model_name(state["model_path"]), instr, instruction_mode=backend_mode)
                     logger_instance.log_step(current_step, [0.0, 0.0, 0.0], 0, image=img)
                 ros_node.control.robust_stop(source="inference_start")
                 try:
@@ -647,7 +655,20 @@ def update_ui(mode, backend_mode, api_url, instr, apply_cc, _run_status):
             result = run_backend_inference(img, instr, backend_mode, api_url)
             fig = ros_node.generate_trajectory_plot(result["chunk"])
             if logger_instance:
-                logger_instance.log_step(current_step, result["action"], 0, result["chunk"], image=img)
+                logger_instance.log_step(
+                    current_step,
+                    result["action"],
+                    result.get("latency_ms", 0),
+                    result["chunk"],
+                    image=img,
+                    predicted_label=result.get("predicted_label"),
+                    grounding_caption=result.get("grounding_caption"),
+                    goal_near=result.get("goal_near"),
+                    strategy=result.get("strategy"),
+                    bbox=result.get("bbox"),
+                    instruction_used=result.get("instruction_used"),
+                    matched_path_type=result.get("matched_path_type"),
+                )
             log = f"Step {current_step} | {result['log_str']}"
             if result.get("goal_near"):
                 state["is_running"] = False

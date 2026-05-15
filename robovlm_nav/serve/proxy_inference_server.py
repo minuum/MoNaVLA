@@ -21,7 +21,7 @@ import logging
 import os
 import sys
 import time
-from collections import defaultdict
+from collections import defaultdict, deque
 from pathlib import Path
 from typing import Any, Optional
 
@@ -49,6 +49,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Mobile VLA Exp19 Proxy API", version="0.1.0")
+
+_recent_predictions: deque[dict] = deque(maxlen=30)
 
 ROOT = Path(project_root)
 
@@ -1121,7 +1123,7 @@ async def predict(request: InferenceRequest, x_api_key: Optional[str] = Header(d
         model = get_model()
         result = model.predict(request.image, request.instruction)
         strategy = "goal_nav" if isinstance(model, GoalNavInferenceModel) else "proxy_mlp"
-        return InferenceResponse(
+        response = InferenceResponse(
             action=result["action"],
             latency_ms=result["latency_ms"],
             model_name=model.model_name,
@@ -1138,6 +1140,17 @@ async def predict(request: InferenceRequest, x_api_key: Optional[str] = Header(d
             instruction_used=result["instruction_used"],
             matched_path_type=result.get("matched_path_type"),
         )
+        _recent_predictions.append({
+            "ts": time.strftime("%H:%M:%S"),
+            "label": result["predicted_label"],
+            "cls": result["predicted_class"],
+            "latency_ms": round(result["latency_ms"], 1),
+            "bbox": result["bbox"],
+            "caption": (result["grounding_caption"] or "")[:60],
+            "path_type": result.get("matched_path_type"),
+            "instruction": result["instruction_used"],
+        })
+        return response
     except HTTPException:
         raise
     except Exception as exc:
@@ -1151,6 +1164,154 @@ async def reset_history(x_api_key: Optional[str] = Header(default=None)) -> dict
     model = get_model()
     model.reset()
     return {"status": "success", "message": "Proxy history reset"}
+
+
+@app.get("/recent")
+async def recent_predictions() -> dict[str, Any]:
+    return {"count": len(_recent_predictions), "predictions": list(reversed(_recent_predictions))}
+
+
+_DASHBOARD_HTML = """<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>VLA Proxy Dashboard</title>
+<style>
+  body { font-family: monospace; background: #0d1117; color: #c9d1d9; margin: 0; padding: 20px; }
+  h1 { color: #58a6ff; margin-bottom: 4px; }
+  .sub { color: #8b949e; font-size: 13px; margin-bottom: 20px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 16px; }
+  .card h3 { margin: 0 0 10px; color: #58a6ff; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; }
+  .pill { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: bold; }
+  .green { background: #1a4731; color: #3fb950; }
+  .red { background: #4b1b1b; color: #f85149; }
+  .yellow { background: #3d2c00; color: #e3b341; }
+  .kv { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px solid #21262d; font-size: 13px; }
+  .kv:last-child { border-bottom: none; }
+  .kv .val { color: #e6edf3; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { color: #8b949e; text-align: left; padding: 4px 8px; border-bottom: 1px solid #30363d; }
+  td { padding: 4px 8px; border-bottom: 1px solid #21262d; }
+  tr:hover td { background: #1c2128; }
+  .action-tag { font-weight: bold; color: #58a6ff; }
+  .ts { color: #8b949e; }
+  #status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #8b949e; margin-right: 6px; }
+  .dot-ok { background: #3fb950 !important; }
+  .dot-err { background: #f85149 !important; }
+  button { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; border-radius: 6px; padding: 6px 14px; cursor: pointer; font-size: 12px; }
+  button:hover { background: #30363d; }
+</style>
+</head>
+<body>
+<h1>🤖 VLA Proxy Dashboard</h1>
+<div class="sub"><span id="status-dot"></span><span id="status-txt">연결 중...</span> &nbsp;|&nbsp; 2초마다 자동 갱신 &nbsp;|&nbsp; <a href="/docs" style="color:#58a6ff">Swagger</a></div>
+
+<div class="grid">
+  <div class="card">
+    <h3>서버 상태</h3>
+    <div id="health-body">로딩...</div>
+  </div>
+  <div class="card">
+    <h3>모델 정보</h3>
+    <div id="model-body">로딩...</div>
+  </div>
+</div>
+
+<div class="card">
+  <h3>최근 예측 <span id="pred-count" style="color:#8b949e; font-weight:normal"></span>
+    &nbsp;<button onclick="resetHistory()">↺ history 리셋</button>
+  </h3>
+  <table>
+    <thead><tr><th>시각</th><th>액션</th><th>cls</th><th>latency</th><th>path_type</th><th>bbox</th><th>caption</th></tr></thead>
+    <tbody id="pred-body"><tr><td colspan="7" style="color:#8b949e">예측 없음</td></tr></tbody>
+  </table>
+</div>
+
+<script>
+const API_KEY = localStorage.getItem("vla_api_key") || "";
+
+function kv(k, v) {
+  return `<div class="kv"><span>${k}</span><span class="val">${v ?? "—"}</span></div>`;
+}
+function pill(ok, t) {
+  return `<span class="pill ${ok ? "green" : "red"}">${t}</span>`;
+}
+
+async function fetchHealth() {
+  try {
+    const r = await fetch("/health");
+    const d = await r.json();
+    const dot = document.getElementById("status-dot");
+    dot.className = "dot-ok";
+    document.getElementById("status-txt").textContent = "정상 (" + new Date().toLocaleTimeString() + ")";
+
+    const gpu = d.gpu_memory;
+    document.getElementById("health-body").innerHTML =
+      kv("상태", pill(true, "healthy")) +
+      kv("모델 로드", pill(d.model_loaded, d.model_loaded ? "로드됨" : "미로드")) +
+      kv("모델명", d.model_name) +
+      (gpu ? kv("GPU", `${gpu.device_name}`) : "") +
+      (gpu ? kv("GPU 사용", `${gpu.allocated_gb.toFixed(2)} GB / ${gpu.reserved_gb.toFixed(2)} GB`) : kv("GPU", "없음"));
+  } catch(e) {
+    document.getElementById("status-dot").className = "dot-err";
+    document.getElementById("status-txt").textContent = "서버 응답 없음";
+    document.getElementById("health-body").innerHTML = `<span class="pill red">연결 실패</span>`;
+  }
+}
+
+async function fetchModel() {
+  try {
+    const r = await fetch("/model/info");
+    const d = await r.json();
+    document.getElementById("model-body").innerHTML =
+      kv("타입", d.model_type) +
+      kv("디바이스", d.device) +
+      kv("체크포인트", (d.checkpoint_path || "").split("/").slice(-1)[0]);
+  } catch(e) {}
+}
+
+async function fetchRecent() {
+  try {
+    const r = await fetch("/recent");
+    const d = await r.json();
+    const preds = d.predictions;
+    document.getElementById("pred-count").textContent = `(${d.count}건)`;
+    if (!preds.length) return;
+    document.getElementById("pred-body").innerHTML = preds.map(p =>
+      `<tr>
+        <td class="ts">${p.ts}</td>
+        <td class="action-tag">${p.label}</td>
+        <td>${p.cls}</td>
+        <td>${p.latency_ms}ms</td>
+        <td>${p.path_type ?? "—"}</td>
+        <td>${p.bbox ? JSON.stringify(p.bbox).slice(0,30) : "NO_BBOX"}</td>
+        <td style="color:#8b949e">${p.caption}</td>
+      </tr>`
+    ).join("");
+  } catch(e) {}
+}
+
+async function resetHistory() {
+  await fetch("/reset", { method: "POST", headers: { "X-API-Key": API_KEY } });
+  fetchRecent();
+}
+
+async function refresh() {
+  await Promise.all([fetchHealth(), fetchModel(), fetchRecent()]);
+}
+
+refresh();
+setInterval(refresh, 2000);
+</script>
+</body>
+</html>"""
+
+
+@app.get("/dashboard", response_class=None)
+async def dashboard():
+    from fastapi.responses import HTMLResponse
+    return HTMLResponse(content=_DASHBOARD_HTML)
 
 
 @app.get("/test")

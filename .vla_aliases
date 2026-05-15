@@ -509,16 +509,17 @@ vla-server() {
     fi
 
     if [ "$action" = "http" ] || [ "$action" = "admin" ] || [ "$action" = "urls" ]; then
-        echo "MoNaVLA local HTTP management"
-        echo "  Root:   ${api_url%/}/"
-        echo "  Health: ${api_url%/}/health"
-        echo "  Admin:  ${api_url%/}/admin"
-        echo "  Docs:   ${api_url%/}/docs"
+        echo "MoNaVLA local HTTP endpoints"
+        echo "  Dashboard:  ${api_url%/}/dashboard"
+        echo "  Health:     ${api_url%/}/health"
+        echo "  Recent:     ${api_url%/}/recent"
+        echo "  Docs:       ${api_url%/}/docs"
+        echo "  Trial Log:  http://localhost:7862"
         if [ "$action" != "urls" ]; then
             if command -v xdg-open >/dev/null 2>&1; then
-                xdg-open "${api_url%/}/admin" >/dev/null 2>&1 &
+                xdg-open "${api_url%/}/dashboard" >/dev/null 2>&1 &
             elif command -v open >/dev/null 2>&1; then
-                open "${api_url%/}/admin" >/dev/null 2>&1 &
+                open "${api_url%/}/dashboard" >/dev/null 2>&1 &
             fi
         fi
         return 0
@@ -633,3 +634,10 @@ alias mona-doctor='vla-doctor'
 alias mona-sync='vla-sync-models'
 
 alias vla-reset='vla-clean'
+
+unalias vla-trial-logger 2>/dev/null || true
+vla-trial-logger() {
+    local port="${1:-7862}"
+    echo "📊 Trial Logger → http://localhost:$port"
+    python3 "$VLA_PROJECT_DIR/scripts/real_robot_trial_logger.py" --port "$port"
+}
