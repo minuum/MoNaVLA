@@ -13,6 +13,12 @@ from collections import defaultdict
 from pathlib import Path
 import socket
 
+try:
+    import pygame
+    PYGAME_AVAILABLE = True
+except ImportError:
+    PYGAME_AVAILABLE = False
+
 # --- Forced ROS2 Environment Overrides ---
 os.environ.setdefault("MPLCONFIGDIR", "/tmp/matplotlib")
 os.environ.setdefault("ROS_HOME", "/tmp/ros")
@@ -60,6 +66,185 @@ except ImportError as e:
     ROS_IMPORT_ERROR = str(e)
     ROS_AVAILABLE = False
 
+# ---------------------------------------------------------------------------
+# Joystick Reader
+# ---------------------------------------------------------------------------
+class JoystickReader:
+    """DragonRise 게임패드를 비동기로 읽어 node.teleop_step()을 호출한다.
+    기존 ROS/녹화/H5 로직은 전혀 수정하지 않는다."""
+
+    DEADZONE   = 0.15   # 스틱 노이즈 무시 범위
+    THRESHOLD  = 0.50   # bang-bang 판정 임계값
+    STEP_INTERVAL = 0.45  # 홀딩 시 반복 발사 간격 (s) — 기존 0.4s 펄스와 맞춤
+
+    # 기본 축 매핑 (calibrate_joystick.py로 확인 후 joystick_config.json 덮어씀)
+    DEFAULT_AXES = {"left_x": 0, "left_y": 1, "right_x": 2}
+
+    # 버튼 인덱스 (DragonRise 기본값, 캘리브레이션으로 확정)
+    BTN_STOP   = 0   # A  — STOP 명시적 1프레임
+    BTN_UNDO   = 1   # B  — 마지막 프레임 취소
+    BTN_START  = 7   # Start — teleop_mode 토글
+    BTN_SELECT = 6   # Select — 녹화 시작/저장
+    BTN_DISCARD = 2  # X  — 에피소드 폐기
+
+    def __init__(self, node):
+        self._node = node
+        self._running = False
+        self._thread = None
+        self._btn_prev = {}
+        self._last_step_time = 0.0
+        self._axes = self._load_axes()
+
+        # Gradio 상태 표시용 (lock-free read 허용 — 단순 dict 교체)
+        self.status = {
+            "connected": False, "name": "—",
+            "lx": 0.0, "ly": 0.0, "az": 0.0,
+            "key": None, "label": "—",
+        }
+
+    # ------------------------------------------------------------------ #
+    def _load_axes(self):
+        cfg_path = Path(__file__).parent / "joystick_config.json"
+        if cfg_path.exists():
+            try:
+                with open(cfg_path) as f:
+                    return json.load(f).get("axes", self.DEFAULT_AXES)
+            except Exception:
+                pass
+        return dict(self.DEFAULT_AXES)
+
+    def start(self):
+        if not PYGAME_AVAILABLE:
+            print("[Joystick] pygame 없음 — pip install pygame")
+            return
+        self._running = True
+        self._thread = threading.Thread(target=self._loop, daemon=True)
+        self._thread.start()
+
+    def stop(self):
+        self._running = False
+
+    # ------------------------------------------------------------------ #
+    def _axis_to_key(self, lx, ly, az):
+        T = self.THRESHOLD
+        fwd = lx >=  T
+        bwd = lx <= -T
+        lft = ly >=  T
+        rgt = ly <= -T
+        rl  = az >=  T
+        rr  = az <= -T
+
+        # 대각선 우선
+        if fwd and lft: return 'q'
+        if fwd and rgt: return 'e'
+        if bwd and lft: return 'z'
+        if bwd and rgt: return 'c'
+        # 단축
+        if fwd: return 'w'
+        if bwd: return 'x'
+        if lft: return 'a'
+        if rgt: return 'd'
+        # 회전
+        if rl:  return 'r'
+        if rr:  return 't'
+        return None
+
+    def _on_btn_down(self, btn):
+        nd = self._node
+        if btn == self.BTN_STOP:
+            nd.teleop_step(' ')
+        elif btn == self.BTN_UNDO:
+            with nd.lock:
+                if nd.episode_buffer:
+                    nd.episode_buffer.pop()
+        elif btn == self.BTN_START:
+            nd.toggle_teleop()
+        elif btn == self.BTN_SELECT:
+            with nd.lock:
+                collecting = nd.collecting
+            if collecting:
+                nd.stop_rec(save=True)
+            # 시나리오가 선택돼 있을 때만 시작
+            elif nd.current_scenario_key:
+                nd.start_rec(nd.current_scenario_key)
+        elif btn == self.BTN_DISCARD:
+            nd.stop_rec(save=False)
+
+    def _loop(self):
+        try:
+            os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
+            os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
+            pygame.init()
+            pygame.joystick.init()
+        except Exception as e:
+            print(f"[Joystick] pygame init 실패: {e}")
+            return
+
+        js = None
+        while self._running:
+            # 재연결 대기
+            if js is None:
+                if pygame.joystick.get_count() == 0:
+                    self.status = {**self.status, "connected": False, "name": "—"}
+                    pygame.joystick.quit(); pygame.joystick.init()
+                    time.sleep(1.0)
+                    continue
+                js = pygame.joystick.Joystick(0)
+                js.init()
+                self.status = {**self.status, "connected": True, "name": js.get_name()}
+                print(f"[Joystick] 연결됨: {js.get_name()}")
+                self._btn_prev = {i: 0 for i in range(js.get_numbuttons())}
+
+            try:
+                pygame.event.pump()
+
+                # 축 읽기 (deadzone 적용)
+                def rd(axis_idx):
+                    v = js.get_axis(axis_idx)
+                    return v if abs(v) > self.DEADZONE else 0.0
+
+                lx =  -rd(self._axes["left_y"])   # 위 = +lx
+                ly =  -rd(self._axes["left_x"])    # 왼쪽 = +ly
+                az =  -rd(self._axes["right_x"])
+
+                key = self._axis_to_key(lx, ly, az)
+
+                # 홀딩 반복 발사
+                now = time.time()
+                if key and (now - self._last_step_time) >= self.STEP_INTERVAL:
+                    if self._node.teleop_mode:
+                        self._node.teleop_step(key)
+                    self._last_step_time = now
+
+                # 상태 갱신
+                labels = {'q':'↖FWD+L','w':'▲FWD','e':'↗FWD+R','a':'←LEFT',
+                          'd':'→RIGHT','x':'▼BACK','z':'↙','c':'↘',
+                          'r':'↺ROT_L','t':'↻ROT_R'}
+                self.status = {
+                    "connected": True, "name": js.get_name(),
+                    "lx": round(lx, 2), "ly": round(ly, 2), "az": round(az, 2),
+                    "key": key, "label": labels.get(key, "NEUTRAL") if key else "NEUTRAL",
+                }
+
+                # 버튼 엣지 감지 (누르는 순간만)
+                for i in range(js.get_numbuttons()):
+                    cur = js.get_button(i)
+                    if cur and not self._btn_prev.get(i, 0):
+                        self._on_btn_down(i)
+                    self._btn_prev[i] = cur
+
+            except Exception as e:
+                print(f"[Joystick] 루프 오류 ({e}), 재연결 시도")
+                js = None
+                self.status = {**self.status, "connected": False}
+
+            time.sleep(0.04)  # 25 Hz
+
+
+joystick_reader: JoystickReader | None = None  # node 생성 후 초기화
+
+
+# ---------------------------------------------------------------------------
 OFFLINE_TELEOP_LABELS = {
     'q': '↖', 'w': '⬆', 'e': '↗',
     'a': '⬅', 's': 'STOP', 'd': '➡',
@@ -356,7 +541,7 @@ NODE_START_ERROR = ""
 if ROS_AVAILABLE:
     try:
         if not rclpy.ok(): rclpy.init()
-        node = GradioCollectorNode() 
+        node = GradioCollectorNode()
         def spin(): rclpy.spin(node)
         threading.Thread(target=spin, daemon=True).start()
     except Exception as e:
@@ -364,12 +549,38 @@ if ROS_AVAILABLE:
         NODE_START_ERROR = str(e)
         node = None
 
+# --- Joystick Setup ---
+joystick_reader = None
+if node and PYGAME_AVAILABLE:
+    joystick_reader = JoystickReader(node)
+    joystick_reader.start()
+elif not PYGAME_AVAILABLE:
+    print("[Joystick] pygame 미설치 — pip install pygame")
+
+
+def joystick_status_md(_=None):
+    if not joystick_reader:
+        icon = "⚫"
+        msg = "pygame 미설치" if not PYGAME_AVAILABLE else "조이스틱 비활성"
+        return f"{icon} **Joystick:** {msg}"
+    s = joystick_reader.status
+    if not s["connected"]:
+        return "🔴 **Joystick:** 미연결 (USB 확인)"
+    key_disp = s["label"] if s["key"] else "NEUTRAL"
+    return (
+        f"🟢 **{s['name']}** &nbsp;|&nbsp; "
+        f"lx `{s['lx']:+.2f}` &nbsp; ly `{s['ly']:+.2f}` &nbsp; az `{s['az']:+.2f}` "
+        f"&nbsp;→&nbsp; **{key_disp}**"
+    )
+
 
 def collector_diagnostics(_=None):
     ros_ws = os.getenv("VLA_ROS_WS", "/home/soda/MoNaVLA/ROS_action")
     checks = [
         ("ROS import", "OK" if ROS_AVAILABLE else f"FAIL: {ROS_IMPORT_ERROR or 'unknown'}"),
         ("Node ready", "OK" if node else f"OFFLINE: {NODE_START_ERROR or 'node unavailable'}"),
+        ("pygame", "OK" if PYGAME_AVAILABLE else "MISSING — pip install pygame"),
+        ("Joystick", joystick_reader.status["name"] if joystick_reader and joystick_reader.status["connected"] else "미연결"),
         ("ROS workspace", "OK" if os.path.exists(ros_ws) else f"MISSING: {ros_ws}"),
         ("camera_interfaces", "OK" if os.path.exists(os.path.join(ros_ws, 'install', 'camera_interfaces')) else "MISSING"),
         ("Dataset root", DATASET_ROOT),
@@ -456,6 +667,7 @@ with gr.Blocks(title="MoNaVLA V5 PRO") as demo:
         with gr.Column(scale=2, elem_classes=["camera-card"]):
             stream = gr.Image(label="Live Target View", interactive=False, elem_id="main_camera")
             status_markdown = gr.Markdown("### IDLE", elem_classes=["status-card"])
+            js_status = gr.Markdown(joystick_status_md())
             with gr.Row():
                 mode_btn = gr.Button("🕹️ TELEOP MODE: OFF 🔴", variant="secondary", interactive=bool(node))
                 stop_save = gr.Button("⏹️ SAVE EPISODE", variant="primary", interactive=bool(node))
@@ -520,6 +732,7 @@ with gr.Blocks(title="MoNaVLA V5 PRO") as demo:
     gr.Timer(1).tick(fn=update_ui_state, outputs=[status_markdown, stats_tbl])
     gr.Timer(1).tick(fn=collector_diagnostics, outputs=[diag_tbl])
     gr.Timer(0.1).tick(fn=get_feed, outputs=stream)
+    gr.Timer(0.1).tick(fn=joystick_status_md, outputs=[js_status])
 
 if __name__ == "__main__":
     requested_port = int(os.getenv("VLA_COLLECT_PORT", os.getenv("GRADIO_SERVER_PORT", "8081")))
