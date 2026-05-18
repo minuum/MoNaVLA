@@ -68,17 +68,22 @@ LM 쪽: 완전 frozen (건드리지 않음)
   - 방향어 포함: `"basket under left"` / `"basket in center"` / `"basket under right"`
   - 방향어 없음: `"go to the box"` (테스트케이스용)
 
-### Phase 2: CLIP LoRA 구현
-- [ ] `robovlm_nav/models/` 또는 proxy server 내 CLIP 레이어 접근 경로 파악
-- [ ] LoRA 적용 대상: `model.vision_model.encoder.layers[16:24]`
-  - target modules: `q_proj`, `v_proj` (attention만, r=16, alpha=32)
-- [ ] layers 0-15: `requires_grad_(False)` 유지
-- [ ] LM 전체: frozen 유지
-- [ ] MLP 헤드: 기존 Exp49 구조 재사용 (1024-dim 입력)
+### Phase 2: CLIP LoRA 구현 ✅ (2026-05-18 완료)
+- [x] `robovlm_nav/models/` 또는 proxy server 내 CLIP 레이어 접근 경로 파악
+  - `vision_model.model.encoder.layers` — 24개 레이어 (Kosmos2VisionTransformer)
+  - attention: `self_attn.{k_proj, v_proj, q_proj, out_proj}` — 각 (1024, 1024)
+- [x] LoRA 적용 대상: `layers[16:24]` (layers_to_transform + layers_pattern='layers')
+  - target modules: `q_proj`, `v_proj` (r=16, alpha=32)
+  - trainable params: **524,288** (0.17% / 전체 304M)
+- [x] layers 0-15: frozen / LM 전체: frozen / MLP 헤드: Exp49 구조 재사용
+- [x] `scripts/train_clip_lora_exp53.py` — 이미지 on-the-fly 학습 스크립트
+- [x] `configs/bbox_nav_exp53_clip_lora.json` — 실험 config
+- [x] `scripts/test_clip_lora_testcases.py` — 방향어 있음/없음 비교 자동화
 
 ### Phase 3: 학습
-- [ ] 데이터: 30 트라젝토리 bbox_dataset
-- [ ] LoRA 파라미터만 학습, MLP 헤드 같이 학습
+- [ ] 데이터: 30 트라젝토리 bbox_dataset (조이스틱 수집 후)
+  - 임시: 기존 150ep로 `python3 scripts/train_clip_lora_exp53.py` 실행 가능
+- [ ] LoRA 파라미터 + MLP 헤드 공동 학습
 - [ ] epochs: 300, AdamW, CosineAnnealing
 
 ### Phase 4: 테스트케이스 (정량 결과)
