@@ -67,6 +67,16 @@ except ImportError as e:
     ROS_AVAILABLE = False
 
 # ---------------------------------------------------------------------------
+# Capture Mode
+# ---------------------------------------------------------------------------
+import enum
+
+class CaptureMode(enum.Enum):
+    PRE_CACHE  = "pre_cache"   # 주 모드: 액션 직전 캐시 스냅샷  (비블로킹 <1 ms)
+    POST_SYNC  = "post_sync"   # 보조 모드: 액션 직후 ROS 서비스 콜 (블로킹 최대 300 ms)
+
+
+# ---------------------------------------------------------------------------
 # Joystick Reader
 # ---------------------------------------------------------------------------
 class JoystickReader:
@@ -309,11 +319,12 @@ class GradioCollectorNode(Node):
         self.core_db = self.load_core_db()
         self.load_all_stats()
         self.lock = threading.Lock()
+        self.capture_mode = CaptureMode.PRE_CACHE  # 기본값: 비블로킹 캐시 스냅샷
         
         self.is_auto_playing = False
         self.is_returning = False
         self.movement_timer = None
-        threading.Thread(target=self.ui_poll_loop, daemon=True).start()
+        threading.Thread(target=self._camera_loop, daemon=True).start()
 
     def toggle_teleop(self):
         self.teleop_mode = not self.teleop_mode
@@ -344,7 +355,13 @@ class GradioCollectorNode(Node):
         act = self.WASD_TO_CONTINUOUS[key]
         with self.lock:
             if self.movement_timer: self.movement_timer.cancel()
+
+        # PRE_CACHE: 액션 직전 관측 캡처 (s_t → a_t 쌍 보장)
+        if self.collecting and self.capture_mode == CaptureMode.PRE_CACHE:
+            self._capture_pre_cache(act)
+
         self.publish_cmd_hw(act)
+
         if key != ' ':
             def timed_stop():
                 for _ in range(3):
@@ -353,11 +370,14 @@ class GradioCollectorNode(Node):
             with self.lock:
                 self.movement_timer = threading.Timer(0.4, timed_stop)
                 self.movement_timer.start()
+            # POST_SYNC: 로봇이 움직이기 시작한 후 새 프레임 수신
+            if self.collecting and self.capture_mode == CaptureMode.POST_SYNC:
+                self._capture_post_sync(act)
         else:
             for _ in range(3):
                 self.publish_cmd_hw((0.0, 0.0, 0.0))
                 time.sleep(0.05)
-        if self.collecting: self.capture_frame_sync(act)
+
         return f"🕹️ {key.upper()} Command Sent"
 
     def start_auto_return(self):
@@ -398,7 +418,18 @@ class GradioCollectorNode(Node):
         grid_map = [['q', 'w', 'e'],['a', ' ', 'd'],['z', 'x', 'c']]
         return self.teleop_step(grid_map[max(0,min(2,row))][max(0,min(2,col))])
 
-    def capture_frame_sync(self, act):
+    def _capture_pre_cache(self, act):
+        """PRE_CACHE 모드: 액션 직전 캐시 스냅샷 복사. 서비스 콜 없음, <1 ms."""
+        with self.lock:
+            if self.latest_ui_frame is None: return
+            self.episode_buffer.append({
+                'image': self.latest_ui_frame.copy(),
+                'action': list(act),
+                'timestamp': time.time(),
+            })
+
+    def _capture_post_sync(self, act):
+        """POST_SYNC 모드: 액션 직후 ROS 서비스 콜로 최신 프레임 수신. 최대 300 ms 블로킹."""
         if not self.img_client.service_is_ready(): return
         req = GetImage.Request(); future = self.img_client.call_async(req)
         start_t = time.time()
@@ -415,18 +446,22 @@ class GradioCollectorNode(Node):
                         self.episode_buffer.append({'image': cv_img.copy(), 'action': list(act), 'timestamp': time.time()})
             except: pass
 
+    def set_capture_mode(self, label: str):
+        self.capture_mode = CaptureMode.PRE_CACHE if label == "PRE_CACHE" else CaptureMode.POST_SYNC
+        return f"📷 Capture mode → {self.capture_mode.value}"
+
     def load_core_db(self):
         if os.path.exists(CORE_DB_PATH):
             with open(CORE_DB_PATH, 'r') as f: return json.load(f)
         return {}
     def save_core_db(self):
         with open(CORE_DB_PATH, 'w') as f: json.dump(self.core_db, f, indent=2)
-    def ui_poll_loop(self):
+    def _camera_loop(self):
         while rclpy.ok():
             if self.img_client.service_is_ready():
                 req = GetImage.Request(); future = self.img_client.call_async(req)
                 start = time.time()
-                while time.time() - start < 0.1:
+                while time.time() - start < 0.15:
                     if future.done(): break
                     time.sleep(0.01)
                 if future.done():
@@ -436,7 +471,7 @@ class GradioCollectorNode(Node):
                             cv_img = self.bridge.imgmsg_to_cv2(res.image, desired_encoding='bgr8')
                             with self.lock: self.latest_ui_frame = cv_img
                     except: pass
-            time.sleep(0.05)
+            time.sleep(0.1)  # 10 Hz
     def load_all_stats(self):
         self.stats = defaultdict(int)
         if os.path.exists(DATASET_ROOT):
@@ -455,22 +490,27 @@ class GradioCollectorNode(Node):
                 self.start_rec(key)
                 for act in self.core_db[key]:
                     if not self.collecting: break
-                    
+
+                    # PRE_CACHE: 액션 직전 관측 캡처 (s_t → a_t 쌍)
+                    if self.capture_mode == CaptureMode.PRE_CACHE:
+                        self._capture_pre_cache(act)
+
                     # 1) 액션 전송
                     self.publish_cmd_hw(act)
-                    
-                    # 2) 정확히 0.4초 후 정지하는 타이머 (텔레옵과 동일)
+
+                    # 2) 정확히 0.4초 후 정지하는 타이머
                     def timed_stop():
                         for _ in range(3):
                             self.publish_cmd_hw((0.0, 0.0, 0.0))
                             time.sleep(0.05)
                     timer = threading.Timer(0.4, timed_stop)
                     timer.start()
-                    
-                    # 3) 이미지 수집
-                    self.capture_frame_sync(act)
-                    
-                    # 4) 0.4초 정지 프로세스 완료 대기
+
+                    # POST_SYNC: 로봇이 움직이기 시작한 후 새 프레임 수신 (타이머 남은 시간 내)
+                    if self.capture_mode == CaptureMode.POST_SYNC:
+                        self._capture_post_sync(act)
+
+                    # 3) 0.4초 정지 프로세스 완료 대기
                     timer.join()
                     
                     # 5) 다음 스텝 전 사람처럼 로봇이 완전히 멈추고 쉴 수 있도록 대기
@@ -696,6 +736,12 @@ with gr.Blocks(title="MoNaVLA V5 PRO") as demo:
                 gr.Markdown("### ⚙️ Episode Config")
                 pattern_sel = gr.Radio(["CORE", "VARIANT"], value="CORE", label="Type")
                 dist_sel = gr.Radio(["FIXED", "VAR"], value="FIXED", label="Distance")
+                capture_sel = gr.Radio(
+                    ["PRE_CACHE", "POST_SYNC"],
+                    value="PRE_CACHE",
+                    label="Capture Mode",
+                    info="PRE_CACHE: 액션 직전 캐시 스냅샷 (<1ms, 권장) | POST_SYNC: 액션 직후 서비스 콜 (최대 300ms 블로킹)"
+                )
                 gr.Markdown("#### 🎯 Scenarios")
                 scen_click_list = []
                 for k, v in V5_SCENARIOS.items():
@@ -723,9 +769,10 @@ with gr.Blocks(title="MoNaVLA V5 PRO") as demo:
         
         def set_pattern(p): node.selected_pattern = p.lower()
         def set_distance(d): node.selected_distance = d.lower()
-        
+
         pattern_sel.change(fn=set_pattern, inputs=pattern_sel)
         dist_sel.change(fn=set_distance, inputs=dist_sel)
+        capture_sel.change(fn=node.set_capture_mode, inputs=capture_sel, outputs=[log])
         stop_save.click(fn=lambda: node.stop_rec(True), outputs=[log])
         discard.click(fn=lambda: node.stop_rec(False), outputs=[log])
     
