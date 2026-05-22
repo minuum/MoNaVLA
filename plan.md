@@ -1,208 +1,212 @@
-# Plan: Exp52 — Language-Conditioned Visual Features (True VLA)
-작성일: 2026-05-12
+# Plan: 모션 스무딩 A+B (inference + control)
+
+**작성일**: 2026-05-22  
+**상태**: 승인 대기
 
 ---
 
-## 1. 목표
+## 문제 정의
 
-**현재 문제 (Exp49):**
-- `model.vision_model(image_only)` → 1024-dim feature (언어 영향 없음)
-- 언어는 episode 시작 시 goal_cx0(3-dim)으로만 관여, 이후 MLP에 언어 없음
+현재 vla-inference-gradio 흐름에서 로봇 움직임이 뚝뚝 끊기는 이유 2가지:
 
-**달성 목표:**
-- `model(image + text)` joint forward → LM last hidden state의 image token 추출 → 2048-dim
-- 이 feature는 Kosmos-2 LM의 self-attention을 거쳐 **언어가 이미지를 어떻게 보는지에 영향**
-- 이것이 True VLA의 핵심 조건: 언어가 visual feature 추출 과정 자체에 참여
-
-**검증 질문:**
-- Exp49 대비 val acc가 오르는가?
-- paraphrase robustness: 다른 표현으로도 같은 행동이 나오는가?
-- Exp47(fingerprinting 74%)과 구조적으로 다른가?
+1. **액션 점프 (inter-step)**: 매 스텝마다 8-class classifier가 완전히 다른 벡터를 출력  
+   예: `FORWARD→[1.15,0,0]` → `ROT_L→[0,0,0.8]` → 즉각 방향 전환  
+2. **Bang-Bang 실행 (intra-step)**: 0.4초간 최대 속도로 이동 후 즉시 STOP. 관성 무시.
 
 ---
 
-## 2. 왜 이게 True VLA인가
+## Option A — proxy_inference_server.py: EMA Smoothing
 
-```
-Exp46/49 (언어 독립):
-  vision_model(image) → 1024-dim
-  언어는 goal_cx0으로만 참여
+**대상 클래스**: `GoalNavInferenceModel` (line 849~)  
+**핵심**: speed_scale 적용 후, 반환 전에 이전 액션과 EMA 블렌딩
 
-Exp47 (fingerprinting):
-  text_embed(instruction) → 2048-dim (문장 패턴 암기)
-  언어 이해 없음, paraphrase 74%
-
-Exp52 (True VLA):
-  full_kosmos2(image + text) → LM last hidden state
-  image_embeds_position_mask로 64개 image token 추출
-  → mean pool → 2048-dim (언어가 이미지 처리에 영향)
-
-핵심: Kosmos-2 LM의 self-attention에서
-  text token ←→ image token 이 서로 어텐드함
-  → image token hidden state에 언어 의미가 녹아있음
-  → "왼쪽 바구니"라고 하면 왼쪽 영역 image token이 강조됨
-```
-
-**실험 확인값 (방금 측정):**
-```
-inputs: pixel_values, input_ids(seq_len=76), image_embeds_position_mask
-image token count: 64개 (positions 2~65)
-LM last hidden: (1, 76, 2048)
-image token hidden: (64, 2048) → mean → (2048,) ← 이게 Exp52의 vision feat
-```
-
----
-
-## 3. 아키텍처
-
-```
-[에피소드 시작]
-  instruction → processor → input_ids
-  frame_0 + instruction → Kosmos-2 joint → goal_cx0 (grounding, 3-dim)
-
-[매 타임스텝 t]
-  frame_t + instruction → Kosmos-2 joint forward
-    → out.hidden_states[-1]        # (1, 76, 2048)
-    → mask = image_embeds_position_mask[0].bool()
-    → img_tokens = hidden[0][mask]  # (64, 2048)
-    → vis_feat = img_tokens.mean(0) # (2048,)  ← language-conditioned!
-
-  bbox_history(window=8) = [cx,cy,area,has_bbox] × 8 = 32-dim
-
-[MLP 입력]
-  [bbox_history(32) + lang_vis(2048) + goal(3)] = 2083-dim
-
-[MLP 구조]
-  2083 → 512 → 256 → 128 → 64 → 8 (action)
-  (Exp49와 동일 구조, d_in만 1059→2083)
-```
-
----
-
-## 4. Exp47과의 차이 (왜 fingerprinting이 아닌가)
-
-| 항목 | Exp47 (fingerprinting) | Exp52 (language-conditioned) |
-|------|----------------------|------------------------------|
-| 입력 | text만 encode → 2048-dim | image + text jointly → image token hidden |
-| 언어 역할 | "경로 label" 역할 | 이미지를 어떻게 볼지 결정 |
-| paraphrase 예측 | 표현 바뀌면 vector 달라짐 → 74% | 시각적 attention이 결정 → 이론상 강인 |
-| MLP이 학습하는 것 | 고정 문장 패턴 | 언어에 의해 변조된 visual scene |
-
----
-
-## 5. 데이터 파이프라인
-
-### 5.1 에피소드별 instruction (path_type 기반)
+### A-1. `__init__()` 초기화 추가
 
 ```python
-INSTRUCTIONS = {
-    "center_straight": "Navigate straight ahead to the basket in the center",
-    "center_left":     "Navigate to the basket on the left",
-    "center_right":    "Navigate to the basket on the right",
-    "left_straight":   "Turn left and navigate straight to the basket",
-    "left_left":       "Turn left and go to the basket on the left side",
-    "left_right":      "Turn left then right to reach the basket",
-    "right_straight":  "Turn right and navigate straight to the basket",
-    "right_left":      "Turn right then left to reach the basket",
-    "right_right":     "Turn right and go to the basket on the right side",
-}
+# 기존: line 876 speed_scaling_enabled 아래에 추가
+self.smooth_enabled: bool = os.getenv("VLA_SMOOTH", "1") != "0"
+self.smooth_alpha_xy: float = float(os.getenv("VLA_SMOOTH_ALPHA_XY", "0.65"))
+self.smooth_alpha_az: float = float(os.getenv("VLA_SMOOTH_ALPHA_AZ", "0.80"))
+self.prev_action_3d: list[float] = [0.0, 0.0, 0.0]
 ```
 
-기존 Exp49의 goal_cx0 grounding도 유지 (Exp49 bbox_dataset_full.json 재사용).
+**alpha 설계 의도**:
+- `lx, ly (alpha=0.65)`: 현재 65% + 이전 35% → 직진/횡이동 전환 부드럽게
+- `az (alpha=0.80)`: 현재 80% + 이전 20% → 회전은 더 빠르게 반응 (방향 수정 지연 방지)
 
-### 5.2 feature 추출 (사전 캐싱)
+### A-2. `reset()` 에 prev 초기화 추가
 
 ```python
-# 입력: bbox_dataset_full.json (150 ep, 2626 frames)
-# 출력: lang_vis_features_exp52.npz (ep_path → np.ndarray (N_frames, 2048))
-
-proc = AutoProcessor.from_pretrained('.vlms/kosmos-2-patch14-224')
-model = AutoModelForVision2Seq.from_pretrained(
-    '.vlms/kosmos-2-patch14-224', torch_dtype=torch.float16
-).cuda().eval()
-
-for ep in episodes:
-    instr = INSTRUCTIONS[ep['path_type']]
-    imgs = load_episode_images(ep)
-    feats = []
-    for img in imgs:
-        inputs = proc(text=instr, images=img, return_tensors='pt').to('cuda')
-        with torch.no_grad():
-            out = model(**inputs, output_hidden_states=True)
-        hs = out.hidden_states[-1]                            # (1, 76, 2048)
-        mask = inputs['image_embeds_position_mask'][0].bool() # (76,)
-        feat = hs[0][mask].mean(0).float().cpu().numpy()     # (2048,)
-        feats.append(feat)
-    cache[ep_path] = np.stack(feats)  # (N_frames, 2048)
+# 기존 reset() 끝에 추가
+self.prev_action_3d = [0.0, 0.0, 0.0]
 ```
 
-**예상 추출 시간:** 2626 frames × ~0.5s = ~22분
-
-### 5.3 MLP 학습 (Exp49와 동일 구조)
-
-- 입력: 2083-dim (32 + 2048 + 3)
-- Exp49 bbox_dataset_full.json, goal 3-dim 재사용
-- 학습: 300 epochs, AdamW, CosineAnnealingLR
-
----
-
-## 6. 평가
-
-### 6.1 baseline 비교
-
-| 실험 | 입력 | val acc | paraphrase |
-|------|------|---------|-----------|
-| Exp46 | bbox+vis(1024) | 93.2% | — |
-| Exp47 | +text_embed(2048) | 98.7% | 74.1% ❌ |
-| Exp49 | +goal_cx0(3) | 96.4% | 100% ✅ |
-| **Exp52** | **lang_vis(2048)+goal(3)** | **?** | **?** |
-
-### 6.2 paraphrase 테스트
-
-Exp49와 동일한 방식: 9 path_type × 5 표현 = 45개 테스트
-- 단, 다른 표현으로 feature를 **새로 추출** (캐시 없이 on-the-fly)
-- 같은 action이 나오면 → 진짜 language generalization
-- 같은 action이 나오지 않으면 → 여전히 visual feature fingerprinting
-
----
-
-## 7. 구현 단계
-
-- [x] Step 1: `scripts/extract_lang_vis_features_exp52.py` — feature 추출 스크립트
-- [x] Step 1b: `scripts/train_v5_exp52_true_vla.py` — MLP 학습 스크립트
-- [ ] Step 2: feature 추출 실행 (150 ep × all frames, ~22분)
-- [ ] Step 3: `scripts/train_v5_exp52_true_vla.py` — MLP 학습
-- [ ] Step 4: val acc 평가
-- [ ] Step 5: paraphrase robustness 테스트
-- [ ] Step 6: 결과 문서화 (`docs/v5/bbox_nav_exp52/`)
-
----
-
-## 8. 리스크
-
-| 리스크 | 가능성 | 대응 |
-|--------|--------|------|
-| visual feature가 여전히 언어와 무관 | 중간 | 실험 전에 두 instruction의 feature cosine sim 비교로 확인 |
-| paraphrase 여전히 낮음 | 중간 | goal_cx0 path가 백업으로 작동하므로 baseline 이하는 안 됨 |
-| val acc Exp49보다 낮음 | 낮음 | 2048-dim이 더 많은 정보 — 낮을 이유 없음 |
-| OOM (joint forward 부담) | 낮음 | float16, batch=1, 캐싱 방식이라 inference만 함 |
-
----
-
-## 9. 선행 검증 (구현 전)
-
-두 instruction으로 같은 이미지를 넣었을 때 feature 차이 확인:
+### A-3. `predict()` — speed_scale 블록 이후, return 직전에 EMA 적용
 
 ```python
-feat_left  = extract(img, "Navigate to the basket on the left")
-feat_right = extract(img, "Navigate to the basket on the right")
-feat_para  = extract(img, "Go to the container on the left side")  # paraphrase
+# 현재 line 1015 (self.inference_count += 1) 바로 위에 삽입
+if self.smooth_enabled and self.inference_count > 0:
+    p = self.prev_action_3d
+    scaled_3d = [
+        self.smooth_alpha_xy * scaled_3d[0] + (1 - self.smooth_alpha_xy) * p[0],
+        self.smooth_alpha_xy * scaled_3d[1] + (1 - self.smooth_alpha_xy) * p[1],
+        self.smooth_alpha_az * scaled_3d[2] + (1 - self.smooth_alpha_az) * p[2],
+    ]
+    scaled_2d = [scaled_3d[0], scaled_3d[1]]
 
-cos_sim_lr = cosine(feat_left, feat_right)  # 기대: 낮음 (다른 지시)
-cos_sim_pp = cosine(feat_left, feat_para)   # 기대: 높음 (같은 의미)
+self.prev_action_3d = list(scaled_3d)
 ```
 
-- cos_sim_lr << cos_sim_pp → 언어가 visual feature에 차별적으로 영향 → Exp52 진행 가치 있음
-- cos_sim_lr ≈ cos_sim_pp → 언어 영향 없음 → 접근 수정 필요
+> ⚠️ `inference_count`는 line 1015에서 증가하므로, 첫 스텝은 `count == 0` → EMA 스킵 (초기 prev=[0,0,0]과 블렌딩 방지)
 
-**승인 후 구현 시작.**
+### A-4. `set_config()` 에 smooth 토글 추가
+
+```python
+# 기존 파라미터 옆에 추가
+def set_config(
+    self,
+    speed_scaling: Optional[bool] = None,
+    grounding_skip_n: Optional[int] = None,
+    smooth_enabled: Optional[bool] = None,       # 추가
+    smooth_alpha_xy: Optional[float] = None,     # 추가
+    smooth_alpha_az: Optional[float] = None,     # 추가
+) -> dict:
+    ...
+    if smooth_enabled is not None:
+        self.smooth_enabled = smooth_enabled
+    if smooth_alpha_xy is not None:
+        self.smooth_alpha_xy = max(0.0, min(1.0, smooth_alpha_xy))
+    if smooth_alpha_az is not None:
+        self.smooth_alpha_az = max(0.0, min(1.0, smooth_alpha_az))
+    return {
+        ...,
+        "smooth_enabled": self.smooth_enabled,
+        "smooth_alpha_xy": self.smooth_alpha_xy,
+        "smooth_alpha_az": self.smooth_alpha_az,
+    }
+```
+
+### A-5. return dict에 디버그 필드 추가
+
+```python
+# 기존 return dict에 추가
+"smooth_applied": self.smooth_enabled and self.inference_count > 0,
+"smooth_alpha_xy": self.smooth_alpha_xy,
+"smooth_alpha_az": self.smooth_alpha_az,
+```
+
+---
+
+## Option B — vla_control_utils.py: Soft Ramp-Up
+
+**대상 메서드**: `VLAControlManager` 클래스에 `move_and_stop_ramped()` 추가  
+**핵심**: 이동 시작 시 50ms 동안 속도를 3단계로 점진 증가, 이후 잔여 시간 풀스피드
+
+### B-1. `move_and_stop_ramped()` 메서드 추가
+
+```python
+def move_and_stop_ramped(self, lx, ly, az, source="ramp_mode"):
+    """Soft ramp-up (50ms, 3-step) then full speed for remaining duration."""
+    with self.movement_lock:
+        if self.movement_timer:
+            self.movement_timer.cancel()
+
+        self.current_action = {"lx": lx, "ly": ly, "az": az}
+
+        ramp_dur = 0.05          # 50ms ramp-up
+        ramp_steps = 3
+        step_dur = ramp_dur / ramp_steps   # ~16.7ms per step
+
+        # Soft ramp-up: 33% → 67% → 100%
+        for i in range(1, ramp_steps + 1):
+            scale = i / ramp_steps
+            self.publish_and_move(
+                lx * scale, ly * scale, az * scale,
+                source=f"{source}_ramp{i}"
+            )
+            time.sleep(step_dur)
+
+        # Full speed for remaining duration
+        log_msg = self.publish_and_move(lx, ly, az, source=source)
+
+        remaining = self.move_duration - ramp_dur   # 0.35s
+        def _timed_stop():
+            self.robust_stop(source=f"{source}_autostop")
+
+        self.movement_timer = threading.Timer(remaining, _timed_stop)
+        self.movement_timer.daemon = True
+        self.movement_timer.start()
+
+        return log_msg
+```
+
+**타이밍 다이어그램**:
+```
+t=0.000  publish(33%)   ← 시작
+t=0.017  publish(67%)
+t=0.033  publish(100%)  ← 풀스피드 시작
+t=0.050  publish(100%)  ← full-speed command (timer 기준점)
+t=0.400  STOP           ← 자동 정지
+```
+
+> ⚠️ `movement_lock` 내에서 동기 ramp 실행 (50ms) → 다음 호출이 lock 대기하므로 동시 실행 없음  
+> ⚠️ `publish_and_move`는 lock을 사용하지 않으므로 deadlock 없음
+
+---
+
+## Option C — gradio_inference_dashboard.py: 호출 교체
+
+**대상 라인**: line 628 (`move_and_stop_timed` → `move_and_stop_ramped`)
+
+```python
+# 변경 전 (line 628)
+state["current_log"] = ros_node.control.move_and_stop_timed(
+    float(action[0]),
+    float(action[1]),
+    float(action[2]) if action.size > 2 else 0.0,
+    source="gradio_inference",
+)
+
+# 변경 후
+state["current_log"] = ros_node.control.move_and_stop_ramped(
+    float(action[0]),
+    float(action[1]),
+    float(action[2]) if action.size > 2 else 0.0,
+    source="gradio_inference",
+)
+```
+
+**수동 드라이브(line 791)는 변경하지 않는다** — 사람이 직접 조작할 때는 즉각 반응이 맞음.
+
+---
+
+## 수정 파일 요약
+
+| 파일 | 변경 위치 | 변경 크기 |
+|------|----------|---------|
+| `robovlm_nav/serve/proxy_inference_server.py` | `GoalNavInferenceModel.__init__`, `reset`, `predict`, `set_config`, return dict | +20줄 |
+| `robovlm_nav/serve/vla_control_utils.py` | `move_and_stop_ramped()` 신규 메서드 | +25줄 |
+| `scripts/gradio_inference_dashboard.py` | line 628 메서드명 교체 | 1줄 |
+
+---
+
+## 트레이드오프
+
+| 항목 | 이득 | 리스크 |
+|------|------|--------|
+| A: EMA lx/ly | FORWARD↔횡이동 전환 부드러움 | 방향 전환 0.35s 지연 |
+| A: EMA az | 회전 지연 최소화 | alpha 0.80 충분한지 실환경 확인 필요 |
+| B: Ramp | 하드웨어 충격 감소 | 유효 이동시간 0.4→0.35s 단축 (-12.5%) |
+| 둘 다 OFF 가능 | `VLA_SMOOTH=0`, `move_and_stop_timed` 유지 | 기존 동작 그대로 |
+
+---
+
+## 완료 체크리스트
+
+- [x] proxy_inference_server.py `__init__` smooth 변수 추가
+- [x] proxy_inference_server.py `reset()` prev_action 초기화
+- [x] proxy_inference_server.py `predict()` EMA 블록 삽입
+- [x] proxy_inference_server.py `set_config()` smooth 파라미터 노출
+- [x] proxy_inference_server.py return dict debug 필드 추가
+- [x] vla_control_utils.py `move_and_stop_ramped()` 메서드 추가
+- [x] gradio_inference_dashboard.py line 628 메서드명 교체

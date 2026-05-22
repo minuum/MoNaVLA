@@ -625,7 +625,7 @@ def run_backend_inference(image: Image.Image, instruction: str, backend_mode: st
         chunk = chunk.reshape(1, -1)
 
     if ROS_AVAILABLE and ros_node:
-        state["current_log"] = ros_node.control.move_and_stop_timed(
+        state["current_log"] = ros_node.control.move_and_stop_ramped(
             float(action[0]),
             float(action[1]),
             float(action[2]) if action.size > 2 else 0.0,

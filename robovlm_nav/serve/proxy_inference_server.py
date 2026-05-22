@@ -874,6 +874,11 @@ class GoalNavInferenceModel:
         self._grounding_cache: Optional[dict] = None
         # 속도 스케일링: bbox area 기반 감속 활성화 여부
         self.speed_scaling_enabled: bool = os.getenv("VLA_SPEED_SCALING", "1") != "0"
+        # EMA 스무딩: 연속 스텝 간 액션 블렌딩
+        self.smooth_enabled: bool = os.getenv("VLA_SMOOTH", "1") != "0"
+        self.smooth_alpha_xy: float = float(os.getenv("VLA_SMOOTH_ALPHA_XY", "0.65"))
+        self.smooth_alpha_az: float = float(os.getenv("VLA_SMOOTH_ALPHA_AZ", "0.80"))
+        self.prev_action_3d: list[float] = [0.0, 0.0, 0.0]
 
     def _load(self, weights_path: Path) -> None:
         if not weights_path.exists():
@@ -904,20 +909,33 @@ class GoalNavInferenceModel:
         self.goal = None
         self.inference_count = 0
         self._grounding_cache = None
+        self.prev_action_3d = [0.0, 0.0, 0.0]
 
     def set_config(
         self,
         speed_scaling: Optional[bool] = None,
         grounding_skip_n: Optional[int] = None,
+        smooth_enabled: Optional[bool] = None,
+        smooth_alpha_xy: Optional[float] = None,
+        smooth_alpha_az: Optional[float] = None,
     ) -> dict:
         if speed_scaling is not None:
             self.speed_scaling_enabled = speed_scaling
         if grounding_skip_n is not None:
             self._grounding_skip_n = max(1, grounding_skip_n)
             self._grounding_cache = None
+        if smooth_enabled is not None:
+            self.smooth_enabled = smooth_enabled
+        if smooth_alpha_xy is not None:
+            self.smooth_alpha_xy = max(0.0, min(1.0, smooth_alpha_xy))
+        if smooth_alpha_az is not None:
+            self.smooth_alpha_az = max(0.0, min(1.0, smooth_alpha_az))
         return {
             "speed_scaling_enabled": self.speed_scaling_enabled,
             "grounding_skip_n": self._grounding_skip_n,
+            "smooth_enabled": self.smooth_enabled,
+            "smooth_alpha_xy": self.smooth_alpha_xy,
+            "smooth_alpha_az": self.smooth_alpha_az,
         }
 
     def _build_feature(self, vis_feat: np.ndarray) -> np.ndarray:
@@ -1012,6 +1030,17 @@ class GoalNavInferenceModel:
             scaled_2d = list(raw_2d)
             scaled_3d = list(raw_3d)
 
+        # EMA 스무딩: 첫 스텝 이후부터 이전 액션과 블렌딩
+        if self.smooth_enabled and self.inference_count > 0:
+            p = self.prev_action_3d
+            scaled_3d = [
+                self.smooth_alpha_xy * scaled_3d[0] + (1 - self.smooth_alpha_xy) * p[0],
+                self.smooth_alpha_xy * scaled_3d[1] + (1 - self.smooth_alpha_xy) * p[1],
+                self.smooth_alpha_az * scaled_3d[2] + (1 - self.smooth_alpha_az) * p[2],
+            ]
+            scaled_2d = [scaled_3d[0], scaled_3d[1]]
+        self.prev_action_3d = list(scaled_3d)
+
         self.inference_count += 1
         return {
             "action": scaled_2d,
@@ -1025,6 +1054,9 @@ class GoalNavInferenceModel:
             "goal_near_proxy": goal_near_proxy(bbox_frame),
             "speed_scale": speed_scale,
             "grounding_cached": use_cache,
+            "smooth_applied": self.smooth_enabled and self.inference_count > 0,
+            "smooth_alpha_xy": self.smooth_alpha_xy,
+            "smooth_alpha_az": self.smooth_alpha_az,
             "buffer_status": {
                 "history_size": len(self.history),
                 "window": self.window,
