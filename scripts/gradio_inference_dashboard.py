@@ -49,20 +49,50 @@ EXP_MODES = {
     "GoalNav-fixed (Exp49, 고정속도)": {
         "instruction": GOAL_NAV_PRESETS[0],
         "backend_mode": "GoalNav (exp49)",
+        "model": "exp49",
         "speed_scaling": False,
         "grounding_skip_n": 3,
+        "desc": "기본 GoalNav — 96.4% val acc",
     },
     "GoalNav-scaled (Exp49, 거리비례속도)": {
         "instruction": GOAL_NAV_PRESETS[0],
         "backend_mode": "GoalNav (exp49)",
+        "model": "exp49",
         "speed_scaling": True,
         "grounding_skip_n": 3,
+        "desc": "기본 GoalNav + 거리비례속도 — 96.4% val acc",
+    },
+    "GoalNav (Exp50, flip-aug)": {
+        "instruction": GOAL_NAV_PRESETS[0],
+        "backend_mode": "GoalNav (exp50)",
+        "model": "exp50",
+        "speed_scaling": False,
+        "grounding_skip_n": 3,
+        "desc": "flip augmentation 2x — 92.0% val acc",
+    },
+    "GoalNav (Exp51, crop-aug)": {
+        "instruction": GOAL_NAV_PRESETS[0],
+        "backend_mode": "GoalNav (exp51)",
+        "model": "exp51",
+        "speed_scaling": False,
+        "grounding_skip_n": 3,
+        "desc": "crop augmentation 4x — 93.4% val acc",
+    },
+    "GoalNav (Exp52, lang+vis) ⚠️": {
+        "instruction": GOAL_NAV_PRESETS[0],
+        "backend_mode": "GoalNav (exp52)",
+        "model": "exp52",
+        "speed_scaling": False,
+        "grounding_skip_n": 3,
+        "desc": "⚠️ lang+vis 2048-dim — 실시간 추출 미지원, 실험적",
     },
     "PathType-fixed (Exp47, 고정속도)": {
         "instruction": "right_right",
         "backend_mode": "PathType (exp47)",
+        "model": None,
         "speed_scaling": False,
         "grounding_skip_n": 1,
+        "desc": "PathType 분류기 — 고정속도",
     },
 }
 EXP_MODE_NAMES = list(EXP_MODES.keys())
@@ -426,9 +456,12 @@ class ApiInferenceBackend:
             },
         )
 
-    def set_config(self, speed_scaling: bool, grounding_skip_n: int) -> dict:
+    def set_config(self, speed_scaling: bool, grounding_skip_n: int, model: str | None = None) -> dict:
         try:
-            return self._post("/config", {"speed_scaling": speed_scaling, "grounding_skip_n": grounding_skip_n})
+            payload: dict = {"speed_scaling": speed_scaling, "grounding_skip_n": grounding_skip_n}
+            if model is not None:
+                payload["model"] = model
+            return self._post("/config", payload)
         except Exception as e:
             return {"status": "error", "reason": str(e)}
 
@@ -949,17 +982,23 @@ with gr.Blocks(title="VLA PRO Dashboard") as demo:
         cfg = EXP_MODES.get(mode_name, EXP_MODES[EXP_MODE_NAMES[0]])
         is_goal = "GoalNav" in mode_name
         instr = cfg["instruction"]
+        model_key = cfg.get("model")
+        desc = cfg.get("desc", "")
         # Apply /config to server if using API backend
         cfg_status = "미적용 (Local 모드)"
         if backend_mode == "API Server":
             try:
-                result = ApiInferenceBackend(api_url).set_config(
+                ApiInferenceBackend(api_url).set_config(
                     speed_scaling=cfg["speed_scaling"],
                     grounding_skip_n=cfg["grounding_skip_n"],
+                    model=model_key,
                 )
                 speed_on = cfg["speed_scaling"]
                 skip_n = cfg["grounding_skip_n"]
-                cfg_status = f"✅ 적용: speed_scaling={speed_on}, skip_n={skip_n}"
+                parts = [f"model={model_key}", f"speed_scaling={speed_on}", f"skip_n={skip_n}"]
+                if desc:
+                    parts.append(desc)
+                cfg_status = "✅ 적용: " + ", ".join(parts)
             except Exception as e:
                 cfg_status = f"⚠️ 적용 실패: {e}"
         return (

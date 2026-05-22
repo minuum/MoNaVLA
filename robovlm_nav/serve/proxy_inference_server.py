@@ -82,6 +82,8 @@ _GOAL_NAV_WEIGHTS: dict[str, Path] = {
     "exp49": ROOT / "runs" / "v5_nav" / "mlp" / "exp49" / "exp49_mlp.pt",
     "exp50": ROOT / "runs" / "v5_nav" / "mlp" / "exp50" / "exp50_mlp.pt",
     "exp51": ROOT / "runs" / "v5_nav" / "mlp" / "exp51" / "exp51_mlp.pt",
+    # exp52: lang+vis 2048-dim — weight 로드는 가능하지만 실시간 feature 추출 미지원
+    "exp52": ROOT / "runs" / "v5_nav" / "mlp" / "exp52" / "exp52_mlp.pt",
 }
 
 NUM_CLASSES = 8
@@ -118,7 +120,8 @@ ACTION_3D = {
 }
 
 model_instance = None
-goal_nav_instance = None
+_goal_nav_cache: dict[str, "GoalNavInferenceModel"] = {}
+_active_goal_nav_model: str = os.getenv("VLA_MODEL", "exp49")
 
 
 class InferenceRequest(BaseModel):
@@ -149,6 +152,10 @@ class InferenceResponse(BaseModel):
 class ConfigRequest(BaseModel):
     speed_scaling: Optional[bool] = None
     grounding_skip_n: Optional[int] = None
+    smooth_enabled: Optional[bool] = None
+    smooth_alpha_xy: Optional[float] = None
+    smooth_alpha_az: Optional[float] = None
+    model: Optional[str] = None  # "exp49" | "exp50" | "exp51" | "exp52"
 
 
 class ProxyMLP(nn.Module):
@@ -1104,31 +1111,31 @@ def _get_proxy_model(refresh: bool = False) -> ProxyInferenceModel:
 
 
 def _get_goal_nav_model(model_name: str, refresh: bool = False) -> GoalNavInferenceModel:
-    global goal_nav_instance
+    global _goal_nav_cache, _active_goal_nav_model
     if refresh:
-        goal_nav_instance = None
+        _goal_nav_cache.pop(model_name, None)
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
-    if goal_nav_instance is None:
+    if model_name not in _goal_nav_cache:
         override = os.getenv("VLA_GOAL_NAV_WEIGHTS_PATH")
         weights_path = Path(override) if override else _GOAL_NAV_WEIGHTS[model_name]
         grounding_model_path = Path(os.getenv("VLA_GROUNDING_MODEL_PATH", str(DEFAULT_GROUNDING_MODEL)))
         device = resolve_device(os.getenv("VLA_GOAL_NAV_DEVICE", "auto"))
         grounding_device = resolve_device(os.getenv("VLA_PROXY_GROUNDING_DEVICE", "auto"))
-        goal_nav_instance = GoalNavInferenceModel(
+        _goal_nav_cache[model_name] = GoalNavInferenceModel(
             weights_path=weights_path,
             grounding_model_path=grounding_model_path,
             grounding_device=grounding_device,
             device=device,
         )
-    return goal_nav_instance
+    _active_goal_nav_model = model_name
+    return _goal_nav_cache[model_name]
 
 
 def get_model(refresh: bool = False):
-    """VLA_MODEL=exp49 (or exp46/50/51) → GoalNavInferenceModel. Default → ProxyInferenceModel."""
-    vla_model = os.getenv("VLA_MODEL", "exp19").lower()
-    if vla_model in _GOAL_NAV_WEIGHTS:
-        return _get_goal_nav_model(vla_model, refresh)
+    """_active_goal_nav_model → GoalNavInferenceModel. Default → ProxyInferenceModel."""
+    if _active_goal_nav_model in _GOAL_NAV_WEIGHTS:
+        return _get_goal_nav_model(_active_goal_nav_model, refresh)
     return _get_proxy_model(refresh)
 
 
@@ -1141,17 +1148,17 @@ class ModelLoadRequest(BaseModel):
 
 @app.get("/")
 async def root() -> dict[str, Any]:
-    vla_model = os.getenv("VLA_MODEL", "exp19").lower()
-    model = model_instance
-    model_type = getattr(model, "model_type", "exp19") if model else "exp19"
+    model = _goal_nav_cache.get(_active_goal_nav_model) or model_instance
+    model_type = getattr(model, "model_type", "goal_nav") if isinstance(model, GoalNavInferenceModel) else getattr(model, "model_type", "exp19") if model else "exp19"
     return {
         "name": "Mobile VLA Proxy API",
         "version": "0.2.0",
         "status": "running",
         "model_type": model_type,
-        "active_model": vla_model,
+        "active_model": _active_goal_nav_model,
+        "loaded_models": list(_goal_nav_cache.keys()),
         "goal_nav_models": list(_GOAL_NAV_WEIGHTS.keys()),
-        "note": "Supports Exp19 (bbox proxy), Exp46/47 (bbox+vision+instruction), Exp49+ (GoalNav).",
+        "note": "Supports Exp19 (bbox proxy), Exp46/47 (bbox+vision+instruction), Exp49+ (GoalNav). Switch via POST /config {model: expNN}.",
     }
 
 
@@ -1220,14 +1227,15 @@ async def health_check() -> dict[str, Any]:
             "device_name": torch.cuda.get_device_name(0),
         }
 
-    active = goal_nav_instance if goal_nav_instance is not None else model_instance
+    active = _goal_nav_cache.get(_active_goal_nav_model) or model_instance
     return {
         "status": "healthy",
-        "active_model": os.getenv("VLA_MODEL", "exp19"),
+        "active_model": _active_goal_nav_model,
+        "loaded_models": list(_goal_nav_cache.keys()),
         "model_loaded": active is not None,
-        "model_name": None if active is None else active.model_name,
+        "model_name": None if active is None else getattr(active, "model_name", "unknown"),
         "gpu_memory": gpu_memory,
-        "model_info": None if active is None else active.model_info,
+        "model_info": None if active is None else getattr(active, "model_info", {}),
     }
 
 
@@ -1293,12 +1301,22 @@ async def set_config(
     x_api_key: Optional[str] = Header(default=None),
 ) -> dict[str, Any]:
     _verify_api_key(x_api_key)
+    # 모델 전환 먼저 처리
+    if request.model is not None:
+        if request.model not in _GOAL_NAV_WEIGHTS:
+            return {"status": "error", "reason": f"Unknown model: {request.model}. Available: {list(_GOAL_NAV_WEIGHTS.keys())}"}
+        _get_goal_nav_model(request.model)  # 캐시 확보 + _active_goal_nav_model 갱신
+        logger.info("Model switched to %s", request.model)
     model = get_model()
     if isinstance(model, GoalNavInferenceModel):
         cfg = model.set_config(
             speed_scaling=request.speed_scaling,
             grounding_skip_n=request.grounding_skip_n,
+            smooth_enabled=request.smooth_enabled,
+            smooth_alpha_xy=request.smooth_alpha_xy,
+            smooth_alpha_az=request.smooth_alpha_az,
         )
+        cfg["active_model"] = _active_goal_nav_model
         return {"status": "success", "config": cfg}
     return {"status": "skipped", "reason": "Not a GoalNavInferenceModel"}
 
