@@ -84,6 +84,12 @@ _GOAL_NAV_WEIGHTS: dict[str, Path] = {
     "exp51": ROOT / "runs" / "v5_nav" / "mlp" / "exp51" / "exp51_mlp.pt",
     # exp52: lang+vis 2048-dim — weight 로드는 가능하지만 실시간 feature 추출 미지원
     "exp52": ROOT / "runs" / "v5_nav" / "mlp" / "exp52" / "exp52_mlp.pt",
+    "exp53": ROOT / "runs" / "v5_nav" / "mlp" / "exp53_clip_lora.pt",
+}
+
+# exp53용 CLIP LoRA adapter 경로 (vision_model layers 16-23 q_proj/v_proj)
+_GOAL_NAV_LORA_ADAPTERS: dict[str, Path] = {
+    "exp53": ROOT / "runs" / "v5_nav" / "mlp" / "clip_lora_adapter",
 }
 
 NUM_CLASSES = 8
@@ -235,7 +241,7 @@ _COARSE_LABEL_CX   = {0: 0.25, 1: 0.5, 2: 0.75}
 
 
 class GroundingBackend:
-    def __init__(self, model_path: Path, device: torch.device):
+    def __init__(self, model_path: Path, device: torch.device, vis_lora_adapter_path: Optional[Path] = None):
         if not model_path.exists():
             raise FileNotFoundError(f"Grounding model not found: {model_path}")
         self.model_path = model_path
@@ -260,6 +266,17 @@ class GroundingBackend:
                 logger.info("Loaded grounding LoRA adapter from %s", _GROUNDING_LORA)
             except Exception as e:
                 logger.warning("Failed to load grounding LoRA (%s); using base model", e)
+
+        # Optional vis LoRA adapter — applied to vision_model only (exp53)
+        if vis_lora_adapter_path is not None and vis_lora_adapter_path.exists():
+            try:
+                from peft import PeftModel
+                self.model.vision_model = PeftModel.from_pretrained(
+                    self.model.vision_model, str(vis_lora_adapter_path)
+                ).eval()
+                logger.info("Loaded vis LoRA adapter from %s", vis_lora_adapter_path)
+            except Exception as e:
+                logger.warning("Failed to load vis LoRA adapter (%s); using base vision model", e)
 
         logger.info("Loaded grounding backend from %s on %s", model_path, device)
 
@@ -862,6 +879,7 @@ class GoalNavInferenceModel:
         grounding_model_path: Path,
         grounding_device: torch.device,
         device: torch.device,
+        lora_adapter_path: Optional[Path] = None,
     ):
         self.device = device
         self.model: Optional[GoalNavMLP] = None
@@ -873,7 +891,7 @@ class GoalNavInferenceModel:
         self.model_info: dict[str, Any] = {}
         self.model_name = weights_path.stem
 
-        self.grounder = GroundingBackend(grounding_model_path, grounding_device)
+        self.grounder = GroundingBackend(grounding_model_path, grounding_device, vis_lora_adapter_path=lora_adapter_path)
         self._load(weights_path)
 
         # grounding 캐시: _grounding_skip_n 스텝마다 1번만 Kosmos-2 실행 (1=캐시 없음)
@@ -891,12 +909,25 @@ class GoalNavInferenceModel:
         if not weights_path.exists():
             raise FileNotFoundError(f"GoalNav weights not found: {weights_path}")
         ckpt = torch.load(weights_path, map_location="cpu", weights_only=False)
-        d_in = int(ckpt["d_in"])
-        self.window = int(ckpt.get("window", 8))
-        self.goal_dim = int(ckpt.get("goal_dim") or 0)
 
-        net = GoalNavMLP(d_in=d_in)
-        net.net.load_state_dict(ckpt["model_state_dict"])
+        if "mlp" in ckpt and "model_state_dict" not in ckpt:
+            # exp53 format: {'mlp': full_state_dict, 'val_acc': float}
+            state = ckpt["mlp"]
+            d_in = state["net.0.weight"].shape[1]
+            self.window = 8
+            self.goal_dim = d_in - 32 - VIS_DIM  # 1059 - 32 - 1024 = 3
+            net = GoalNavMLP(d_in=d_in)
+            net.load_state_dict(state)
+            overall_acc = ckpt.get("val_acc")
+        else:
+            # exp49/50/51 format: {'d_in', 'model_state_dict', 'window', ...}
+            d_in = int(ckpt["d_in"])
+            self.window = int(ckpt.get("window", 8))
+            self.goal_dim = int(ckpt.get("goal_dim") or 0)
+            net = GoalNavMLP(d_in=d_in)
+            net.net.load_state_dict(ckpt["model_state_dict"])
+            overall_acc = ckpt.get("overall_acc")
+
         self.model = net.to(self.device).eval()
         self.model_info = {
             "source": "loaded",
@@ -904,11 +935,11 @@ class GoalNavInferenceModel:
             "d_in": d_in,
             "window": self.window,
             "goal_dim": self.goal_dim,
-            "overall_acc": ckpt.get("overall_acc"),
+            "overall_acc": overall_acc,
         }
         logger.info(
             "Loaded GoalNav MLP from %s (d_in=%d, window=%d, goal_dim=%d, acc=%.4f)",
-            weights_path, d_in, self.window, self.goal_dim, ckpt.get("overall_acc", 0.0),
+            weights_path, d_in, self.window, self.goal_dim, overall_acc or 0.0,
         )
 
     def reset(self) -> None:
@@ -1122,11 +1153,13 @@ def _get_goal_nav_model(model_name: str, refresh: bool = False) -> GoalNavInfere
         grounding_model_path = Path(os.getenv("VLA_GROUNDING_MODEL_PATH", str(DEFAULT_GROUNDING_MODEL)))
         device = resolve_device(os.getenv("VLA_GOAL_NAV_DEVICE", "auto"))
         grounding_device = resolve_device(os.getenv("VLA_PROXY_GROUNDING_DEVICE", "auto"))
+        lora_path = _GOAL_NAV_LORA_ADAPTERS.get(model_name)
         _goal_nav_cache[model_name] = GoalNavInferenceModel(
             weights_path=weights_path,
             grounding_model_path=grounding_model_path,
             grounding_device=grounding_device,
             device=device,
+            lora_adapter_path=lora_path,
         )
     _active_goal_nav_model = model_name
     return _goal_nav_cache[model_name]

@@ -86,6 +86,14 @@ EXP_MODES = {
         "grounding_skip_n": 3,
         "desc": "⚠️ lang+vis 2048-dim — 실시간 추출 미지원, 실험적",
     },
+    "GoalNav (Exp53, CLIP-LoRA)": {
+        "instruction": GOAL_NAV_PRESETS[0],
+        "backend_mode": "GoalNav (exp53)",
+        "model": "exp53",
+        "speed_scaling": False,
+        "grounding_skip_n": 3,
+        "desc": "CLIP LoRA fine-tuned vision encoder — 94.7% val acc",
+    },
     "PathType-fixed (Exp47, 고정속도)": {
         "instruction": "right_right",
         "backend_mode": "PathType (exp47)",
