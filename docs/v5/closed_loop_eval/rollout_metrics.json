@@ -1993,6 +1993,12 @@
       "success_rate": 0.9333333333333333,
       "mean_fpe": 0.12571291194458833,
       "mean_tld": 0.9992640818010708
+    },
+    "exp54_s2v2": {
+      "success_rate": 0.9666666666666667,
+      "mean_fpe": 0.1059560065489749,
+      "mean_tld": 1.0077339683244062,
+      "n_episodes": 30
     }
   },
   "per_path": {
@@ -4533,6 +4539,176 @@
           "pred_n_frames": 19,
           "episode": "episode_260408_175333_target_center_left_path__core__fixed_center",
           "path_type": "center_left"
+        }
+      ]
+    },
+    "exp54_s2v2": {
+      "right_left": [
+        {
+          "fpe": 0.0,
+          "tld": 1.0,
+          "success": true
+        },
+        {
+          "fpe": 0.0,
+          "tld": 1.0,
+          "success": true
+        },
+        {
+          "fpe": 0.0,
+          "tld": 1.0,
+          "success": true
+        }
+      ],
+      "left_right": [
+        {
+          "fpe": 0.0,
+          "tld": 1.0,
+          "success": true
+        },
+        {
+          "fpe": 0.22999999999999998,
+          "tld": 0.961442109585798,
+          "success": true
+        },
+        {
+          "fpe": 0.11499999999999999,
+          "tld": 1.0192789452071014,
+          "success": true
+        }
+      ],
+      "left_straight": [
+        {
+          "fpe": 0.0,
+          "tld": 1.0,
+          "success": true
+        },
+        {
+          "fpe": 0.0,
+          "tld": 1.0,
+          "success": true
+        },
+        {
+          "fpe": 0.0,
+          "tld": 1.0,
+          "success": true
+        },
+        {
+          "fpe": 6.938893903907228e-18,
+          "tld": 1.0487310073380114,
+          "success": true
+        }
+      ],
+      "center_straight": [
+        {
+          "fpe": 0.1626345596729059,
+          "tld": 1.0591733660532994,
+          "success": true
+        },
+        {
+          "fpe": 0.1626345596729059,
+          "tld": 1.1183467321065987,
+          "success": true
+        },
+        {
+          "fpe": 0.1626345596729059,
+          "tld": 1.0591733660532994,
+          "success": true
+        },
+        {
+          "fpe": 0.11499999999999999,
+          "tld": 1.088760049079949,
+          "success": true
+        }
+      ],
+      "center_right": [
+        {
+          "fpe": 0.0,
+          "tld": 1.0,
+          "success": true
+        },
+        {
+          "fpe": 0.22999999999999998,
+          "tld": 1.0,
+          "success": true
+        },
+        {
+          "fpe": 0.0,
+          "tld": 1.0,
+          "success": true
+        }
+      ],
+      "right_straight": [
+        {
+          "fpe": 0.0,
+          "tld": 1.0,
+          "success": true
+        },
+        {
+          "fpe": 0.0,
+          "tld": 1.0,
+          "success": true
+        },
+        {
+          "fpe": 0.0,
+          "tld": 1.0,
+          "success": true
+        },
+        {
+          "fpe": 0.1150000000000001,
+          "tld": 1.0243655036690056,
+          "success": true
+        }
+      ],
+      "left_left": [
+        {
+          "fpe": 0.2571478174124758,
+          "tld": 1.0208898850003159,
+          "success": true
+        },
+        {
+          "fpe": 0.22999999999999998,
+          "tld": 1.0,
+          "success": true
+        },
+        {
+          "fpe": 0.0,
+          "tld": 1.0,
+          "success": true
+        }
+      ],
+      "right_right": [
+        {
+          "fpe": 0.8806002133866009,
+          "tld": 0.8997717953170452,
+          "success": false
+        },
+        {
+          "fpe": 0.0,
+          "tld": 1.0,
+          "success": true
+        },
+        {
+          "fpe": 0.28802848665145153,
+          "tld": 0.893958984709803,
+          "success": true
+        }
+      ],
+      "center_left": [
+        {
+          "fpe": 0.11499999999999999,
+          "tld": 1.0190636528059789,
+          "success": true
+        },
+        {
+          "fpe": 0.0,
+          "tld": 1.0381273056119575,
+          "success": true
+        },
+        {
+          "fpe": 0.11499999999999999,
+          "tld": 0.9809363471940212,
+          "success": true
         }
       ]
     }
