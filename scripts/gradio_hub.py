@@ -9,6 +9,7 @@ Usage:
   python3 scripts/gradio_hub.py
   python3 scripts/gradio_hub.py --port 7860
 """
+import os
 import socket
 import subprocess
 import sys
@@ -111,6 +112,23 @@ GROUP_COLOR = {
 # ─── 유틸 ─────────────────────────────────────────────────────────────────────
 
 def get_server_ip() -> str:
+    # 환경변수로 명시 가능 (Tailscale 등 특정 IP 고정)
+    override = os.getenv("VLA_HUB_IP")
+    if override:
+        return override
+    # Tailscale 인터페이스(tailscale0) IP 우선
+    try:
+        import subprocess
+        out = subprocess.check_output(
+            ["ip", "addr", "show", "tailscale0"], text=True, timeout=2
+        )
+        for line in out.splitlines():
+            line = line.strip()
+            if line.startswith("inet ") and "/" in line:
+                return line.split()[1].split("/")[0]
+    except Exception:
+        pass
+    # fallback: 기본 라우팅 IP
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect(("8.8.8.8", 80))
@@ -165,12 +183,29 @@ def render_hub_html(server_ip: str) -> str:
             dot_color = "#2ecc71" if up else "#e74c3c"
             dot_label = f"UP  pid={pid}" if up else "DOWN"
             url = f"http://{server_ip}:{svc['port']}{svc.get('path', '')}"
-            link_style = (
-                "background:#2a5a3a;color:#2ecc71;cursor:pointer;border:1px solid #2ecc71;"
-                if up else
-                "background:#3d3d3d;color:#666;cursor:not-allowed;border:1px solid #555;"
-            )
-            link_attr = f'href="{url}" target="_blank"' if up else ""
+            port = svc["port"]
+
+            if up:
+                # 실행 중: Open 버튼 + Stop 버튼
+                action_html = f"""
+                <div style="display:flex;gap:8px">
+                  <a href="{url}" target="_blank"
+                     style="flex:3;display:block;text-align:center;padding:7px 0;border-radius:6px;
+                            text-decoration:none;font-size:13px;font-weight:500;
+                            background:#2a5a3a;color:#2ecc71;border:1px solid #2ecc71">Open →</a>
+                  <button onclick="triggerStop({port})"
+                     style="flex:1;padding:7px 0;border-radius:6px;font-size:12px;font-weight:500;
+                            background:#3d1a1a;color:#e74c3c;border:1px solid #c0392b;cursor:pointer">■ Stop</button>
+                </div>"""
+            else:
+                # 꺼져 있음: Start 버튼
+                action_html = f"""
+                <button onclick="triggerStart({port})"
+                   style="width:100%;padding:8px 0;border-radius:6px;font-size:13px;font-weight:600;
+                          background:#1a3a2a;color:#27ae60;border:1px solid #27ae60;cursor:pointer;
+                          transition:all 0.2s" onmouseover="this.style.background='#2a5a3a'"
+                          onmouseout="this.style.background='#1a3a2a'">▶ Start</button>"""
+
             cards_html += f"""
             <div style="width:280px;background:#1e1e1e;border:1px solid #333;border-radius:10px;
                         padding:16px;border-top:3px solid {color}">
@@ -178,14 +213,11 @@ def render_hub_html(server_ip: str) -> str:
                 <div style="width:10px;height:10px;border-radius:50%;background:{dot_color};
                             box-shadow:0 0 6px {dot_color}"></div>
                 <span style="font-size:11px;color:{dot_color};font-family:monospace">{dot_label}</span>
-                <span style="margin-left:auto;font-size:11px;color:#666;font-family:monospace">:{svc['port']}</span>
+                <span style="margin-left:auto;font-size:11px;color:#666;font-family:monospace">:{port}</span>
               </div>
               <div style="font-weight:600;color:#e0e0e0;margin-bottom:6px">{svc['name']}</div>
               <div style="font-size:12px;color:#888;margin-bottom:12px;line-height:1.5">{svc['desc']}</div>
-              <a {link_attr} style="display:block;text-align:center;padding:7px 0;border-radius:6px;
-                                    text-decoration:none;font-size:13px;font-weight:500;{link_style}">
-                {'Open →' if up else 'Offline'}
-              </a>
+              {action_html}
             </div>
             """
         cards_html += "</div></div>"
@@ -194,7 +226,42 @@ def render_hub_html(server_ip: str) -> str:
     total = len(SERVICES)
     ts = time.strftime("%H:%M:%S")
 
+    # JS: Start/Stop 버튼 → hidden Gradio textbox + 트리거 버튼 클릭
+    js_script = """
+    <script>
+    function triggerStart(port) {
+      var tb = document.querySelector('#hub-port-input textarea');
+      if (!tb) { tb = document.querySelector('#hub-port-input input'); }
+      if (tb) {
+        var nativeInput = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')
+          || Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
+        nativeInput.set.call(tb, 'start:' + port);
+        tb.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      setTimeout(function() {
+        var btn = document.querySelector('#hub-action-btn button');
+        if (btn) btn.click();
+      }, 100);
+    }
+    function triggerStop(port) {
+      var tb = document.querySelector('#hub-port-input textarea');
+      if (!tb) { tb = document.querySelector('#hub-port-input input'); }
+      if (tb) {
+        var nativeInput = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')
+          || Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
+        nativeInput.set.call(tb, 'stop:' + port);
+        tb.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      setTimeout(function() {
+        var btn = document.querySelector('#hub-action-btn button');
+        if (btn) btn.click();
+      }, 100);
+    }
+    </script>
+    """
+
     return f"""
+    {js_script}
     <div style="background:#111;color:#e0e0e0;font-family:'Segoe UI',sans-serif;
                 padding:24px;border-radius:12px;min-height:400px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
@@ -245,38 +312,74 @@ def stop_service(port: int) -> str:
 
 def build_hub(server_ip: str) -> gr.Blocks:
     svc_names = [f"{s['name']} (:{s['port']})" for s in SERVICES]
+    port_map = {svc["port"]: svc for svc in SERVICES}
 
     with gr.Blocks(title="MoNaVLA Hub") as demo:
-        gr.Markdown("## MoNaVLA Hub")
-
         hub_html = gr.HTML(value=render_hub_html(server_ip))
-        refresh_btn = gr.Button("Refresh Status", variant="secondary", size="sm")
 
-        with gr.Accordion("Service Control", open=False):
+        with gr.Row():
+            refresh_btn = gr.Button("🔄 Refresh", variant="secondary", size="sm", scale=1)
+            ctrl_out    = gr.Textbox(label="", lines=1, interactive=False,
+                                     placeholder="서비스 상태...", scale=4)
+
+        # 카드 Start/Stop 버튼 → JS가 이 hidden 컴포넌트를 업데이트 후 트리거
+        port_input  = gr.Textbox(value="", visible=False, elem_id="hub-port-input")
+        action_btn  = gr.Button("__action__", visible=False, elem_id="hub-action-btn")
+
+        def do_refresh():
+            return render_hub_html(server_ip), ""
+
+        def do_action(cmd: str):
+            """cmd 형식: 'start:7863' 또는 'stop:7865'"""
+            if not cmd or ":" not in cmd:
+                return "", render_hub_html(server_ip)
+            action, port_str = cmd.split(":", 1)
+            try:
+                port = int(port_str)
+            except ValueError:
+                return "❌ 잘못된 포트", render_hub_html(server_ip)
+
+            svc = port_map.get(port)
+            if not svc:
+                return f"❌ 포트 {port} 서비스 없음", render_hub_html(server_ip)
+
+            if action == "start":
+                msg = f"▶ {svc['name']} 시작 중..."
+                result = start_service(svc)
+                msg = f"✅ {svc['name']}: {result}"
+            elif action == "stop":
+                result = stop_service(port)
+                msg = f"■ {svc['name']}: {result}"
+            else:
+                msg = f"❓ 알 수 없는 액션: {action}"
+
+            return msg, render_hub_html(server_ip)
+
+        refresh_btn.click(do_refresh, outputs=[hub_html, ctrl_out])
+        action_btn.click(do_action, inputs=port_input, outputs=[ctrl_out, hub_html])
+
+        # 기존 드롭다운 방식도 유지 (Service Control 아코디언)
+        with gr.Accordion("Advanced Service Control", open=False):
             with gr.Row():
                 svc_dd  = gr.Dropdown(choices=svc_names, label="서비스 선택", scale=3)
                 start_b = gr.Button("Start", variant="primary", scale=1)
                 stop_b  = gr.Button("Stop",  variant="stop",    scale=1)
-            ctrl_out = gr.Textbox(label="결과", lines=2)
+            adv_out = gr.Textbox(label="결과", lines=2)
 
-        def do_refresh():
-            return render_hub_html(server_ip)
+            def do_start(name):
+                idx = svc_names.index(name)
+                return start_service(SERVICES[idx])
 
-        def do_start(name):
-            idx = svc_names.index(name)
-            return start_service(SERVICES[idx])
+            def do_stop(name):
+                idx = svc_names.index(name)
+                return stop_service(SERVICES[idx]["port"])
 
-        def do_stop(name):
-            idx = svc_names.index(name)
-            return stop_service(SERVICES[idx]["port"])
-
-        refresh_btn.click(do_refresh, outputs=hub_html)
-        start_b.click(do_start, inputs=svc_dd, outputs=ctrl_out).then(
-            do_refresh, outputs=hub_html
-        )
-        stop_b.click(do_stop, inputs=svc_dd, outputs=ctrl_out).then(
-            do_refresh, outputs=hub_html
-        )
+            start_b.click(do_start, inputs=svc_dd, outputs=adv_out).then(
+                lambda: render_hub_html(server_ip), outputs=hub_html
+            )
+            stop_b.click(do_stop, inputs=svc_dd, outputs=adv_out).then(
+                lambda: render_hub_html(server_ip), outputs=hub_html
+            )
 
     return demo
 
