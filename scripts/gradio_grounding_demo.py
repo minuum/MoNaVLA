@@ -21,6 +21,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from scripts.utils.camera_proc import camera_control_widget
+
 import cv2
 import gradio as gr
 import numpy as np
@@ -168,18 +170,10 @@ def timer_tick():
     """gr.Timer tick — 카메라 프레임을 가져와 모든 live feed 업데이트."""
     frame = _fetch_ros_frame()
     status = "📷 Live ✅" if _cam_ok else ("ROS 연결됨, 서비스 대기 중…" if ROS_AVAILABLE else "❌ ROS 없음")
-    return frame, frame, frame, status  # (vla_cam, alias_cam, grnd_cam, status_txt)
+    return frame, frame, frame, frame, status  # (vla_cam, alias_cam, grnd_cam, vqa_cam, status_txt)
 
 
-# ─── 모델 싱글톤 ───────────────────────────────────────────────────────────────
-
-_state: dict = {"model": None, "processor": None, "adapter": None}
-_DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-ADAPTER_OPTIONS = {
-    "Pure Kosmos-2": None,
-    "Exp56 LoRA":    DEFAULT_ADAPTERS.get("exp56"),
-}
+# ─── 정적 설정 및 프리셋 ─────────────────────────────────────────────────────────
 
 PRESET_ALIASES = {
     "🧺 basket": "gray basket\ngray box\ncontainer\nbin\nlaundry basket",
@@ -230,13 +224,86 @@ API_KEY = os.getenv("VLA_API_KEY", "vla_devel_key_2026")
 _API_HEADERS = {"X-API-Key": API_KEY}
 
 
+# ─── 모델 싱글톤 ───────────────────────────────────────────────────────────────
+
+_state: dict = {"model": None, "processor": None, "model_name": None, "adapter": None}
+_DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+LOCAL_VLM_PATHS = {
+    "Pure Kosmos-2": ROOT / ".vlms" / "kosmos-2-patch14-224",
+    "Exp56 LoRA":    ROOT / ".vlms" / "kosmos-2-patch14-224",
+    "PaliGemma-3B":  ROOT / ".vlms" / "paligemma-3b-mix-224",
+    "Moondream2":    ROOT / ".vlms" / "moondream2",
+}
+
+ONLINE_VLM_IDS = {
+    "Pure Kosmos-2": "microsoft/kosmos-2-patch14-224",
+    "Exp56 LoRA":    "microsoft/kosmos-2-patch14-224",
+    "PaliGemma-3B":  "google/paligemma-3b-mix-224",
+    "Moondream2":    "vikhyatk/moondream2",
+}
+
+ADAPTER_OPTIONS = {
+    "Pure Kosmos-2": None,
+    "Exp56 LoRA":    DEFAULT_ADAPTERS.get("exp56"),
+    "PaliGemma-3B":  None,
+    "Moondream2":    None,
+}
+
+_MOONDREAM_REVISION = "2025-01-09"
+
+
 def _ensure_model(adapter_label: str):
-    if _state["model"] is None or _state["adapter"] != adapter_label:
+    """Loads and caches the specified local VLM model on-demand to save VRAM."""
+    if _state["model"] is not None and _state["model_name"] == adapter_label:
+        return _state["model"], _state["processor"]
+
+    print(f"[LOAD LOCAL VLM] Switching from {_state['model_name']} to {adapter_label} ...")
+
+    # Clear existing model
+    if _state["model"] is not None:
+        del _state["model"]
+        _state["model"] = None
+    _state["processor"] = None
+    
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+    device = _DEVICE
+    dtype = torch.float16 if device.type == "cuda" else torch.float32
+
+    local_path = LOCAL_VLM_PATHS.get(adapter_label)
+    online_id = ONLINE_VLM_IDS.get(adapter_label)
+    model_path = str(local_path) if (local_path and local_path.exists() and any(local_path.iterdir())) else online_id
+
+    print(f"Loading {adapter_label} from: {model_path}")
+
+    if adapter_label in ("Pure Kosmos-2", "Exp56 LoRA"):
         adapter_path = ADAPTER_OPTIONS.get(adapter_label)
-        print(f"[LOAD] {adapter_label} ...")
-        model, processor = load_model(DEFAULT_VLM, adapter_path, _DEVICE)
-        _state.update(model=model, processor=processor, adapter=adapter_label)
-    return _state["model"], _state["processor"]
+        model, processor = load_model(model_path, adapter_path, device)
+
+    elif adapter_label == "PaliGemma-3B":
+        from transformers import AutoProcessor, PaliGemmaForConditionalGeneration
+        pg_dtype = torch.bfloat16 if device.type == "cuda" else torch.float32
+        processor = AutoProcessor.from_pretrained(model_path)
+        model = PaliGemmaForConditionalGeneration.from_pretrained(
+            model_path, torch_dtype=pg_dtype
+        ).to(device).eval()
+
+    elif adapter_label == "Moondream2":
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+        processor = AutoTokenizer.from_pretrained(model_path)
+        model = AutoModelForCausalLM.from_pretrained(
+            model_path,
+            trust_remote_code=True,
+            revision=_MOONDREAM_REVISION if "moondream2" in model_path else None,
+            torch_dtype=dtype,
+        ).to(device).eval()
+    else:
+        raise ValueError(f"Unknown local VLM: {adapter_label}")
+
+    _state.update(model=model, processor=processor, model_name=adapter_label, adapter=adapter_label)
+    return model, processor
 
 
 def _to_numpy(image) -> np.ndarray | None:
@@ -301,20 +368,73 @@ def run_grounding(image, phrase: str, adapter_label: str):
 
     model, proc = _ensure_model(adapter_label)
     img_np = _to_numpy(image)
-    result = ground(model, proc, img_np, phrase, _DEVICE)
-    overlay = draw_overlay(img_np, phrase, result)
-    hit = check_hit(result, phrase)
+    pil_img = Image.fromarray(img_np).convert("RGB")
 
+    bbox = None
+    caption = ""
     entity_lines = []
-    for ent_name, ent_boxes, _ in result.get("entities", []):
-        for box in ent_boxes:
-            x1, y1, x2, y2 = box
-            entity_lines.append(
-                f"  [{ent_name}]  cx={((x1+x2)/2):.2f}  cy={((y1+y2)/2):.2f}"
-                f"  area={((x2-x1)*(y2-y1)):.3f}"
-            )
+    hit = False
 
-    status = f"{'HIT' if hit else 'MISS'}   {result.get('caption', '')}"
+    if adapter_label in ("Pure Kosmos-2", "Exp56 LoRA"):
+        result = ground(model, proc, img_np, phrase, _DEVICE)
+        overlay = draw_overlay(img_np, phrase, result)
+        hit = check_hit(result, phrase)
+        caption = result.get('caption', '')
+        for ent_name, ent_boxes, _ in result.get("entities", []):
+            for box in ent_boxes:
+                x1, y1, x2, y2 = box
+                entity_lines.append(
+                    f"  [{ent_name}]  cx={((x1+x2)/2):.2f}  cy={((y1+y2)/2):.2f}"
+                    f"  area={((x2-x1)*(y2-y1)):.3f}"
+                )
+
+    elif adapter_label == "PaliGemma-3B":
+        prompt = f"detect {phrase}\n"
+        inputs = proc(text=prompt, images=pil_img, return_tensors="pt").to(_DEVICE)
+        with torch.no_grad():
+            gen = model.generate(**inputs, max_new_tokens=100)
+        full_decoded = proc.decode(gen[0], skip_special_tokens=False)
+        prompt_end = full_decoded.find(prompt.strip())
+        caption = full_decoded[prompt_end + len(prompt):] if prompt_end >= 0 else full_decoded
+        caption = caption.strip()
+
+        locs = _parse_paligemma_locs(caption)
+        hit = locs is not None
+        if locs:
+            bbox = {"entity": phrase, "cx": locs["cx"], "cy": locs["cy"], "area": locs["area"]}
+            x1 = locs["cx"] - (locs["area"]**0.5)/2
+            y1 = locs["cy"] - (locs["area"]**0.5)/2
+            x2 = locs["cx"] + (locs["area"]**0.5)/2
+            y2 = locs["cy"] + (locs["area"]**0.5)/2
+            bbox.update(x1=max(x1, 0.0), y1=max(y1, 0.0), x2=min(x2, 1.0), y2=min(y2, 1.0))
+            entity_lines.append(f"  [{phrase}]  cx={locs['cx']:.2f}  cy={locs['cy']:.2f}  area={locs['area']:.3f}")
+
+        overlay = annotate_image(img_np, bbox, label="HIT" if hit else "MISS", draw_grid=False)
+        overlay = Image.fromarray(overlay)
+
+    elif adapter_label == "Moondream2":
+        with torch.no_grad():
+            try:
+                raw = model.detect(pil_img, phrase)
+                objects = raw.get("objects", raw) if isinstance(raw, dict) else raw
+            except Exception as e:
+                objects = []
+        caption = f"{len(objects)} object(s) detected"
+        hit = len(objects) > 0
+        if objects:
+            obj = objects[0]
+            x1 = float(obj.get("x_min", obj.get("xmin", 0)))
+            y1 = float(obj.get("y_min", obj.get("ymin", 0)))
+            x2 = float(obj.get("x_max", obj.get("xmax", 1)))
+            y2 = float(obj.get("y_max", obj.get("ymax", 1)))
+            area = abs(x2 - x1) * abs(y2 - y1)
+            bbox = {"entity": phrase, "cx": (x1+x2)/2, "cy": (y1+y2)/2, "area": area, "x1": x1, "y1": y1, "x2": x2, "y2": y2}
+            entity_lines.append(f"  [{phrase}]  cx={(x1+x2)/2:.2f}  cy={(y1+y2)/2:.2f}  area={area:.3f}")
+
+        overlay = annotate_image(img_np, bbox, label="HIT" if hit else "MISS", draw_grid=False)
+        overlay = Image.fromarray(overlay)
+
+    status = f"{'HIT' if hit else 'MISS'}   {caption}"
     return overlay, status, "\n".join(entity_lines) or "  (감지 없음)"
 
 
@@ -327,14 +447,64 @@ def run_alias_test(image, alias_text: str, adapter_label: str):
 
     model, proc = _ensure_model(adapter_label)
     img_np = _to_numpy(image)
+    pil_img = Image.fromarray(img_np).convert("RGB")
 
     rows, overlays = [], []
     for phrase in phrases:
-        r = ground(model, proc, img_np, phrase, _DEVICE)
-        hit = check_hit(r, phrase)
-        entities = [e for e, _, _ in r.get("entities", [])]
-        rows.append((phrase, hit, entities, r.get("caption", "")[:50]))
-        overlays.append(draw_overlay(img_np, phrase, r))
+        bbox = None
+        caption = ""
+        hit = False
+
+        if adapter_label in ("Pure Kosmos-2", "Exp56 LoRA"):
+            r = ground(model, proc, img_np, phrase, _DEVICE)
+            hit = check_hit(r, phrase)
+            caption = r.get("caption", "")[:50]
+            entities = [e for e, _, _ in r.get("entities", [])]
+            ov = draw_overlay(img_np, phrase, r)
+        elif adapter_label == "PaliGemma-3B":
+            prompt = f"detect {phrase}\n"
+            inputs = proc(text=prompt, images=pil_img, return_tensors="pt").to(_DEVICE)
+            with torch.no_grad():
+                gen = model.generate(**inputs, max_new_tokens=100)
+            full_decoded = proc.decode(gen[0], skip_special_tokens=False)
+            prompt_end = full_decoded.find(prompt.strip())
+            caption = full_decoded[prompt_end + len(prompt):] if prompt_end >= 0 else full_decoded
+            caption = caption.strip()
+            locs = _parse_paligemma_locs(caption)
+            hit = locs is not None
+            entities = [phrase] if hit else []
+            if locs:
+                bbox = {"entity": phrase, "cx": locs["cx"], "cy": locs["cy"], "area": locs["area"]}
+                x1 = locs["cx"] - (locs["area"]**0.5)/2
+                y1 = locs["cy"] - (locs["area"]**0.5)/2
+                x2 = locs["cx"] + (locs["area"]**0.5)/2
+                y2 = locs["cy"] + (locs["area"]**0.5)/2
+                bbox.update(x1=max(x1, 0.0), y1=max(y1, 0.0), x2=min(x2, 1.0), y2=min(y2, 1.0))
+            ov = annotate_image(img_np, bbox, label="HIT" if hit else "MISS", draw_grid=False)
+            ov = Image.fromarray(ov)
+        elif adapter_label == "Moondream2":
+            with torch.no_grad():
+                try:
+                    raw = model.detect(pil_img, phrase)
+                    objects = raw.get("objects", raw) if isinstance(raw, dict) else raw
+                except Exception as e:
+                    objects = []
+            hit = len(objects) > 0
+            entities = [phrase] if hit else []
+            caption = f"{len(objects)} object(s) detected"
+            if objects:
+                obj = objects[0]
+                x1 = float(obj.get("x_min", obj.get("xmin", 0)))
+                y1 = float(obj.get("y_min", obj.get("ymin", 0)))
+                x2 = float(obj.get("x_max", obj.get("xmax", 1)))
+                y2 = float(obj.get("y_max", obj.get("ymax", 1)))
+                area = abs(x2 - x1) * abs(y2 - y1)
+                bbox = {"entity": phrase, "cx": (x1+x2)/2, "cy": (y1+y2)/2, "area": area, "x1": x1, "y1": y1, "x2": x2, "y2": y2}
+            ov = annotate_image(img_np, bbox, label="HIT" if hit else "MISS", draw_grid=False)
+            ov = Image.fromarray(ov)
+
+        rows.append((phrase, hit, entities, caption))
+        overlays.append(ov)
 
     cols = min(len(overlays), 3)
     n_rows = (len(overlays) + cols - 1) // cols
@@ -361,13 +531,73 @@ def run_alias_test(image, alias_text: str, adapter_label: str):
     return grid, "\n".join(lines)
 
 
+def run_vqa(image, prompt: str, adapter_label: str, add_grounding_tag: bool):
+    if image is None:
+        return "⚠️ 이미지가 없습니다"
+    prompt = prompt.strip()
+    if not prompt:
+        return "⚠️ 질문(Prompt)을 입력해주세요"
+
+    img_np = _to_numpy(image)
+    pil_img = Image.fromarray(img_np).convert("RGB")
+
+    device = _DEVICE
+    model, proc = _ensure_model(adapter_label)
+
+    if add_grounding_tag and adapter_label in ("Pure Kosmos-2", "Exp56 LoRA"):
+        if not prompt.startswith("<grounding>"):
+            prompt = f"<grounding>{prompt}"
+
+    dtype = torch.float16 if device.type == "cuda" else torch.float32
+
+    start_time = time.time()
+    try:
+        if adapter_label in ("Pure Kosmos-2", "Exp56 LoRA"):
+            inputs = proc(text=prompt, images=pil_img, return_tensors="pt")
+            inputs = {k: v.to(device) for k, v in inputs.items()}
+            pv = inputs["pixel_values"].to(dtype)
+            with torch.no_grad():
+                gen = model.generate(
+                    pixel_values=pv,
+                    input_ids=inputs["input_ids"],
+                    attention_mask=inputs["attention_mask"],
+                    image_embeds=None,
+                    image_embeds_position_mask=inputs.get("image_embeds_position_mask"),
+                    use_cache=True,
+                    max_new_tokens=128,
+                )
+            new_ids = gen[:, inputs["input_ids"].shape[1]:]
+            response = proc.batch_decode(new_ids, skip_special_tokens=False)[0]
+
+        elif adapter_label == "PaliGemma-3B":
+            if not prompt.endswith("\n"):
+                prompt += "\n"
+            inputs = proc(text=prompt, images=pil_img, return_tensors="pt").to(device)
+            with torch.no_grad():
+                gen = model.generate(**inputs, max_new_tokens=128)
+            full_decoded = proc.decode(gen[0], skip_special_tokens=False)
+            prompt_end = full_decoded.find(prompt.strip())
+            response = full_decoded[prompt_end + len(prompt):] if prompt_end >= 0 else full_decoded
+            response = response.strip()
+
+        elif adapter_label == "Moondream2":
+            with torch.no_grad():
+                response = model.answer_question(pil_img, prompt, proc)
+
+    except Exception as e:
+        response = f"❌ 오류 발생: {e}"
+
+    latency = (time.time() - start_time) * 1000.0
+    return f"[{adapter_label} 답변 - {latency:.1f}ms]\n\n{response}"
+
+
 # ─── VLA 로직 ────────────────────────────────────────────────────────────────
 
-def _vla_call(img_np: np.ndarray, instruction: str) -> dict:
+def _vla_call(img_np: np.ndarray, instruction: str, vlm_model: str = "kosmos") -> dict:
     b64 = _img_to_b64(img_np)
     r = requests.post(
         f"{API_URL}/predict",
-        json={"image": b64, "instruction": instruction},
+        json={"image": b64, "instruction": instruction, "vlm_model": vlm_model},
         headers=_API_HEADERS,
         timeout=30,
     )
@@ -375,7 +605,14 @@ def _vla_call(img_np: np.ndarray, instruction: str) -> dict:
     return r.json()
 
 
-def run_vla_predict(image, instruction: str):
+VLM_NAME_MAP = {
+    "Kosmos-2": "kosmos",
+    "PaliGemma-3B": "paligemma",
+    "Moondream2": "moondream",
+}
+
+
+def run_vla_predict(image, instruction: str, vlm_model_name: str):
     if image is None:
         return None, "⚠️ 카메라 프레임 없음 (카메라 연결 또는 업로드)", ""
     instruction = instruction.strip()
@@ -383,8 +620,9 @@ def run_vla_predict(image, instruction: str):
         return None, "⚠️ Instruction을 입력해주세요", ""
 
     img_np = _to_numpy(image)
+    vlm_model = VLM_NAME_MAP.get(vlm_model_name, "kosmos")
     try:
-        d = _vla_call(img_np, instruction)
+        d = _vla_call(img_np, instruction, vlm_model)
     except Exception as e:
         return None, f"❌ API 오류: {e}", ""
 
@@ -409,7 +647,7 @@ def run_vla_predict(image, instruction: str):
     return out_arr, status, bbox_info
 
 
-def run_vla_alias(image, alias_text: str):
+def run_vla_alias(image, alias_text: str, vlm_model_name: str):
     if image is None:
         return None, "⚠️ 카메라 프레임 없음"
     phrases = [p.strip() for p in alias_text.splitlines() if p.strip()]
@@ -417,12 +655,13 @@ def run_vla_alias(image, alias_text: str):
         return None, "⚠️ Phrase를 한 줄씩 입력해주세요"
 
     img_np = _to_numpy(image)
+    vlm_model = VLM_NAME_MAP.get(vlm_model_name, "kosmos")
     results = []
     last_d = None
 
     for phrase in phrases:
         try:
-            d = _vla_call(img_np, phrase)
+            d = _vla_call(img_np, phrase, vlm_model)
             label = d.get("predicted_label", "?")
             cx = f"{d['bbox']['cx']:.3f}" if d.get("bbox") and "cx" in d["bbox"] else "—"
             results.append((phrase, label, d.get("latency_ms", 0), cx))
@@ -462,16 +701,24 @@ def build_ui() -> gr.Blocks:
     with gr.Blocks(title="Object Recognition Demo") as demo:
         gr.Markdown("# Object Recognition Demo")
 
+        # 카메라 프로세스 제어
+        camera_control_widget()
+
         # 상단 상태 바
         with gr.Row():
             cam_status_txt = gr.Textbox(
-                value=cam_status_init, label="카메라 상태",
+                value=cam_status_init, label="ROS 카메라 서비스 상태",
                 interactive=False, scale=4,
             )
             adapter_dd = gr.Dropdown(
                 choices=list(ADAPTER_OPTIONS.keys()),
                 value="Pure Kosmos-2",
-                label="Grounding 모델", scale=2,
+                label="Local Grounding 모델", scale=2,
+            )
+            vla_vlm_dd = gr.Dropdown(
+                choices=["Kosmos-2", "PaliGemma-3B", "Moondream2"],
+                value="Kosmos-2",
+                label="VLA API VLM", scale=2,
             )
 
         with gr.Tabs():
@@ -529,6 +776,35 @@ def build_ui() -> gr.Blocks:
                             inputs=[img_a, alias_txt, adapter_dd],
                             outputs=[out_img_a, out_summary])
 
+            # ── 탭 2.5: VQA & Chat ───────────────────────────────────────────
+            with gr.TabItem("VQA & Chat"):
+                gr.Markdown(
+                    "이미지와 함께 자유 텍스트 질문을 입력하여 VLM의 자연어 답변을 확인합니다.\n"
+                    "Kosmos-2 모델의 경우 그라운딩 접두사(`<grounding>`) 추가 여부를 제어할 수 있습니다."
+                )
+                with gr.Row():
+                    with gr.Column():
+                        img_q = gr.Image(interactive=False, label="📷 Live Camera")
+                        btn_up_q = gr.UploadButton("📁 이미지 업로드 (대체)", file_types=["image"])
+                        prompt_q = gr.Textbox(
+                            value="Describe this image in detail.",
+                            label="질문 (Prompt)",
+                            placeholder="VLM에게 보낼 질문을 입력하세요",
+                        )
+                        add_tag_cb = gr.Checkbox(
+                            value=False,
+                            label="Kosmos-2 <grounding> 태그 강제 추가"
+                        )
+                        btn_q = gr.Button("▶ Send Question", variant="primary")
+                    with gr.Column():
+                        out_vqa_txt = gr.Textbox(label="VLM 자연어 답변", lines=15, interactive=False)
+
+                btn_up_q.upload(fn=lambda f: np.array(Image.open(f).convert("RGB")),
+                                inputs=btn_up_q, outputs=img_q)
+                btn_q.click(run_vqa,
+                            inputs=[img_q, prompt_q, adapter_dd, add_tag_cb],
+                            outputs=[out_vqa_txt])
+
             # ── 탭 3: VLA Inference ──────────────────────────────────────────
             with gr.TabItem("VLA Inference"):
                 gr.Markdown(
@@ -559,7 +835,7 @@ def build_ui() -> gr.Blocks:
                 reset_btn.click(reset_api_history,
                                 outputs=gr.Textbox(visible=False))
                 btn_v.click(run_vla_predict,
-                            inputs=[img_v, instr_txt],
+                            inputs=[img_v, instr_txt, vla_vlm_dd],
                             outputs=[out_img_v, out_status_v, out_bbox_v])
 
             # ── 탭 4: VLA Alias Test ─────────────────────────────────────────
@@ -589,14 +865,14 @@ def build_ui() -> gr.Blocks:
                 for btn, text in zip(vpreset_btns, PRESET_ALIASES.values()):
                     btn.click(fn=lambda t=text: t, outputs=alias_txt_v)
                 btn_va.click(run_vla_alias,
-                             inputs=[img_va, alias_txt_v],
+                             inputs=[img_va, alias_txt_v, vla_vlm_dd],
                              outputs=[out_img_va, out_sum_va])
 
         # ── 공유 타이머: 모든 탭의 카메라 이미지 자동 갱신 ─────────────────────
         timer = gr.Timer(value=1.0, active=ROS_AVAILABLE)
         timer.tick(
             fn=timer_tick,
-            outputs=[img_v, img_va, img_g, cam_status_txt],
+            outputs=[img_v, img_va, img_g, img_q, cam_status_txt],
         )
         # Alias Test 탭은 별도 tick 연결 (Grounding과 공유하면 충돌)
         timer.tick(

@@ -32,6 +32,10 @@ ros_ws_path = "/home/soda/MoNaVLA/ROS_action/install/camera_interfaces/lib/pytho
 if os.path.exists(ros_ws_path) and ros_ws_path not in sys.path:
     sys.path.append(ros_ws_path)
 
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_PROJECT_ROOT))
+from scripts.utils.camera_proc import camera_control_widget
+
 def load_env():
     env_path = "/home/soda/MoNaVLA/.vla_env_settings"
     if os.path.exists(env_path):
@@ -823,6 +827,9 @@ def make_teleop_fn(k_val): return lambda: node.teleop_step(k_val) if node else "
 
 with gr.Blocks(title="MoNaVLA V5 PRO") as demo:
     gr.Markdown("# 🛸 MoNaVLA V5 Control Hub", elem_classes=["main-title"])
+
+    camera_control_widget()
+
     with gr.Row():
         with gr.Column(scale=2, elem_classes=["camera-card"]):
             stream = gr.Image(label="Live Target View", interactive=False, elem_id="main_camera")

@@ -159,6 +159,7 @@ except ImportError:
 sys.path.insert(0, str(PROJECT_ROOT))
 from robovlm_nav.serve.inference_server import MobileVLAInference
 from robovlm_nav.serve.vla_control_utils import VLAControlManager
+from scripts.utils.camera_proc import camera_control_widget
 
 
 def prepend_env_path(key: str, value: str) -> None:
@@ -843,6 +844,8 @@ def reset_model_wrapper(backend_mode: str, api_url: str, instruction: str):
 
 with gr.Blocks(title="VLA PRO Dashboard") as demo:
     gr.Markdown("# 🚀 Mobile VLA Real-time Dashboard & Teleop")
+
+    camera_control_widget()
 
     with gr.Row():
         with gr.Column(scale=2):
