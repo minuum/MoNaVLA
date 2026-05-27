@@ -1014,7 +1014,11 @@ def main():
                 ep_results = defaultdict(list)
                 for ep_data in test_eps:
                     ep_full  = ep_data["episode"]  # full path or stem
-                    h5_path  = Path(ep_full) if Path(ep_full).suffix == ".h5" else DATA_DIR / f"{ep_full}.h5"
+                    _ep_p = Path(ep_full)
+                    if _ep_p.suffix == ".h5":
+                        h5_path = _ep_p if _ep_p.exists() else DATA_DIR / _ep_p.name
+                    else:
+                        h5_path = DATA_DIR / f"{ep_full}.h5"
                     ep_key   = ep_full  # key into vis_cache (full path as stored)
                     pt       = ep_data["path_type"]
                     frames   = ep_data["frames"]

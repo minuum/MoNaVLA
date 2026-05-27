@@ -133,6 +133,7 @@ _active_goal_nav_model: str = os.getenv("VLA_MODEL", "exp49")
 class InferenceRequest(BaseModel):
     image: str
     instruction: str
+    vlm_model: Optional[str] = "kosmos"
 
 
 class InferenceResponse(BaseModel):
@@ -240,45 +241,30 @@ _GROUNDING_LORA    = ROOT / "docs" / "v5" / "bbox_nav_step1" / "grounding_lora"
 _COARSE_LABEL_CX   = {0: 0.25, 1: 0.5, 2: 0.75}
 
 
+def _parse_paligemma_locs(text: str) -> Optional[dict]:
+    # PaliGemma outputs <loc_XXXX> tokens in y1,x1,y2,x2 order (0-1023)
+    locs = re.findall(r"<loc(\d{4})>", text)
+    if len(locs) < 4:
+        return None
+    y1, x1, y2, x2 = [int(v) / 1023.0 for v in locs[:4]]
+    if x2 <= x1 or y2 <= y1:
+        return None
+    return {
+        "cx":   (x1 + x2) / 2,
+        "cy":   (y1 + y2) / 2,
+        "area": (x2 - x1) * (y2 - y1),
+    }
+
+
 class GroundingBackend:
-    def __init__(self, model_path: Path, device: torch.device, vis_lora_adapter_path: Optional[Path] = None):
-        if not model_path.exists():
-            raise FileNotFoundError(f"Grounding model not found: {model_path}")
-        self.model_path = model_path
+    def __init__(self, default_model_path: Path, device: torch.device, vis_lora_adapter_path: Optional[Path] = None):
+        self.default_model_path = default_model_path
         self.device = device
-        self.processor = AutoProcessor.from_pretrained(str(model_path))
-        self.model = AutoModelForVision2Seq.from_pretrained(
-            str(model_path),
-            torch_dtype=torch.float16 if device.type == "cuda" else torch.float32,
-        ).to(device).eval()
-
-        # Optional LoRA grounding adapter — DISABLED BY DEFAULT.
-        # The 5/4 fine-tune (grounding_lora/) collapses caption to "" and zeros
-        # entity matching (verified 0/72 on bbox_truth_mini, 2026-05-05).
-        # Set VLA_ENABLE_GROUNDING_LORA=1 to opt back in once a working adapter
-        # is trained. See docs/v5/grounding_3tier_ablation.md for the diagnosis.
-        if _GROUNDING_LORA.exists() and os.getenv("VLA_ENABLE_GROUNDING_LORA") == "1":
-            try:
-                from peft import PeftModel
-                self.model = PeftModel.from_pretrained(self.model, str(_GROUNDING_LORA))
-                self.model = self.model.merge_and_unload()
-                self.model.eval()
-                logger.info("Loaded grounding LoRA adapter from %s", _GROUNDING_LORA)
-            except Exception as e:
-                logger.warning("Failed to load grounding LoRA (%s); using base model", e)
-
-        # Optional vis LoRA adapter — applied to vision_model only (exp53)
-        if vis_lora_adapter_path is not None and vis_lora_adapter_path.exists():
-            try:
-                from peft import PeftModel
-                self.model.vision_model = PeftModel.from_pretrained(
-                    self.model.vision_model, str(vis_lora_adapter_path)
-                ).eval()
-                logger.info("Loaded vis LoRA adapter from %s", vis_lora_adapter_path)
-            except Exception as e:
-                logger.warning("Failed to load vis LoRA adapter (%s); using base vision model", e)
-
-        logger.info("Loaded grounding backend from %s on %s", model_path, device)
+        self.vis_lora_adapter_path = vis_lora_adapter_path
+        self.current_model_name = None
+        self.model = None
+        self.processor = None
+        self.tokenizer = None
 
         # Coarse direction classifier (optional, loaded if weights file exists)
         self._coarse_clf: Optional[nn.Linear] = None
@@ -295,6 +281,80 @@ class GroundingBackend:
             logger.info("Loaded coarse direction classifier (%d samples)", ckpt.get("n_samples", 0))
         else:
             logger.info("No coarse direction classifier found at %s", _COARSE_CLF_PATH)
+
+    def _switch_model(self, model_name: str) -> None:
+        """On-demand switches the active VLM grounding model to save GPU memory."""
+        if self.current_model_name == model_name:
+            return
+
+        logger.info("Switching VLM grounding model from %s to %s...", self.current_model_name, model_name)
+
+        # Clear existing model to free VRAM
+        if self.model is not None:
+            del self.model
+            self.model = None
+        if self.processor is not None:
+            self.processor = None
+        if self.tokenizer is not None:
+            self.tokenizer = None
+        
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+        device = self.device
+        dtype = torch.float16 if device.type == "cuda" else torch.float32
+
+        if model_name == "kosmos":
+            self.processor = AutoProcessor.from_pretrained(str(self.default_model_path))
+            self.model = AutoModelForVision2Seq.from_pretrained(
+                str(self.default_model_path),
+                torch_dtype=dtype,
+            ).to(device).eval()
+
+            # Optional LoRA grounding adapter
+            if _GROUNDING_LORA.exists() and os.getenv("VLA_ENABLE_GROUNDING_LORA") == "1":
+                try:
+                    from peft import PeftModel
+                    self.model = PeftModel.from_pretrained(self.model, str(_GROUNDING_LORA))
+                    self.model = self.model.merge_and_unload()
+                    self.model.eval()
+                    logger.info("Loaded grounding LoRA adapter from %s", _GROUNDING_LORA)
+                except Exception as e:
+                    logger.warning("Failed to load grounding LoRA (%s); using base model", e)
+
+            # Optional vis LoRA adapter (applied for exp53)
+            if self.vis_lora_adapter_path is not None and self.vis_lora_adapter_path.exists():
+                try:
+                    from peft import PeftModel
+                    self.model.vision_model = PeftModel.from_pretrained(
+                        self.model.vision_model, str(self.vis_lora_adapter_path)
+                    ).eval()
+                    logger.info("Loaded vis LoRA adapter from %s", self.vis_lora_adapter_path)
+                except Exception as e:
+                    logger.warning("Failed to load vis LoRA adapter (%s); using base vision model", e)
+
+        elif model_name == "paligemma":
+            model_id = _MODEL_IDS.get("paligemma-mix", "google/paligemma-3b-mix-224")
+            # PaliGemma prefers bfloat16 on GPU
+            pg_dtype = torch.bfloat16 if device.type == "cuda" else torch.float32
+            from transformers import PaliGemmaForConditionalGeneration
+            self.processor = AutoProcessor.from_pretrained(model_id)
+            self.model = PaliGemmaForConditionalGeneration.from_pretrained(
+                model_id, torch_dtype=pg_dtype
+            ).to(device).eval()
+
+        elif model_name == "moondream":
+            model_id = _MODEL_IDS.get("moondream", "vikhyatk/moondream2")
+            from transformers import AutoModelForCausalLM
+            self.model = AutoModelForCausalLM.from_pretrained(
+                model_id,
+                trust_remote_code=True,
+                revision=_MOONDREAM_REVISION,
+                torch_dtype=dtype,
+            ).to(device).eval()
+
+        self.current_model_name = model_name
+        logger.info("Successfully loaded VLM: %s on %s", model_name, device)
 
     # caption 방향 패턴: (phrases, cx값) — 긴 구문 먼저 체크
     _CAPTION_DIRECTION_PATTERNS = [
@@ -318,11 +378,7 @@ class GroundingBackend:
         return None
 
     def _coarse_direction_cx(self, pixel_values: torch.Tensor) -> Optional[float]:
-        """Frozen Kosmos-2 vision features → coarse direction (LEFT/CENTER/RIGHT) → cx.
-
-        Reuses already-computed pixel_values; no text generation needed.
-        Returns None if classifier weights are not loaded.
-        """
+        """Frozen Kosmos-2 vision features → coarse direction (LEFT/CENTER/RIGHT) → cx."""
         if self._coarse_clf is None:
             return None
         with torch.no_grad():
@@ -332,11 +388,15 @@ class GroundingBackend:
             pred = self._coarse_clf(feats_norm).argmax(dim=-1).item()
         return _COARSE_LABEL_CX[pred]
 
-    def _parse_basket_bbox(self, caption: str, entities: list[Any]) -> Optional[dict[str, Any]]:
-        # "basket", "container", "bin", "laundry", "gray box" 등 바구니 특화 키워드만 사용.
-        # 과거에 있던 "gray" 단독 키워드는 "gray trash can", "gray wall" 등 무관한 객체까지
-        # 매칭해서 잘못된 bbox 좌표를 리턴하는 문제가 있어 제거.
-        basket_keywords = ("basket", "gray box", "container", "bin", "laundry")
+    def _parse_basket_bbox(self, caption: str, entities: list[Any], target_object: str = "basket") -> Optional[dict[str, Any]]:
+        target_lower = target_object.lower()
+        target_keywords = {target_lower}
+        for word in target_lower.split():
+            if len(word) > 2:
+                target_keywords.add(word)
+        if "basket" in target_lower:
+            target_keywords.update(["container", "bin", "laundry", "gray box"])
+
         candidates = []
         for entity_name, _span, boxes in entities:
             for box in boxes:
@@ -356,11 +416,11 @@ class GroundingBackend:
                         "cx": (x1 + x2) / 2.0,
                         "cy": (y1 + y2) / 2.0,
                         "area": area,
-                        "is_basket": any(k in entity_name.lower() for k in basket_keywords),
+                        "is_target": any(k in entity_name.lower() for k in target_keywords),
                     }
                 )
 
-        matched = [b for b in candidates if b["is_basket"]]
+        matched = [b for b in candidates if b["is_target"]]
         if matched:
             return matched[0]
 
@@ -381,13 +441,13 @@ class GroundingBackend:
                 label = "caption:center"
             return {"entity": label, "cx": cx, "cy": 0.6, "area": 0.06}
 
-        # caption 방향도 없으면 coarse_clf에 위임 (seed_coarse_agreement=1.0, 오탐 entity보다 정확)
         return None
 
     def extract_vis_feat(self, image_rgb: np.ndarray) -> np.ndarray:
         """Kosmos-2 vision encoder mean-pool → (1024,) float32. Reuses loaded model."""
+        self._switch_model("kosmos")
         pil = Image.fromarray(image_rgb.astype(np.uint8)).convert("RGB")
-        inputs = self.processor(text=GROUNDING_PROMPT, images=pil, return_tensors="pt")
+        inputs = self.processor(text="<grounding>The gray basket is at", images=pil, return_tensors="pt")
         pv = inputs["pixel_values"].to(self.device)
         if self.device.type == "cuda":
             pv = pv.to(torch.float16)
@@ -396,46 +456,107 @@ class GroundingBackend:
             feat = vo.last_hidden_state[0].mean(0).float().cpu().numpy()
         return feat  # (1024,)
 
-    def run(self, image_rgb: np.ndarray, extract_vis: bool = False) -> dict[str, Any]:
+    def run(self, image_rgb: np.ndarray, instruction: str = "basket", vlm_model: str = "kosmos", extract_vis: bool = False) -> dict[str, Any]:
+        self._switch_model(vlm_model)
+        target_object = instruction.lower().replace("the", "").replace("a", "").strip()
+
         pil_image = Image.fromarray(image_rgb.astype(np.uint8)).convert("RGB")
-        inputs = self.processor(text=GROUNDING_PROMPT, images=pil_image, return_tensors="pt")
-        inputs = {k: v.to(self.device) for k, v in inputs.items()}
-        pixel_values = inputs["pixel_values"].to(torch.float16 if self.device.type == "cuda" else torch.float32)
+        bbox = None
+        caption = ""
+        latency_ms = 0.0
+        vis_feat = None
 
         start = time.time()
-        with torch.no_grad():
-            generated = self.model.generate(
-                pixel_values=pixel_values,
-                input_ids=inputs["input_ids"],
-                attention_mask=inputs["attention_mask"],
-                image_embeds=None,
-                image_embeds_position_mask=inputs.get("image_embeds_position_mask"),
-                use_cache=True,
-                max_new_tokens=64,
-            )
+
+        if vlm_model == "kosmos":
+            prompt = f"<grounding>The {target_object} is at"
+            inputs = self.processor(text=prompt, images=pil_image, return_tensors="pt")
+            inputs = {k: v.to(self.device) for k, v in inputs.items()}
+            pixel_values = inputs["pixel_values"].to(torch.float16 if self.device.type == "cuda" else torch.float32)
+
+            with torch.no_grad():
+                generated = self.model.generate(
+                    pixel_values=pixel_values,
+                    input_ids=inputs["input_ids"],
+                    attention_mask=inputs["attention_mask"],
+                    image_embeds=None,
+                    image_embeds_position_mask=inputs.get("image_embeds_position_mask"),
+                    use_cache=True,
+                    max_new_tokens=64,
+                )
+
+            new_ids = generated[:, inputs["input_ids"].shape[1] :]
+            raw = self.processor.batch_decode(new_ids, skip_special_tokens=False)[0]
+            caption, entities = self.processor.post_process_generation(raw)
+            bbox = self._parse_basket_bbox(caption, entities, target_object)
+
+            if extract_vis:
+                with torch.no_grad():
+                    vo = self.model.vision_model(pixel_values=pixel_values)
+                    vis_feat = vo.last_hidden_state[0].mean(0).float().cpu().numpy()
+
+        elif vlm_model == "paligemma":
+            prompt = f"detect {target_object}\n"
+            inputs = self.processor(text=prompt, images=pil_image, return_tensors="pt").to(self.device)
+            with torch.no_grad():
+                gen = self.model.generate(**inputs, max_new_tokens=100)
+            full_decoded = self.processor.decode(gen[0], skip_special_tokens=False)
+            prompt_end = full_decoded.find(prompt.strip())
+            decoded = full_decoded[prompt_end + len(prompt):] if prompt_end >= 0 else full_decoded
+            caption = decoded.strip()
+
+            locs = _parse_paligemma_locs(caption)
+            if locs:
+                bbox = {"entity": f"paligemma:{target_object}", "cx": locs["cx"], "cy": locs["cy"], "area": locs["area"]}
+
+        elif vlm_model == "moondream":
+            with torch.no_grad():
+                try:
+                    raw = self.model.detect(pil_image, target_object)
+                    objects = raw.get("objects", raw) if isinstance(raw, dict) else raw
+                except Exception as e:
+                    logger.warning("Moondream detect error: %s", e)
+                    objects = []
+
+            caption = f"{len(objects)} object(s) detected"
+            if objects:
+                obj = objects[0]
+                x1 = float(obj.get("x_min", obj.get("xmin", 0)))
+                y1 = float(obj.get("y_min", obj.get("ymin", 0)))
+                x2 = float(obj.get("x_max", obj.get("xmax", 1)))
+                y2 = float(obj.get("y_max", obj.get("ymax", 1)))
+                area = abs(x2 - x1) * abs(y2 - y1)
+                if area < 0.95:
+                    bbox = {"cx": (x1+x2)/2, "cy": (y1+y2)/2, "area": area}
+
         latency_ms = (time.time() - start) * 1000.0
 
-        new_ids = generated[:, inputs["input_ids"].shape[1] :]
-        raw = self.processor.batch_decode(new_ids, skip_special_tokens=False)[0]
-        caption, entities = self.processor.post_process_generation(raw)
-        bbox = self._parse_basket_bbox(caption, entities)
-
-        # Coarse classifier fallback: fires only when entity match AND caption both fail
-        if bbox is None:
-            cx = self._coarse_direction_cx(pixel_values)
+        # Fallback if detection fails
+        if bbox is None and vlm_model == "kosmos":
+            prompt = f"<grounding>The {target_object} is at"
+            inputs = self.processor(text=prompt, images=pil_image, return_tensors="pt")
+            pv = inputs["pixel_values"].to(self.device).to(torch.float16 if self.device.type == "cuda" else torch.float32)
+            cx = self._coarse_direction_cx(pv)
             if cx is not None:
                 bbox = {"entity": "coarse_clf", "cx": cx, "cy": 0.6, "area": 0.06}
+        elif bbox is None:
+            # Caption fallback for other models
+            caption_lower = caption.lower()
+            cx = self._caption_to_cx(caption_lower)
+            if cx is not None:
+                if cx < 0.2: label = "caption:far_left"
+                elif cx < 0.4: label = "caption:left"
+                elif cx > 0.8: label = "caption:far_right"
+                elif cx > 0.6: label = "caption:right"
+                else: label = "caption:center"
+                bbox = {"entity": label, "cx": cx, "cy": 0.6, "area": 0.06}
 
         result: dict[str, Any] = {
             "caption": caption,
             "bbox": bbox,
             "latency_ms": latency_ms,
-            "vis_feat": None,
+            "vis_feat": vis_feat,
         }
-        if extract_vis:
-            with torch.no_grad():
-                vo = self.model.vision_model(pixel_values=pixel_values)
-                result["vis_feat"] = vo.last_hidden_state[0].mean(0).float().cpu().numpy()
         return result
 
 
@@ -798,14 +919,14 @@ class ProxyInferenceModel:
         instr_emb, matched_path = self._get_instruction_embedding(instruction)
         return np.concatenate([exp46_feat, instr_emb]), matched_path
 
-    def predict(self, image_base64: str, instruction: str) -> dict[str, Any]:
+    def predict(self, image_base64: str, instruction: str, vlm_model: str = "kosmos") -> dict[str, Any]:
         if self.model is None:
             raise RuntimeError("Proxy model is not loaded")
 
         start = time.time()
         image_rgb = self._decode_image(image_base64)
         extract_vis = self.model_type in ("exp46", "exp47")
-        grounding = self.grounder.run(image_rgb, extract_vis=extract_vis)
+        grounding = self.grounder.run(image_rgb, instruction=instruction, vlm_model=vlm_model, extract_vis=extract_vis)
         bbox = grounding["bbox"]
         vis_feat = grounding.get("vis_feat")
 
@@ -993,25 +1114,27 @@ class GoalNavInferenceModel:
         pil = Image.open(io.BytesIO(image_bytes)).convert("RGB")
         return np.array(pil)
 
-    def predict(self, image_base64: str, instruction: str) -> dict[str, Any]:
+    def predict(self, image_base64: str, instruction: str, vlm_model: str = "kosmos") -> dict[str, Any]:
         if self.model is None:
             raise RuntimeError("GoalNav model not loaded")
 
         start = time.time()
         image_rgb = self._decode_image(image_base64)
 
-        # Grounding 캐시: _grounding_skip_n 스텝마다 1번만 Kosmos-2 실행
+        # Grounding 캐시
         use_cache = (
             self._grounding_skip_n > 1
             and self.inference_count > 0
             and self.inference_count % self._grounding_skip_n != 0
             and self._grounding_cache is not None
+            and self._grounding_cache.get("vlm_model") == vlm_model
         )
         if use_cache:
             grounding = self._grounding_cache
             grounding = dict(grounding, latency_ms=0.0)  # 캐시 히트 표시
         else:
-            grounding = self.grounder.run(image_rgb, extract_vis=True)
+            grounding = self.grounder.run(image_rgb, instruction=instruction, vlm_model=vlm_model, extract_vis=True)
+            grounding["vlm_model"] = vlm_model
             self._grounding_cache = grounding
 
         bbox = grounding["bbox"]
@@ -1283,7 +1406,7 @@ async def predict(request: InferenceRequest, x_api_key: Optional[str] = Header(d
     _verify_api_key(x_api_key)
     try:
         model = get_model()
-        result = model.predict(request.image, request.instruction)
+        result = model.predict(request.image, request.instruction, vlm_model=request.vlm_model)
         strategy = "goal_nav" if isinstance(model, GoalNavInferenceModel) else "proxy_mlp"
         response = InferenceResponse(
             action=result["action"],
