@@ -167,6 +167,11 @@ model_override_config_path = None
 # Exp47 MLP 전역 인스턴스 (lazy loading)
 mlp_instance = None
 
+# GoalNav MLP 전역 인스턴스 (lazy loading, exp49/exp54_s2v2/exp55)
+goalnav_instance = None
+_pure_vision_model = None
+_pure_processor = None
+
 
 class InferenceRequest(BaseModel):
     """추론 요청 스키마"""
@@ -1794,6 +1799,205 @@ def get_mlp_model() -> InstructionMLPInference:
     return mlp_instance
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# GoalNav MLP (exp49 / exp54_s2v2 / exp55) — Pure Kosmos-2 vision encoder
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _get_pure_vision_model(device: str = "cuda"):
+    """Pure HF Kosmos-2 vision_model 싱글톤 로더 (Google-robot backbone 아님)."""
+    global _pure_vision_model, _pure_processor
+    if _pure_vision_model is None:
+        from transformers import AutoModelForVision2Seq, AutoProcessor
+        vlm_path = str(Path(project_root) / ".vlms" / "kosmos-2-patch14-224")
+        logger.info("🔄 [GoalNav] Pure Kosmos-2 vision_model 로드 중: %s", vlm_path)
+        full_model = AutoModelForVision2Seq.from_pretrained(
+            vlm_path,
+            torch_dtype=torch.float16,
+            device_map=None,
+        )
+        _pure_vision_model = full_model.model.vision_model.to(device).eval()
+        _pure_processor = AutoProcessor.from_pretrained(vlm_path)
+        logger.info("✅ [GoalNav] Pure Kosmos-2 vision_model 로드 완료")
+    return _pure_vision_model, _pure_processor
+
+
+class GoalNavMLPInference:
+    """
+    Pure Kosmos-2 vision encoder + lightweight MLP action predictor.
+
+    variant:
+      "exp49"      → D_IN=1056 (bbox_32 + vis_1024), ckpt key "model_state_dict"
+      "exp54_s2v2" → D_IN=288  (bbox_32 + proj_256), needs stage1 image_proj
+      "exp55"      → D_IN=288  (same as exp54_s2v2 but separate ckpt)
+
+    Default ckpt paths (override with env vars):
+      VLA_GOALNAV_EXP49_CKPT
+      VLA_GOALNAV_STAGE1_CKPT  (stage1_v2_projs.pt — shared by exp54_s2v2 and exp55)
+      VLA_GOALNAV_STAGE2_CKPT  (stage2_v2_mlp.pt for exp54_s2v2 or exp55_mlp.pt for exp55)
+    """
+
+    CLASS_NAMES = ["STOP", "FORWARD", "LEFT", "RIGHT", "FWD+L", "FWD+R", "ROT_L", "ROT_R"]
+    CLASS_ACTIONS = {
+        0: {"linear_x": 0.0, "linear_y":  0.0, "angular_z":  0.0},
+        1: {"linear_x": 0.3, "linear_y":  0.0, "angular_z":  0.0},
+        2: {"linear_x": 0.0, "linear_y":  0.3, "angular_z":  0.0},
+        3: {"linear_x": 0.0, "linear_y": -0.3, "angular_z":  0.0},
+        4: {"linear_x": 0.3, "linear_y":  0.3, "angular_z":  0.0},
+        5: {"linear_x": 0.3, "linear_y": -0.3, "angular_z":  0.0},
+        6: {"linear_x": 0.0, "linear_y":  0.0, "angular_z":  0.5},
+        7: {"linear_x": 0.0, "linear_y":  0.0, "angular_z": -0.5},
+    }
+    NUM_CLASSES = 8
+    WINDOW = 8
+    VIS_DIM = 1024
+    PROJ_DIM = 256
+
+    _DEFAULT_CKPTS = {
+        "exp49": {
+            "mlp": "runs/v5_nav/mlp/exp49/exp49_mlp.pt",
+        },
+        "exp54_s2v2": {
+            "stage1": "runs/v5_nav/mlp/exp54/stage1_v2/stage1_v2_projs.pt",
+            "mlp":    "runs/v5_nav/mlp/exp54/stage2_v2/stage2_v2_mlp.pt",
+        },
+        "exp55": {
+            "stage1": "runs/v5_nav/mlp/exp54/stage1_v2/stage1_v2_projs.pt",
+            "mlp":    "runs/v5_nav/mlp/exp55/exp55_mlp.pt",
+        },
+    }
+
+    def __init__(self, variant: str = "exp54_s2v2", device: str = "cuda"):
+        assert variant in self._DEFAULT_CKPTS, f"Unknown variant: {variant}"
+        self.variant = variant
+        self.device = device if torch.cuda.is_available() else "cpu"
+
+        self._d_in = self.WINDOW * 4 + (self.VIS_DIM if variant == "exp49" else self.PROJ_DIM)
+        self._mlp = self._build_mlp().to(self.device)
+        self._image_proj = None  # only for exp54_s2v2 / exp55
+
+        self._load_weights()
+
+        self._bbox_history: list = []
+        self._vis_feat_cache: torch.Tensor | None = None
+
+        logger.info("✅ [GoalNavMLP] variant=%s D_IN=%d device=%s", variant, self._d_in, self.device)
+
+    def _build_mlp(self) -> torch.nn.Module:
+        d = self._d_in
+        if self.variant == "exp49":
+            return torch.nn.Sequential(
+                torch.nn.Linear(d, 512),  torch.nn.ReLU(), torch.nn.Dropout(0.25),
+                torch.nn.Linear(512, 256), torch.nn.ReLU(), torch.nn.Dropout(0.2),
+                torch.nn.Linear(256, 128), torch.nn.ReLU(), torch.nn.Dropout(0.1),
+                torch.nn.Linear(128, 64),  torch.nn.ReLU(),
+                torch.nn.Linear(64, self.NUM_CLASSES),
+            )
+        else:  # exp54_s2v2 / exp55
+            return torch.nn.Sequential(
+                torch.nn.Linear(d, 256),  torch.nn.ReLU(), torch.nn.Dropout(0.25),
+                torch.nn.Linear(256, 128), torch.nn.ReLU(), torch.nn.Dropout(0.2),
+                torch.nn.Linear(128, 64),  torch.nn.ReLU(), torch.nn.Dropout(0.1),
+                torch.nn.Linear(64, self.NUM_CLASSES),
+            )
+
+    def _resolve_path(self, env_var: str, default_rel: str) -> str:
+        rel = os.getenv(env_var, default_rel)
+        return str(Path(project_root) / rel)
+
+    def _load_weights(self):
+        defaults = self._DEFAULT_CKPTS[self.variant]
+
+        if self.variant in ("exp54_s2v2", "exp55"):
+            stage1_path = self._resolve_path("VLA_GOALNAV_STAGE1_CKPT", defaults["stage1"])
+            s1_ckpt = torch.load(stage1_path, map_location="cpu")
+            self._image_proj = torch.nn.Linear(self.VIS_DIM, self.PROJ_DIM)
+            self._image_proj.load_state_dict(s1_ckpt["image_proj"])
+            self._image_proj = self._image_proj.to(self.device).eval()
+            logger.info("✅ [GoalNavMLP] stage1 image_proj 로드: %s", stage1_path)
+
+        mlp_path = self._resolve_path("VLA_GOALNAV_STAGE2_CKPT", defaults["mlp"])
+        ckpt = torch.load(mlp_path, map_location="cpu")
+
+        if self.variant == "exp49":
+            self._mlp.load_state_dict(ckpt["model_state_dict"])
+        else:
+            self._mlp.load_state_dict(ckpt["mlp"])
+
+        self._mlp.eval()
+        self._weights_path = mlp_path
+        logger.info("✅ [GoalNavMLP] MLP 가중치 로드: %s", mlp_path)
+
+    def update_bbox(self, cx: float, cy: float, area: float, has_bbox: bool):
+        self._bbox_history.append([cx, cy, area, float(has_bbox)])
+        if len(self._bbox_history) > self.WINDOW:
+            self._bbox_history = self._bbox_history[-self.WINDOW:]
+
+    def update_vision_feature(self, image_b64: str):
+        """base64 이미지 → Pure Kosmos-2 → vis_feat 캐시 갱신."""
+        import base64, io
+        from PIL import Image
+        img_bytes = base64.b64decode(image_b64)
+        pil_img = Image.open(io.BytesIO(img_bytes)).convert("RGB")
+
+        vision_model, processor = _get_pure_vision_model(self.device)
+        inputs = processor(images=pil_img, return_tensors="pt")
+        pv = inputs["pixel_values"].to(self.device, dtype=torch.float16)
+
+        with torch.no_grad():
+            out = vision_model(pixel_values=pv)
+            feat = out.last_hidden_state.mean(dim=1).float()  # (1, 1024)
+
+        if self._image_proj is not None:
+            import torch.nn.functional as F
+            feat = F.normalize(self._image_proj(feat), dim=-1)  # (1, 256)
+
+        self._vis_feat_cache = feat
+
+    def predict(self) -> dict:
+        import time
+        t0 = time.perf_counter()
+
+        if self._vis_feat_cache is None:
+            raise RuntimeError("vision feature가 없습니다. update_vision_feature()를 먼저 호출하세요.")
+
+        # bbox window 패딩 (부족하면 0 패딩)
+        history = self._bbox_history[-self.WINDOW:]
+        while len(history) < self.WINDOW:
+            history = [[0.0, 0.0, 0.0, 0.0]] + history
+        bbox_feat = torch.tensor(history, dtype=torch.float32).flatten().unsqueeze(0).to(self.device)  # (1,32)
+
+        x = torch.cat([bbox_feat, self._vis_feat_cache], dim=-1)  # (1, D_IN)
+
+        with torch.no_grad():
+            logits = self._mlp(x)
+            cls_idx = int(logits.argmax(dim=-1).item())
+
+        latency_ms = (time.perf_counter() - t0) * 1000
+        return {
+            "action":      self.CLASS_ACTIONS[cls_idx],
+            "class_idx":   cls_idx,
+            "class_name":  self.CLASS_NAMES[cls_idx],
+            "latency_ms":  round(latency_ms, 2),
+            "variant":     self.variant,
+        }
+
+    def reset(self):
+        self._bbox_history.clear()
+        self._vis_feat_cache = None
+
+
+def get_goalnav_model() -> GoalNavMLPInference:
+    """GoalNav MLP 인스턴스 lazy loading."""
+    global goalnav_instance
+    if goalnav_instance is None:
+        variant = os.getenv("VLA_GOALNAV_VARIANT", "exp54_s2v2")
+        goalnav_instance = GoalNavMLPInference(
+            variant=variant,
+            device="cuda" if torch.cuda.is_available() else "cpu",
+        )
+    return goalnav_instance
+
+
 def get_model(refresh=False, use_quant=None, checkpoint_path=None, config_path=None):
     """
     모델 인스턴스 가져오기 (lazy loading)
@@ -2372,6 +2576,84 @@ async def mlp_status():
         "instr_keys": list(mlp_instance._instr_embeddings.keys()),
         "num_classes": mlp_instance.NUM_CLASSES,
         "d_in": mlp_instance.D_IN,
+    }
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# GoalNav MLP API 엔드포인트 (exp49 / exp54_s2v2 / exp55)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class GoalNavPredictRequest(BaseModel):
+    image: str                  # base64 encoded image
+    bbox_cx:   float = 0.0
+    bbox_cy:   float = 0.0
+    bbox_area: float = 0.0
+    has_bbox:  bool  = False
+    update_vision: bool = True  # True면 매 요청마다 vision feature 갱신
+
+
+class GoalNavPredictResponse(BaseModel):
+    action:     dict
+    class_idx:  int
+    class_name: str
+    latency_ms: float
+    variant:    str
+
+
+@app.post("/goalnav/predict", response_model=GoalNavPredictResponse)
+async def goalnav_predict(request: GoalNavPredictRequest, api_key: str = Depends(verify_api_key)):
+    """
+    GoalNav MLP 추론 (Pure Kosmos-2 기반, exp49 / exp54_s2v2 / exp55).
+
+    매 요청마다 bbox를 히스토리에 추가하고, update_vision=True이면
+    Pure Kosmos-2로 vision feature를 갱신한 후 MLP action을 반환한다.
+    """
+    try:
+        m = get_goalnav_model()
+        m.update_bbox(
+            cx=request.bbox_cx,
+            cy=request.bbox_cy,
+            area=request.bbox_area,
+            has_bbox=request.has_bbox,
+        )
+        if request.update_vision and request.image:
+            m.update_vision_feature(request.image)
+        result = m.predict()
+        return GoalNavPredictResponse(**result)
+    except Exception as e:
+        import traceback
+        logger.error(f"GoalNav prediction failed: {e}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/goalnav/reset")
+async def goalnav_reset(api_key: str = Depends(verify_api_key)):
+    """bbox 히스토리 + vision cache 초기화 (에피소드 시작 시 호출)."""
+    global goalnav_instance
+    if goalnav_instance is not None:
+        goalnav_instance.reset()
+    return {"status": "ok", "message": "GoalNav state reset"}
+
+
+@app.get("/goalnav/status")
+async def goalnav_status():
+    """GoalNav 모델 상태 확인 (인증 불필요)."""
+    global goalnav_instance
+    if goalnav_instance is None:
+        return {
+            "loaded":   False,
+            "variant":  os.getenv("VLA_GOALNAV_VARIANT", "exp54_s2v2"),
+            "message":  "GoalNav not initialized yet. Call /goalnav/predict to trigger lazy load.",
+        }
+    return {
+        "loaded":               True,
+        "variant":              goalnav_instance.variant,
+        "d_in":                 goalnav_instance._d_in,
+        "weights_path":         goalnav_instance._weights_path,
+        "bbox_history_len":     len(goalnav_instance._bbox_history),
+        "vision_cache_ready":   goalnav_instance._vis_feat_cache is not None,
+        "num_classes":          goalnav_instance.NUM_CLASSES,
+        "device":               goalnav_instance.device,
     }
 
 
