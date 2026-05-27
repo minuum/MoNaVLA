@@ -57,6 +57,7 @@ declare -a SERVICES=(
   "h5_analyzer|7866|python3 scripts/gradio_offline_h5_analyzer.py"
   "monitor|8080|python3 scripts/monitor_dashboard.py"
   "goalnav_api|8001|${ROS_CMD_PREFIX}python3 robovlm_nav/serve/proxy_inference_server.py --port 8001"
+  "inference_server|8000|VLA_GOALNAV_VARIANT=exp54_s2v2 VLA_GOALNAV_ONLY=1 python3 robovlm_nav/serve/inference_server.py"
 )
 
 # ─── 유틸 함수 ─────────────────────────────────────────────────────────────────

@@ -98,6 +98,15 @@ SERVICES = [
         "group":  "System",
         "path":   "/dashboard",
     },
+    {
+        "name":   "Inference Server",
+        "port":   8000,
+        "script": "robovlm_nav/serve/inference_server.py",
+        "cmd":    "VLA_GOALNAV_VARIANT=exp54_s2v2 VLA_GOALNAV_ONLY=1 python3 robovlm_nav/serve/inference_server.py",
+        "desc":   "GoalNav MLP 직접 서버 — exp54_s2v2 (CL 96.7%)",
+        "group":  "System",
+        "path":   "/goalnav/status",
+    },
 ]
 
 GROUP_COLOR = {
@@ -330,30 +339,53 @@ def build_hub(server_ip: str) -> gr.Blocks:
             return render_hub_html(server_ip), ""
 
         def do_action(cmd: str):
-            """cmd 형식: 'start:7863' 또는 'stop:7865'"""
+            """cmd 형식: 'start:7863' 또는 'stop:7865' — generator로 실시간 상태 스트리밍"""
             if not cmd or ":" not in cmd:
-                return "", render_hub_html(server_ip)
+                yield "", gr.update()
+                return
             action, port_str = cmd.split(":", 1)
             try:
                 port = int(port_str)
             except ValueError:
-                return "❌ 잘못된 포트", render_hub_html(server_ip)
+                yield "❌ 잘못된 포트", gr.update()
+                return
 
             svc = port_map.get(port)
             if not svc:
-                return f"❌ 포트 {port} 서비스 없음", render_hub_html(server_ip)
+                yield f"❌ 포트 {port} 서비스 없음", gr.update()
+                return
 
-            if action == "start":
-                msg = f"▶ {svc['name']} 시작 중..."
-                result = start_service(svc)
-                msg = f"✅ {svc['name']}: {result}"
-            elif action == "stop":
+            if action == "stop":
                 result = stop_service(port)
-                msg = f"■ {svc['name']}: {result}"
-            else:
-                msg = f"❓ 알 수 없는 액션: {action}"
+                yield f"■ {svc['name']} 종료: {result}", render_hub_html(server_ip)
+                return
 
-            return msg, render_hub_html(server_ip)
+            if action != "start":
+                yield f"❓ 알 수 없는 액션: {action}", gr.update()
+                return
+
+            # ── Start: 매초 상태 업데이트 ──────────────────────────────────
+            if is_port_up(port):
+                yield f"이미 실행 중: {svc['name']} :{port}", render_hub_html(server_ip)
+                return
+
+            log_name = svc["script"].replace("/", "_").replace(".py", "")
+            log_path = ROOT / "logs" / f"{log_name}.log"
+            launch_cmd = f"nohup {svc['cmd']} > {log_path} 2>&1 &"
+            subprocess.Popen(launch_cmd, shell=True, cwd=str(ROOT),
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+            spinners = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+            for i in range(30):  # 최대 30초 대기
+                sp = spinners[i % len(spinners)]
+                yield f"{sp} {svc['name']} 시작 중... ({i+1}s)  로그: logs/{log_path.name}", gr.update()
+                time.sleep(1)
+                if is_port_up(port):
+                    pid = get_pid_on_port(port)
+                    yield f"✅ {svc['name']} 시작됨 ({i+1}s)  pid={pid}", render_hub_html(server_ip)
+                    return
+
+            yield f"⚠️ {svc['name']} 타임아웃 (30s) — 로그 확인: logs/{log_path.name}", render_hub_html(server_ip)
 
         refresh_btn.click(do_refresh, outputs=[hub_html, ctrl_out])
         action_btn.click(do_action, inputs=port_input, outputs=[ctrl_out, hub_html])
