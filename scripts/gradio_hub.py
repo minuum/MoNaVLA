@@ -73,6 +73,14 @@ SERVICES = [
         "group":  "Eval",
     },
     {
+        "name":   "CL Dashboard",
+        "port":   7867,
+        "script": "scripts/gradio_cl_dashboard.py",
+        "cmd":    "python3 scripts/gradio_cl_dashboard.py",
+        "desc":   "Closed-Loop 평가 결과 + 실로봇 주행 로그",
+        "group":  "Eval",
+    },
+    {
         "name":   "Monitor",
         "port":   8080,
         "script": "scripts/monitor_dashboard.py",

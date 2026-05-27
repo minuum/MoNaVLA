@@ -50,18 +50,21 @@ GOAL_NAV_CKPTS = {
     "exp50": ROOT / "runs" / "v5_nav" / "mlp" / "exp50" / "exp50_mlp.pt",
     "exp51": ROOT / "runs" / "v5_nav" / "mlp" / "exp51" / "exp51_mlp.pt",
     "exp52": ROOT / "runs" / "v5_nav" / "mlp" / "exp52" / "exp52_mlp.pt",
+    "exp53": ROOT / "runs" / "v5_nav" / "mlp" / "exp53_clip_lora.pt",
 }
 GOAL_NAV_VIS_DIRS = {
     "exp49": ROOT / "docs" / "v5" / "bbox_nav_exp46",   # vision_features.npz (1024-dim)
     "exp50": ROOT / "docs" / "v5" / "bbox_nav_exp46",
     "exp51": ROOT / "docs" / "v5" / "bbox_nav_exp46",
     "exp52": ROOT / "docs" / "v5" / "bbox_nav_exp52",   # lang_vis_features.npz (2048-dim)
+    "exp53": ROOT / "docs" / "v5" / "bbox_nav_exp53",   # LoRA-enhanced vision_features.npz
 }
 GOAL_NAV_VIS_KEYS = {
     "exp49": "vision_features",
     "exp50": "vision_features",
     "exp51": "vision_features",
     "exp52": "lang_vis_features",
+    "exp53": "vision_features",
 }
 GOAL_NAV_WINDOW = 8
 GOAL_NAV_GOAL_DIM = 3
@@ -709,7 +712,7 @@ def build_html(results_by_model, summary_by_model):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--model", choices=["exp11", "step2", "step3", "step3_ablated", "exp17", "exp18", "exp19", "exp49", "exp50", "exp51", "exp52", "both"], default="step2")
+    ap.add_argument("--model", choices=["exp11", "step2", "step3", "step3_ablated", "exp17", "exp18", "exp19", "exp49", "exp50", "exp51", "exp52", "exp53", "both"], default="step2")
     ap.add_argument("--config", default="configs/mobile_vla_v5_exp11_google_robot_8cls.json")
     ap.add_argument("--ckpt", default=None)
     ap.add_argument("--dt", type=float, default=DT_DEFAULT)
@@ -956,16 +959,30 @@ def main():
         else:
             # Load model
             ckpt = torch.load(str(ckpt_path), map_location="cpu", weights_only=False)
-            d_in = ckpt["d_in"]
             import torch.nn as nn
-            mlp = nn.Sequential(
-                nn.Linear(d_in, 512), nn.ReLU(), nn.Dropout(0.25),
-                nn.Linear(512, 256),  nn.ReLU(), nn.Dropout(0.2),
-                nn.Linear(256, 128),  nn.ReLU(), nn.Dropout(0.1),
-                nn.Linear(128, 64),   nn.ReLU(),
-                nn.Linear(64, NUM_CLASSES),
-            )
-            mlp.load_state_dict(ckpt["model_state_dict"])
+            if "mlp" in ckpt and "model_state_dict" not in ckpt:
+                # exp53 format: {'mlp': full GoalNavMLP state_dict, 'val_acc': float}
+                state = ckpt["mlp"]
+                d_in = state["net.0.weight"].shape[1]
+                mlp = nn.Sequential(
+                    nn.Linear(d_in, 512), nn.ReLU(), nn.Dropout(0.25),
+                    nn.Linear(512, 256),  nn.ReLU(), nn.Dropout(0.2),
+                    nn.Linear(256, 128),  nn.ReLU(), nn.Dropout(0.1),
+                    nn.Linear(128, 64),   nn.ReLU(),
+                    nn.Linear(64, NUM_CLASSES),
+                )
+                # strip "net." prefix to match bare Sequential keys
+                mlp.load_state_dict({k[len("net."):]: v for k, v in state.items()})
+            else:
+                d_in = ckpt["d_in"]
+                mlp = nn.Sequential(
+                    nn.Linear(d_in, 512), nn.ReLU(), nn.Dropout(0.25),
+                    nn.Linear(512, 256),  nn.ReLU(), nn.Dropout(0.2),
+                    nn.Linear(256, 128),  nn.ReLU(), nn.Dropout(0.1),
+                    nn.Linear(128, 64),   nn.ReLU(),
+                    nn.Linear(64, NUM_CLASSES),
+                )
+                mlp.load_state_dict(ckpt["model_state_dict"])
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
             mlp = mlp.to(device).eval()
             print(f"  Loaded {exp_name} (d_in={d_in}) from {ckpt_path.name}")
