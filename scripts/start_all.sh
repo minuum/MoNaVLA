@@ -15,17 +15,48 @@ mkdir -p "$LOGS"
 GREEN='\033[0;32m'; RED='\033[0;31m'; YELLOW='\033[1;33m'
 CYAN='\033[0;36m'; RESET='\033[0m'; BOLD='\033[1m'
 
+# ─── ROS 환경 소스 (카메라 연동 서비스에 필수) ────────────────────────────────
+ROS_SETUP="/opt/ros/humble/setup.bash"
+ROS_WS_SETUP="${ROOT}/ROS_action/install/setup.bash"
+
+# ROS가 있으면 현재 셸에도 소스 (LD_LIBRARY_PATH 등 설정)
+# set -u 와 충돌하는 ROS setup.bash 변수 때문에 -u 임시 해제
+set +u
+if [[ -f "$ROS_SETUP" ]]; then
+  # shellcheck source=/dev/null
+  source "$ROS_SETUP"
+fi
+if [[ -f "$ROS_WS_SETUP" ]]; then
+  # shellcheck source=/dev/null
+  source "$ROS_WS_SETUP"
+  # colcon setup.bash는 install/*/lib 를 누락 → 명시적으로 추가
+  for _pkg_lib in "${ROOT}/ROS_action/install/"*/lib; do
+    [[ -d "$_pkg_lib" ]] && export LD_LIBRARY_PATH="${_pkg_lib}:${LD_LIBRARY_PATH:-}"
+  done
+  printf "  ${GREEN}✓${RESET} ROS2 sourced + camera_interfaces/lib 경로 추가\n"
+else
+  printf "  ${YELLOW}⚠${RESET} ROS2 workspace not found: %s\n" "$ROS_WS_SETUP"
+fi
+set -u
+
+# ROS 소스된 환경을 그대로 물려주는 래퍼 명령어 (nohup 자식 프로세스에도 전달)
+ROS_CMD_PREFIX=""
+if [[ -f "$ROS_SETUP" && -f "$ROS_WS_SETUP" ]]; then
+  ROS_CMD_PREFIX="source '${ROS_SETUP}' && source '${ROS_WS_SETUP}' && \
+for _p in '${ROOT}/ROS_action/install/'*/lib; do export LD_LIBRARY_PATH=\"\${_p}:\${LD_LIBRARY_PATH:-}\"; done && "
+fi
+
 # ─── 서비스 정의: "이름|포트|명령어" ───────────────────────────────────────────
 declare -a SERVICES=(
   "hub|7860|python3 scripts/gradio_hub.py"
-  "grounding_demo|7863|python3 scripts/gradio_grounding_demo.py"
-  "inference_dashboard|7865|python3 scripts/gradio_inference_dashboard.py"
+  "grounding_demo|7863|${ROS_CMD_PREFIX}python3 scripts/gradio_grounding_demo.py"
+  "inference_dashboard|7865|${ROS_CMD_PREFIX}python3 scripts/gradio_inference_dashboard.py"
   "trial_logger|7862|python3 scripts/real_robot_trial_logger.py"
   "data_collector|8081|python3 scripts/gradio_data_collector.py"
   "session_eval|7861|python3 scripts/gradio_session_eval.py"
   "h5_analyzer|7866|python3 scripts/gradio_offline_h5_analyzer.py"
   "monitor|8080|python3 scripts/monitor_dashboard.py"
-  "goalnav_api|8001|python3 robovlm_nav/serve/proxy_inference_server.py --port 8001"
+  "goalnav_api|8001|${ROS_CMD_PREFIX}python3 robovlm_nav/serve/proxy_inference_server.py --port 8001"
 )
 
 # ─── 유틸 함수 ─────────────────────────────────────────────────────────────────
@@ -56,7 +87,7 @@ start_svc() {
   local bg_pid=$!
 
   local waited=0
-  while ! is_port_up "$port" && [[ $waited -lt 30 ]]; do
+  while ! is_port_up "$port" && [[ $waited -lt 90 ]]; do
     sleep 1; ((waited++))
     printf "."
   done
