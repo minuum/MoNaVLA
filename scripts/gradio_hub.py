@@ -87,6 +87,7 @@ SERVICES = [
         "cmd":    "python3 robovlm_nav/serve/proxy_inference_server.py --port 8001",
         "desc":   "GoalNav FastAPI 백엔드 — bbox grounding + MLP 추론",
         "group":  "System",
+        "path":   "/dashboard",
     },
 ]
 
@@ -155,7 +156,7 @@ def render_hub_html(server_ip: str) -> str:
             pid = get_pid_on_port(svc["port"]) if up else ""
             dot_color = "#2ecc71" if up else "#e74c3c"
             dot_label = f"UP  pid={pid}" if up else "DOWN"
-            url = f"http://{server_ip}:{svc['port']}"
+            url = f"http://{server_ip}:{svc['port']}{svc.get('path', '')}"
             link_style = (
                 "background:#2a5a3a;color:#2ecc71;cursor:pointer;border:1px solid #2ecc71;"
                 if up else
