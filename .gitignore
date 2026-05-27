@@ -168,3 +168,4 @@ home/
 # extracted images cache, ~86MB
 mobile_vla_dataset_v5_images/
 logs/
+.codex
