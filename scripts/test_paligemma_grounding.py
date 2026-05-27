@@ -121,23 +121,33 @@ def load_image(ep_path: str, frame_idx: int) -> np.ndarray | None:
         return None
 
 
+EXP57_ADAPTER = Path(__file__).resolve().parent.parent / "runs/v5_nav/grounding/exp57"
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--max-frames",   type=int, default=30,
                         help="테스트할 프레임 수 (기본 30)")
     parser.add_argument("--phrases",      nargs="+",
-                        default=["gray basket", "person", "white wall"],
+                        default=["gray basket", "red ball", "person"],
                         help="detect할 phrase 목록")
     parser.add_argument("--save-overlays", action="store_true",
                         help="오버레이 이미지 저장")
+    parser.add_argument("--adapter",      default="",
+                        help="LoRA adapter 경로. 'exp57'=Exp57 / 경로 직접")
     parser.add_argument("--device",       default="cuda" if torch.cuda.is_available() else "cpu")
     args = parser.parse_args()
 
     device = torch.device(args.device)
 
+    adapter_path = None
+    if args.adapter:
+        adapter_path = EXP57_ADAPTER if args.adapter == "exp57" else Path(args.adapter)
+
     print("=" * 60)
-    print("PaliGemma Zero-shot Grounding Test")
+    print("PaliGemma Grounding Test")
     print(f"  Model  : paligemma-3b-pt-224")
+    print(f"  Adapter: {adapter_path or 'none (zero-shot)'}")
     print(f"  Phrases: {args.phrases}")
     print(f"  Frames : {args.max_frames}")
     print("=" * 60)
@@ -150,7 +160,15 @@ def main():
     model = PaliGemmaForConditionalGeneration.from_pretrained(
         str(PALIGEMMA_PATH),
         torch_dtype=torch.bfloat16 if device.type == "cuda" else torch.float32,
-    ).to(device).eval()
+    ).to(device)
+
+    if adapter_path is not None and adapter_path.exists():
+        from peft import PeftModel
+        print(f"[LOAD] LoRA adapter from {adapter_path}")
+        model = PeftModel.from_pretrained(model, str(adapter_path))
+        print("  LoRA 로딩 완료")
+
+    model.eval()
     print("  모델 로딩 완료")
 
     # ── 프레임 준비 ────────────────────────────────────────────
