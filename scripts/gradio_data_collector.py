@@ -103,6 +103,7 @@ class JoystickReader:
         self._thread = None
         self._btn_prev = {}
         self._last_step_time = 0.0
+        self._prev_key = None
         self._axes = self._load_axes()
 
         # Gradio 상태 표시용 (lock-free read 허용 — 단순 dict 교체)
@@ -168,7 +169,8 @@ class JoystickReader:
                 if nd.episode_buffer:
                     nd.episode_buffer.pop()
         elif btn == self.BTN_START:
-            nd.toggle_teleop()
+            nd.js_mode = 'async' if nd.js_mode == 'sync' else 'sync'
+            print(f"[Joystick] 모드 전환 → {nd.js_mode.upper()}")
         elif btn == self.BTN_SELECT:
             with nd.lock:
                 collecting = nd.collecting
@@ -219,21 +221,34 @@ class JoystickReader:
 
                 key = self._axis_to_key(lx, ly, az)
 
-                # 홀딩 반복 발사
+                # 모드에 따라 분기
                 now = time.time()
-                if key and (now - self._last_step_time) >= self.STEP_INTERVAL:
-                    if self._node.teleop_mode:
-                        self._node.teleop_step(key)
-                    self._last_step_time = now
+                if key:
+                    if self._node.js_mode == 'sync':
+                        # SYNC: V5 스텝 기반 (0.45s 간격, teleop_step 경유)
+                        if (now - self._last_step_time) >= self.STEP_INTERVAL:
+                            self._node.teleop_step(key)
+                            self._last_step_time = now
+                    else:
+                        # ASYNC: 10Hz 연속 스무스 드라이브
+                        if (now - self._last_step_time) >= 0.10:
+                            self._node.joystick_drive(key)
+                            self._last_step_time = now
+                elif self._prev_key:
+                    if self._node.js_mode == 'async':
+                        self._node.joystick_drive(None)
+                self._prev_key = key
 
                 # 상태 갱신
                 labels = {'q':'↖FWD+L','w':'▲FWD','e':'↗FWD+R','a':'←LEFT',
                           'd':'→RIGHT','x':'▼BACK','z':'↙','c':'↘',
                           'r':'↺ROT_L','t':'↻ROT_R'}
+                raw = [round(js.get_axis(i), 3) for i in range(js.get_numaxes())]
                 self.status = {
                     "connected": True, "name": js.get_name(),
                     "lx": round(lx, 2), "ly": round(ly, 2), "az": round(az, 2),
                     "key": key, "label": labels.get(key, "NEUTRAL") if key else "NEUTRAL",
+                    "raw": raw,
                 }
 
                 # 버튼 엣지 감지 (누르는 순간만)
@@ -264,15 +279,28 @@ OFFLINE_TELEOP_LABELS = {
 
 # --- V5 Scenarios ---
 V5_SCENARIOS = {
-    "1": {"id": "target_left_left_path", "name": "좌측 - 왼쪽 곡선", "target": 15},
-    "2": {"id": "target_left_straight_path", "name": "좌측 - 직선", "target": 20},
-    "3": {"id": "target_left_right_path", "name": "좌측 - 오른쪽 곡선", "target": 15},
-    "4": {"id": "target_center_left_path", "name": "중앙 - 왼쪽 곡선", "target": 15},
-    "5": {"id": "target_center_straight_path", "name": "중앙 - 직선", "target": 20},
-    "6": {"id": "target_center_right_path", "name": "중앙 - 오른쪽 곡선", "target": 15},
-    "7": {"id": "target_right_left_path", "name": "우측 - 왼쪽 곡선", "target": 15},
-    "8": {"id": "target_right_straight_path", "name": "우측 - 직선", "target": 20},
-    "9": {"id": "target_right_right_path", "name": "우측 - 오른쪽 곡선", "target": 15},
+    "1": {"id": "target_left_left_path",      "name": "좌측 - 왼쪽 곡선",  "target": 15},
+    "2": {"id": "target_left_straight_path",  "name": "좌측 - 직선",       "target": 20},
+    "3": {"id": "target_left_right_path",     "name": "좌측 - 오른쪽 곡선","target": 15},
+    "4": {"id": "target_center_left_path",    "name": "중앙 - 왼쪽 곡선",  "target": 15},
+    "5": {"id": "target_center_straight_path","name": "중앙 - 직선",       "target": 20},
+    "6": {"id": "target_center_right_path",   "name": "중앙 - 오른쪽 곡선","target": 15},
+    "7": {"id": "target_right_left_path",     "name": "우측 - 왼쪽 곡선",  "target": 15},
+    "8": {"id": "target_right_straight_path", "name": "우측 - 직선",       "target": 20},
+    "9": {"id": "target_right_right_path",    "name": "우측 - 오른쪽 곡선","target": 15},
+    "FL": {"id": "free_left",   "name": "🎲 자유-좌측", "target": 7},
+    "FC": {"id": "free_center", "name": "🎲 자유-중앙", "target": 7},
+    "FR": {"id": "free_right",  "name": "🎲 자유-우측", "target": 7},
+}
+
+DIVERSITY_TAGS = {
+    "A-바구니좌극단":  "basket_left_extreme",
+    "B-바구니우극단":  "basket_right_extreme",
+    "C-로봇근접":      "robot_close",
+    "D-로봇원거리":    "robot_far",
+    "E-사선좌접근":    "diagonal_left",
+    "F-사선우접근":    "diagonal_right",
+    "G-조명차이":      "lighting_diff",
 }
 
 DATASET_ROOT = "/home/soda/MoNaVLA/ROS_action/mobile_vla_dataset_v5"
@@ -295,6 +323,9 @@ class GradioCollectorNode(Node):
         self.cmd_pub = self.create_publisher(Twist, '/cmd_vel', 10)
         
         self.throttle = 50
+        self.stop_inject_n = 5
+        self.js_mode = 'sync'   # 'sync' = V5 스텝 기반 | 'async' = 10Hz 연속
+        self.diversity_tag = list(DIVERSITY_TAGS.keys())[0]
         if ROBOT_HW_AVAILABLE:
             try: self.driver = Driving()
             except: self.driver = None
@@ -319,6 +350,7 @@ class GradioCollectorNode(Node):
         self.core_db = self.load_core_db()
         self.load_all_stats()
         self.lock = threading.Lock()
+        self.last_js_log = ""  # 조이스틱 마지막 액션 (UI 폴링용)
         self.capture_mode = CaptureMode.PRE_CACHE  # 기본값: 비블로킹 캐시 스냅샷
         
         self.is_auto_playing = False
@@ -349,10 +381,25 @@ class GradioCollectorNode(Node):
                 else: self.driver.stop()
             except: pass
 
+    def joystick_drive(self, key):
+        """조이스틱 전용 — stop 타이머 없이 누르는 동안 연속 이동, None이면 즉시 정지."""
+        if key is None:
+            self.publish_cmd_hw((0.0, 0.0, 0.0))
+            self.last_js_log = "[JS] STOP"
+            return
+        if key not in self.WASD_TO_CONTINUOUS:
+            return
+        act = self.WASD_TO_CONTINUOUS[key]
+        self.last_js_log = f"[JS] {self.TELEOP_LABELS.get(key, key.upper())}  {act}"
+        if self.collecting and self.capture_mode == CaptureMode.PRE_CACHE:
+            self._capture_pre_cache(act)
+        self.publish_cmd_hw(act)
+
     def teleop_step(self, key):
-        if not self.teleop_mode and key != ' ': return "🕹️ Teleop Mode is OFF"
         if key not in self.WASD_TO_CONTINUOUS: return "Invalid"
         act = self.WASD_TO_CONTINUOUS[key]
+        label = self.TELEOP_LABELS.get(key, key.upper())
+        self.last_js_log = f"[JS] {label}  act={act}"
         with self.lock:
             if self.movement_timer: self.movement_timer.cancel()
 
@@ -546,26 +593,38 @@ class GradioCollectorNode(Node):
         return pos, prompt
 
     def stop_rec(self, save=True):
+        MIN_FRAMES = 8
         with self.lock:
             if not self.collecting: return "Idle"
             self.collecting = False
+            n = len(self.episode_buffer)
+            if save and n < MIN_FRAMES:
+                self.episode_buffer = []
+                return f"⚠️ Too short ({n} frames < {MIN_FRAMES}). Auto-discarded."
             msg = "❌ Discarded or Empty"
-            if save and len(self.episode_buffer) > 0:
+            if save and n > 0:
                 final_img = self.episode_buffer[-1]['image']
                 pos_tag, prompt = self.analyze_final_frame(final_img)
-                
+                last_img = self.episode_buffer[-1]['image']
+                for _ in range(self.stop_inject_n):
+                    self.episode_buffer.append({
+                        'image': last_img.copy(),
+                        'action': [0.0, 0.0, 0.0],
+                        'timestamp': time.time(),
+                    })
                 fname = self.save_h5(pos_tag, prompt)
                 if self.selected_pattern == "core":
                     self.core_db[self.current_scenario_key] = [d['action'] for d in self.episode_buffer]
                     self.save_core_db()
                 self.load_all_stats()
-                msg = f"✅ Saved [{pos_tag.upper()}]: {os.path.basename(fname)}\n📝 Prompt: {prompt}"
+                msg = f"✅ Saved [{pos_tag.upper()}]: {os.path.basename(fname)}\n📝 Prompt: {prompt}\n(+{self.stop_inject_n} STOP frames injected)"
             return msg
 
     def save_h5(self, pos_tag, prompt):
         ts = datetime.now().strftime("%y%m%d_%H%M%S")
         sid = V5_SCENARIOS[self.current_scenario_key]['id']
-        fname = f"episode_{ts}_{sid}__{self.selected_pattern}__{self.selected_distance}_{pos_tag}.h5"
+        div = f"__{DIVERSITY_TAGS.get(self.diversity_tag, 'free')}" if self.current_scenario_key in ('FL','FC','FR') else ""
+        fname = f"episode_{ts}_{sid}{div}__{self.selected_pattern}__{self.selected_distance}_{pos_tag}.h5"
         imgs = [cv2.cvtColor(d['image'], cv2.COLOR_BGR2RGB) for d in self.episode_buffer]
         acts = [d['action'] for d in self.episode_buffer]
         with h5py.File(os.path.join(DATASET_ROOT, fname), 'w') as f:
@@ -611,6 +670,53 @@ def joystick_status_md(_=None):
         f"🟢 **{s['name']}** &nbsp;|&nbsp; "
         f"lx `{s['lx']:+.2f}` &nbsp; ly `{s['ly']:+.2f}` &nbsp; az `{s['az']:+.2f}` "
         f"&nbsp;→&nbsp; **{key_disp}**"
+    )
+
+
+def joystick_panel_md(_=None):
+    if not joystick_reader:
+        return "⚫ **Joystick:** 비활성 (pygame 미설치)"
+    s = joystick_reader.status
+    if not s["connected"]:
+        return "🔴 **Joystick 미연결** — USB 확인"
+
+    def axis_bar(v, width=20):
+        center = width // 2
+        pos = max(0, min(width - 1, int((v + 1) / 2 * width)))
+        bar = ["─"] * width
+        bar[center] = "┼"
+        bar[pos] = "█"
+        return "".join(bar)
+
+    action_map = {
+        'q': '↖ FWD+LEFT', 'w': '▲ FORWARD', 'e': '↗ FWD+RIGHT',
+        'a': '◀ LEFT',     'd': '▶ RIGHT',
+        'x': '▼ BACK',     'z': '↙ BWD+LEFT', 'c': '↘ BWD+RIGHT',
+        'r': '↺ ROT_L',    't': '↻ ROT_R',
+    }
+    current = action_map.get(s['key'], '● NEUTRAL') if s['key'] else '● NEUTRAL'
+    icon = "🟢" if s['key'] else "⚪"
+
+    raw = s.get("raw", [])
+    raw_lines = "  ".join(f"[{i}]{v:+.2f}" for i, v in enumerate(raw))
+    last_log = node.last_js_log if node else ""
+
+    js_mode = node.js_mode if node else 'sync'
+    rec_state = node.collecting if node else False
+    mode_badge = ("📸 **SYNC** (V5 스텝)" if js_mode == 'sync' else "🌊 **ASYNC** (스무스)")
+    rec_badge  = " 🔴 **REC**" if rec_state else ""
+
+    return (
+        f"🎮 **{s['name']}**  |  {mode_badge}{rec_badge}\n\n"
+        f"```\n"
+        f"LX {axis_bar(s['lx'])}  {s['lx']:+.2f}  (전/후)\n"
+        f"LY {axis_bar(s['ly'])}  {s['ly']:+.2f}  (좌/우)\n"
+        f"AZ {axis_bar(s['az'])}  {s['az']:+.2f}  (회전)\n"
+        f"\n"
+        f"RAW  {raw_lines}\n"
+        f"```\n"
+        f"{icon} **{current}**"
+        + (f"\n\n`{last_log}`" if last_log else "")
     )
 
 
@@ -661,16 +767,30 @@ def get_feed(_=None):
 def update_ui_state(_=None):
     if not node:
         return "ROS Offline", ""
-    node.load_all_stats() # 주기적으로 파일 개수 갱신
+    node.load_all_stats()
     with node.lock:
-        s = f"● REC [%d] - %s" % (len(node.episode_buffer), V5_SCENARIOS.get(node.current_scenario_key, {}).get('name', '')) if node.collecting else "IDLE"
-        if node.is_auto_playing: s = f"🚀 REPLAYING..."
-        if node.is_returning: s = f"🔄 RETURNING..."
+        if node.collecting:
+            n = len(node.episode_buffer)
+            target = V5_SCENARIOS.get(node.current_scenario_key, {}).get('target', 0)
+            name = V5_SCENARIOS.get(node.current_scenario_key, {}).get('name', '')
+            if target > 0:
+                pct = min(100, int(n / target * 100))
+                bar = "█" * (pct // 10) + "░" * (10 - pct // 10)
+                if n >= target:
+                    s = f"✅ TARGET MET [{n}/{target}] {bar} 100% — {name}"
+                else:
+                    s = f"● REC [{n}/{target}] {bar} {pct}% — {name}"
+            else:
+                s = f"● REC [{n}] — {name}"
+        else:
+            s = "IDLE"
+        if node.is_auto_playing: s = "🚀 REPLAYING..."
+        if node.is_returning: s = "🔄 RETURNING..."
         tbl = "| ID | 시나리오 | 진행률 | 개수/목표 | 자동 |\n|---|---|---|---|---|\n"
         for k, v in V5_SCENARIOS.items():
             c, t = node.stats[k], v['target']
             p = min(100, (c/t*100)) if t > 0 else 0
-            tbl += f"| {k} | {v['name']} | %s %.1f%% | {c}/{t} | %s |\n" % ("█"*int(p/10)+"░"*(10-int(p/10)), p, "✅" if k in node.core_db else "❌")
+            tbl += f"| {k} | {v['name']} | {'█'*int(p/10)+'░'*(10-int(p/10))} {p:.1f}% | {c}/{t} | {'✅' if k in node.core_db else '❌'} |\n"
         return s, tbl
 
 CUSTOM_CSS = """
@@ -708,10 +828,12 @@ with gr.Blocks(title="MoNaVLA V5 PRO") as demo:
             stream = gr.Image(label="Live Target View", interactive=False, elem_id="main_camera")
             status_markdown = gr.Markdown("### IDLE", elem_classes=["status-card"])
             js_status = gr.Markdown(joystick_status_md())
+            js_panel = gr.Markdown(joystick_panel_md())
             with gr.Row():
                 mode_btn = gr.Button("🕹️ TELEOP MODE: OFF 🔴", variant="secondary", interactive=bool(node))
                 stop_save = gr.Button("⏹️ SAVE EPISODE", variant="primary", interactive=bool(node))
                 discard = gr.Button("🗑️ DISCARD", variant="stop", interactive=bool(node))
+                undo_btn = gr.Button("↩️ Undo", size="sm", interactive=bool(node))
             
             grid_btns = {}
             with gr.Row():
@@ -742,6 +864,14 @@ with gr.Blocks(title="MoNaVLA V5 PRO") as demo:
                     label="Capture Mode",
                     info="PRE_CACHE: 액션 직전 캐시 스냅샷 (<1ms, 권장) | POST_SYNC: 액션 직후 서비스 콜 (최대 300ms 블로킹)"
                 )
+                throttle_sl = gr.Slider(minimum=10, maximum=100, value=50, step=5, label="Throttle (%)")
+                stop_inject_sl = gr.Slider(minimum=0, maximum=10, value=5, step=1, label="STOP Inject N")
+                js_mode_sel = gr.Radio(
+                    ["SYNC (V5 호환)", "ASYNC (스무스)"],
+                    value="SYNC (V5 호환)",
+                    label="🕹️ 조이스틱 수집 모드",
+                    info="SYNC: 0.45s 스텝, V5 호환 (권장) | ASYNC: 10Hz 연속  /  조이스틱 START 버튼으로도 전환"
+                )
                 gr.Markdown("#### 🎯 Scenarios")
                 scen_click_list = []
                 for k, v in V5_SCENARIOS.items():
@@ -749,6 +879,18 @@ with gr.Blocks(title="MoNaVLA V5 PRO") as demo:
                         b_rec = gr.Button(f"[{k}] {v['name']}", elem_classes=["scenario-btn"], scale=4, interactive=bool(node))
                         b_auto = gr.Button("▶️", scale=1, interactive=bool(node))
                         scen_click_list.append((k, b_rec, b_auto))
+            with gr.Group():
+                gr.Markdown("#### 🎲 자유 수집 (다양성 21개 = 좌/중/우 × 7)")
+                diversity_sel = gr.Dropdown(
+                    choices=list(DIVERSITY_TAGS.keys()),
+                    value=list(DIVERSITY_TAGS.keys())[0],
+                    label="다양성 조건 태그",
+                )
+                with gr.Row():
+                    free_left_btn  = gr.Button("🎲 좌측 시작", variant="secondary", interactive=bool(node))
+                    free_center_btn = gr.Button("🎲 중앙 시작", variant="secondary", interactive=bool(node))
+                    free_right_btn = gr.Button("🎲 우측 시작", variant="secondary", interactive=bool(node))
+                free_stats = gr.Markdown("")
             log = gr.Textbox(label="Terminal Log", interactive=False)
             stats_tbl = gr.Markdown("")
             diag_tbl = gr.Markdown(collector_diagnostics())
@@ -773,13 +915,58 @@ with gr.Blocks(title="MoNaVLA V5 PRO") as demo:
         pattern_sel.change(fn=set_pattern, inputs=pattern_sel)
         dist_sel.change(fn=set_distance, inputs=dist_sel)
         capture_sel.change(fn=node.set_capture_mode, inputs=capture_sel, outputs=[log])
+        throttle_sl.change(
+            fn=lambda v: setattr(node, 'throttle', int(v)) or f"Throttle → {int(v)}%",
+            inputs=throttle_sl, outputs=log,
+        )
+        stop_inject_sl.change(
+            fn=lambda v: setattr(node, 'stop_inject_n', int(v)) or f"STOP Inject N → {int(v)}",
+            inputs=stop_inject_sl, outputs=log,
+        )
+        def set_js_mode(v):
+            node.js_mode = 'sync' if 'SYNC' in v else 'async'
+            return f"조이스틱 모드 → {node.js_mode.upper()}"
+        js_mode_sel.change(fn=set_js_mode, inputs=js_mode_sel, outputs=log)
+
+        def set_diversity(tag):
+            node.diversity_tag = tag
+            return f"다양성 태그 → {tag}"
+        diversity_sel.change(fn=set_diversity, inputs=diversity_sel, outputs=log)
+
+        def free_stats_md():
+            counts = {}
+            for fk, fv in [("FL","free_left"),("FC","free_center"),("FR","free_right")]:
+                counts[fk] = len([f for f in os.listdir(DATASET_ROOT) if fv in f and f.endswith('.h5')])
+            total = sum(counts.values())
+            pct = min(100, int(total/21*100))
+            bar = "█"*(pct//10)+"░"*(10-pct//10)
+            return (f"좌 {counts['FL']}/7  중 {counts['FC']}/7  우 {counts['FR']}/7  "
+                    f"합계 **{total}/21** [{bar}] {pct}%")
+
+        def start_free(key):
+            node.current_scenario_key = key
+            return node.start_rec(key)
+
+        free_left_btn.click(fn=lambda: start_free("FL"), outputs=[log])
+        free_center_btn.click(fn=lambda: start_free("FC"), outputs=[log])
+        free_right_btn.click(fn=lambda: start_free("FR"), outputs=[log])
+        def undo_frame():
+            with node.lock:
+                if node.episode_buffer:
+                    node.episode_buffer.pop()
+                    return f"↩️ Undone — {len(node.episode_buffer)} frames remaining"
+                return "⚠️ Nothing to undo"
+        undo_btn.click(fn=undo_frame, outputs=[log])
         stop_save.click(fn=lambda: node.stop_rec(True), outputs=[log])
         discard.click(fn=lambda: node.stop_rec(False), outputs=[log])
     
     gr.Timer(1).tick(fn=update_ui_state, outputs=[status_markdown, stats_tbl])
+    if node:
+        gr.Timer(2).tick(fn=free_stats_md, outputs=[free_stats])
     gr.Timer(1).tick(fn=collector_diagnostics, outputs=[diag_tbl])
     gr.Timer(0.1).tick(fn=get_feed, outputs=stream)
     gr.Timer(0.1).tick(fn=joystick_status_md, outputs=[js_status])
+    gr.Timer(0.1).tick(fn=joystick_panel_md, outputs=[js_panel])
 
 if __name__ == "__main__":
     requested_port = int(os.getenv("VLA_COLLECT_PORT", os.getenv("GRADIO_SERVER_PORT", "8081")))
