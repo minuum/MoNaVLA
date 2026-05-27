@@ -190,12 +190,28 @@ PRESET_ALIASES = {
 }
 
 GOAL_NAV_PRESETS = [
+    # basket
     "the gray basket on right",
     "the gray basket on left",
     "the gray basket",
+    # chair
+    "the chair on right",
+    "the chair on left",
+    "the chair",
+    # door / corridor
     "the door",
+    "the open door",
     "the corridor on the left",
     "the corridor on the right",
+    "the corridor",
+    # wall / exit
+    "the wall",
+    "the exit",
+    # table / box
+    "the table",
+    "the box on right",
+    "the box on left",
+    "the box",
 ]
 
 ACTION_COLORS = {
@@ -210,6 +226,8 @@ ACTION_COLORS = {
 }
 
 API_URL = "http://localhost:8001"
+API_KEY = os.getenv("VLA_API_KEY", "vla_devel_key_2026")
+_API_HEADERS = {"X-API-Key": API_KEY}
 
 
 def _ensure_model(adapter_label: str):
@@ -347,8 +365,12 @@ def run_alias_test(image, alias_text: str, adapter_label: str):
 
 def _vla_call(img_np: np.ndarray, instruction: str) -> dict:
     b64 = _img_to_b64(img_np)
-    r = requests.post(f"{API_URL}/predict",
-                      json={"image": b64, "instruction": instruction}, timeout=30)
+    r = requests.post(
+        f"{API_URL}/predict",
+        json={"image": b64, "instruction": instruction},
+        headers=_API_HEADERS,
+        timeout=30,
+    )
     r.raise_for_status()
     return r.json()
 
@@ -426,7 +448,7 @@ def run_vla_alias(image, alias_text: str):
 
 def reset_api_history():
     try:
-        r = requests.post(f"{API_URL}/reset", timeout=5)
+        r = requests.post(f"{API_URL}/reset", headers=_API_HEADERS, timeout=5)
         return f"리셋 완료  ({r.json()})"
     except Exception as e:
         return f"오류: {e}"
