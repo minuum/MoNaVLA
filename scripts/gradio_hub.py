@@ -225,7 +225,10 @@ def render_hub_html(server_ip: str) -> str:
                 <span style="margin-left:auto;font-size:11px;color:#666;font-family:monospace">:{port}</span>
               </div>
               <div style="font-weight:600;color:#e0e0e0;margin-bottom:6px">{svc['name']}</div>
-              <div style="font-size:12px;color:#888;margin-bottom:12px;line-height:1.5">{svc['desc']}</div>
+              <div style="font-size:12px;color:#888;margin-bottom:8px;line-height:1.5">{svc['desc']}</div>
+              <div id="hub-status-{port}"
+                   style="font-size:11px;font-family:monospace;min-height:16px;
+                          margin-bottom:8px;color:#f39c12"></div>
               {action_html}
             </div>
             """
@@ -238,33 +241,29 @@ def render_hub_html(server_ip: str) -> str:
     # JS: Start/Stop 버튼 → hidden Gradio textbox + 트리거 버튼 클릭
     js_script = """
     <script>
+    var _spinners = ['⠋','⠙','⠹','⠸','⠼','⠴','⠦','⠧','⠇','⠏'];
     function triggerStart(port) {
-      var tb = document.querySelector('#hub-port-input textarea');
-      if (!tb) { tb = document.querySelector('#hub-port-input input'); }
-      if (tb) {
-        var nativeInput = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')
-          || Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
-        nativeInput.set.call(tb, 'start:' + port);
-        tb.dispatchEvent(new Event('input', { bubbles: true }));
+      window.__hub_action = 'start:' + port;
+      var sd = document.getElementById('hub-status-' + port);
+      if (sd) {
+        sd.style.color = '#f39c12';
+        var i = 0;
+        clearInterval(window['__sp_' + port]);
+        window['__sp_' + port] = setInterval(function() {
+          var el = document.getElementById('hub-status-' + port);
+          if (el) { el.textContent = _spinners[i % 10] + ' 시작 중...'; i++; }
+          else { clearInterval(window['__sp_' + port]); }
+        }, 120);
       }
-      setTimeout(function() {
-        var btn = document.querySelector('#hub-action-btn button');
-        if (btn) btn.click();
-      }, 100);
+      var btn = document.querySelector('#hub-action-btn button');
+      if (btn) btn.click();
     }
     function triggerStop(port) {
-      var tb = document.querySelector('#hub-port-input textarea');
-      if (!tb) { tb = document.querySelector('#hub-port-input input'); }
-      if (tb) {
-        var nativeInput = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')
-          || Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
-        nativeInput.set.call(tb, 'stop:' + port);
-        tb.dispatchEvent(new Event('input', { bubbles: true }));
-      }
-      setTimeout(function() {
-        var btn = document.querySelector('#hub-action-btn button');
-        if (btn) btn.click();
-      }, 100);
+      window.__hub_action = 'stop:' + port;
+      var sd = document.getElementById('hub-status-' + port);
+      if (sd) { sd.style.color = '#e74c3c'; sd.textContent = '■ 종료 중...'; }
+      var btn = document.querySelector('#hub-action-btn button');
+      if (btn) btn.click();
     }
     </script>
     """
@@ -324,14 +323,16 @@ def build_hub(server_ip: str) -> gr.Blocks:
     port_map = {svc["port"]: svc for svc in SERVICES}
 
     with gr.Blocks(title="MoNaVLA Hub") as demo:
+        # 상태 출력 — 카드보다 위에, 눈에 잘 띄게
+        ctrl_out = gr.Textbox(label="서비스 상태", lines=2, interactive=False,
+                              placeholder="Start / Stop 결과가 여기에 표시됩니다...")
+
         hub_html = gr.HTML(value=render_hub_html(server_ip))
 
         with gr.Row():
-            refresh_btn = gr.Button("🔄 Refresh", variant="secondary", size="sm", scale=1)
-            ctrl_out    = gr.Textbox(label="", lines=1, interactive=False,
-                                     placeholder="서비스 상태...", scale=4)
+            refresh_btn = gr.Button("🔄 Refresh", variant="secondary", size="sm")
 
-        # 카드 Start/Stop 버튼 → JS가 이 hidden 컴포넌트를 업데이트 후 트리거
+        # 카드 버튼 → window.__hub_action → js=로 port_input에 주입 → Python에 전달
         port_input  = gr.Textbox(value="", visible=False, elem_id="hub-port-input")
         action_btn  = gr.Button("__action__", visible=False, elem_id="hub-action-btn")
 
@@ -388,7 +389,12 @@ def build_hub(server_ip: str) -> gr.Blocks:
             yield f"⚠️ {svc['name']} 타임아웃 (30s) — 로그 확인: logs/{log_path.name}", render_hub_html(server_ip)
 
         refresh_btn.click(do_refresh, outputs=[hub_html, ctrl_out])
-        action_btn.click(do_action, inputs=port_input, outputs=[ctrl_out, hub_html])
+        action_btn.click(
+            fn=do_action,
+            inputs=[port_input],
+            outputs=[ctrl_out, hub_html],
+            js="() => [window.__hub_action || '']",
+        )
 
         # 기존 드롭다운 방식도 유지 (Service Control 아코디언)
         with gr.Accordion("Advanced Service Control", open=False):
