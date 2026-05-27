@@ -66,10 +66,18 @@ def resolve_data_dir() -> Path:
 
 
 def load_frame(data_dir: Path, episode: str, frame_idx: int) -> np.ndarray:
-    matches = list(data_dir.glob(f"{episode}.h5"))
-    if not matches:
-        raise FileNotFoundError(f"H5 not found: {episode}")
-    with h5py.File(matches[0], "r") as f:
+    # episode may be a full path or just the stem name
+    ep_path = Path(episode)
+    if ep_path.exists():
+        h5_path = ep_path
+    else:
+        # stem only — search in data_dir
+        stem = ep_path.stem if ep_path.suffix == ".h5" else ep_path.name
+        matches = list(data_dir.glob(f"{stem}.h5"))
+        if not matches:
+            raise FileNotFoundError(f"H5 not found: {episode}")
+        h5_path = matches[0]
+    with h5py.File(h5_path, "r") as f:
         if "observations" in f and "images" in f["observations"]:
             return f["observations"]["images"][frame_idx].astype(np.uint8)
         return f["images"][frame_idx].astype(np.uint8)
