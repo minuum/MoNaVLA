@@ -1919,9 +1919,13 @@ class GoalNavMLPInference:
         ckpt = torch.load(mlp_path, map_location="cpu")
 
         if self.variant == "exp49":
-            self._mlp.load_state_dict(ckpt["model_state_dict"])
+            sd = ckpt["model_state_dict"]
         else:
-            self._mlp.load_state_dict(ckpt["mlp"])
+            sd = ckpt["mlp"]
+        # 학습 시 self.net = nn.Sequential(...) 래핑 → "net." prefix 제거
+        if any(k.startswith("net.") for k in sd):
+            sd = {k[len("net."):]: v for k, v in sd.items()}
+        self._mlp.load_state_dict(sd)
 
         self._mlp.eval()
         self._weights_path = mlp_path
@@ -2666,10 +2670,15 @@ if __name__ == "__main__":
     parser.add_argument("--host", type=str, default="0.0.0.0")
     args = parser.parse_args()
 
-    # 모델을 uvicorn 시작 전에 미리 로드 → /health에서 model_loaded=true 보장
-    logger.info("🔄 Pre-loading model before server start...")
-    get_model()
-    logger.info("✅ Model pre-loaded. Starting uvicorn...")
+    # VLA_GOALNAV_ONLY=1 이면 메인 VLA 모델 스킵, GoalNav MLP만 preload
+    if os.getenv("VLA_GOALNAV_ONLY", "0") == "1":
+        logger.info("🔄 GoalNav-only mode — pre-loading GoalNav MLP...")
+        get_goalnav_model()
+        logger.info("✅ GoalNav model pre-loaded. Starting uvicorn...")
+    else:
+        logger.info("🔄 Pre-loading model before server start...")
+        get_model()
+        logger.info("✅ Model pre-loaded. Starting uvicorn...")
 
     uvicorn.run(
         app,
