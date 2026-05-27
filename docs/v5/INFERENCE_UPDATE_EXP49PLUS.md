@@ -1,158 +1,203 @@
-# Inference Integration 업데이트 — Exp49+
+# Inference Server 업데이트 노트 — Exp49+ 모델
 
-**작성일**: 2026-05-22  
-**대상 브랜치**: `inference-integration` / `monavla-driving`  
-**참조**: `docs/v5/CHECKPOINT_REGISTRY_EXP49PLUS.json`
-
----
-
-## 현재 배포 구조 (exp49)
-
-```
-proxy_inference_server.py
-  └── GoalNavInferenceModel
-        ├── backbone: GroundingBackend (Kosmos-2 Pure HF)
-        │     → vis_feat 1024-dim + bbox(cx,cy,area)
-        ├── MLP: GoalNavMLP(d_in=1059)
-        │     → bbox(8×4=32) + vis(1024) + goal(3) → 512 → 64 → 8
-        └── weights: runs/v5_nav/mlp/exp49/exp49_mlp.pt
-```
-
-**액션 매핑 (8-class, 모든 exp 공통):**
-
-| idx | 이름 | ACTION_2D [lx,ly] | ACTION_3D [lx,ly,az] |
-|-----|------|-------------------|----------------------|
-| 0 | STOP    | [0.0,  0.0]  | [0.0,  0.0,  0.0] |
-| 1 | FORWARD | [1.15, 0.0]  | [1.15, 0.0,  0.0] |
-| 2 | LEFT    | [0.0,  1.15] | [0.0,  1.15, 0.0] |
-| 3 | RIGHT   | [0.0, -1.15] | [0.0, -1.15, 0.0] |
-| 4 | FWD+L   | [0.8,  0.8]  | [0.8,  0.8,  0.0] |
-| 5 | FWD+R   | [0.8, -0.8]  | [0.8, -0.8,  0.0] |
-| 6 | ROT_L   | [0.0,  0.0]  | [0.0,  0.0,  0.8] |
-| 7 | ROT_R   | [0.0,  0.0]  | [0.0,  0.0, -0.8] |
-
-> ⚠️ inference_server.py(구버전)의 9-class 공간과 **혼용 금지**
+작성일: 2026-05-22  
+대상 브랜치: `inference-integration`, `monavla-driving`
 
 ---
 
-## Backbone 주의사항 (변경 금지)
+## 현재 상태 (업데이트 전)
 
-| Backbone | 용도 | 주의 |
-|----------|------|------|
-| Pure HF Kosmos-2 (`.vlms/kosmos-2-patch14-224`) | exp46/49/50/51/52 feature 추출 | ✅ text generation 정상 |
-| Google-robot post-train (`kosmos_ph_google-robot-post-train.pt`) | Exp11/15/17/18 (구버전) | ⛔ `generate()` 금지 — "Tin Tin..." 무한반복 |
+| 브랜치 | 배포 모델 | D_IN | 아키텍처 |
+|--------|----------|------|---------|
+| `inference-integration` | Exp47 MLP (InstructionMLPInference) | 3104 | bbox(32) + vis(1024) + instr_emb(2048) |
+| `monavla-driving` | Exp47 MLP (InstructionMLPInference) | 3104 | 동일 |
 
-**exp49~52는 모두 Pure HF Kosmos-2 backbone** 사용. Google-robot 혼용 시 feature 완전히 달라짐.
-
----
-
-## exp49 → 다음 모델 전환 시 변경점
-
-### exp50/51 전환 (GoalNavInferenceModel — 호환)
-
-```python
-# proxy_inference_server.py 환경변수만 교체하면 됨
-# VLA_WEIGHTS_PATH=/path/to/exp50_mlp.pt 또는 exp51_mlp.pt
-# d_in=1059 동일 → 코드 변경 없음
-# feature 파일: exp50=flipped_features, exp51=crop_features 사전 추출 필요
-```
-
-> val_acc: exp50(0.9202) < exp51(0.9335) < exp49(0.9639) — 실이점 없어 전환 불필요
-
-### exp52 전환 (GoalNavInferenceModel — d_in 변경)
-
-```python
-# d_in: 1059 → 2083
-# vis_feat: 1024-dim → lang_vis 2048-dim (Kosmos-2 joint forward 필요)
-
-# GroundingBackend.run() 에서 lang_vis 추출 추가 필요:
-# 현재: grounding["vis_feat"] → 1024-dim image token hidden
-# 필요: grounding["lang_vis_feat"] → 2048-dim (language+vision joint hidden)
-
-# feature 파일: docs/v5/bbox_nav_exp52/lang_vis_features.npz 사전 참고
-# 추출 스크립트: scripts/extract_lang_vis_features_exp52.py
-```
-
-**GoalNavInferenceModel 수정 포인트:**
-```python
-# __init__ 에서 d_in 체크
-# _build_feature() 에서 vis_feat → lang_vis_feat 로 교체
-# GroundingBackend.run() 에 lang_vis 추출 분기 추가
-```
-
-### exp54 전환 (별도 파이프라인 필요)
-
-exp54는 **GoalNavInferenceModel 미호환** — 새 클래스 필요.
-
-```python
-class Exp54InferenceModel:
-    """
-    Stage1_v2(FrozenCLIPV2) + Stage2_v2(ActionMLP) 파이프라인
-    
-    구조:
-      image → FrozenCLIPV2(vision_model + image_proj + proj_head)
-             → proj_feat 256-dim
-      [bbox_history(32) + proj_feat(256)] → ActionMLP(d_in=288) → 8-class
-    
-    로드:
-      stage1_v2: runs/v5_nav/mlp/exp54/stage1_v2/stage1_v2_projs.pt
-      stage2_v2: runs/v5_nav/mlp/exp54/stage2_v2/stage2_v2_mlp.pt
-      backbone:  .vlms/kosmos-2-patch14-224 (Pure HF, vision_model만 사용)
-    """
-    def __init__(self, stage1_path, stage2_path, vlm_path, device):
-        # FrozenCLIPV2 로드 (vision_model frozen)
-        # ActionMLP 로드
-        ...
-    
-    def predict(self, image_base64, instruction):
-        # 1. image → FrozenCLIPV2.encode_batch() → proj_feat(256)
-        # 2. bbox history → bbox_feat(32)
-        # 3. concat → ActionMLP → pred_class
-        ...
-```
-
-**참조 스크립트:**
-- 학습: `scripts/train_exp54_stage2_v2_action.py`
-- 평가: `scripts/eval_exp54_stage2_v2.py`
-- closed-loop: `scripts/eval_exp54_stage2_v2_closedloop.py`
-
-### exp53 전환 (CLIP LoRA — 미구현)
-
-- weights: `runs/v5_nav/mlp/exp53/exp53_clip_lora.pt`
-- 아키텍처: CLIP LoRA fine-tuned visual encoder
-- inference 파이프라인 미작성 (val_acc 0.9468로 exp49 차순위)
-- 구현 참조: `scripts/train_clip_lora_exp53.py`
+현재 서버: `soda@100.85.118.58 ~/MoNaVLA`  
+기본 배포: **Exp17** (primary, CL 11.1%) / **Exp18** (fallback, CL 11.1%)
 
 ---
 
-## 체크포인트 → soda 서버 동기화
+## 전송된 체크포인트 목록
 
-현재 체크포인트는 **minum에만 있음**. soda로 가져오려면:
+전체 상세 정보: `docs/v5/CHECKPOINT_REGISTRY_EXP49PLUS.json`
+
+### 그룹 A — Pre-extracted feature 기반 MLP (VLM 불필요)
+
+| 모델 | ckpt 경로 | D_IN | vision feature 소스 |
+|------|----------|------|-------------------|
+| **exp49** | `runs/v5_nav/mlp/exp49/exp49_mlp.pt` | 1056 | `bbox_nav_exp46/vision_features.npz` |
+| **exp50** | `runs/v5_nav/mlp/exp50/exp50_mlp.pt` | 1056 | `bbox_nav_exp46/vision_features.npz` |
+| **exp51** | `runs/v5_nav/mlp/exp51/exp51_mlp.pt` | 1056 | `bbox_nav_exp46/vision_features.npz` |
+| **exp52** | `runs/v5_nav/mlp/exp52/exp52_mlp.pt` | 2080 | `bbox_nav_exp52/lang_vis_features.npz` |
+
+> ⚠️ exp49~51은 inference 시 실시간 VLM 인코딩 필요 (pre-extracted feature는 eval 전용)  
+> 실서버 배포 시 VLM forward pass 경로 추가 필요 (아래 섹션 참조)
+
+### 그룹 B — CLIP LoRA 기반 MLP (VLM 필요)
+
+| 모델 | ckpt 경로 | D_IN | 추가 필요 파일 |
+|------|----------|------|-------------|
+| **exp53** | `runs/v5_nav/mlp/exp53/exp53_clip_lora.pt` | 1056 | `exp53/clip_lora_adapter/` (PEFT, 2.1MB) |
+| **exp54 stage2 v1** | `runs/v5_nav/mlp/exp54/stage2/stage2_mlp.pt` | 1056 | exp53 LoRA adapter 동일 |
+
+### 그룹 C — FrozenCLIPV2 기반 (VLM + image_proj 필요, 학습 완료 후 전송 예정)
+
+| 모델 | ckpt 경로 | D_IN | 추가 필요 파일 |
+|------|----------|------|-------------|
+| **exp54 stage2 v2** | `runs/v5_nav/mlp/exp54/stage2_v2/stage2_v2_mlp.pt` | **288** | `exp54/stage1_v2/stage1_v2_projs.pt` |
+
+> 학습 중 (PID 1405772). 완료 후 별도 rsync 필요.
+
+---
+
+## Inference Server 수정 사항
+
+### 1. exp49/50/51 실시간 추론 추가 (그룹 A)
+
+현재 `InstructionMLPInference` (Exp47, D_IN=3104)와 **완전히 다른 아키텍처**.  
+새 클래스 `GoalNavMLPInference` 추가 필요.
+
+**MLP 구조** (exp49/50/51 공통):
+```python
+D_IN = 8 * 4 + 1024  # 1056: bbox(32) + vision_feat(1024)
+
+class GoalNavMLP(nn.Module):
+    def __init__(self):
+        self.net = nn.Sequential(
+            nn.Linear(1056, 512), nn.ReLU(), nn.Dropout(0.25),
+            nn.Linear(512, 256),  nn.ReLU(), nn.Dropout(0.2),
+            nn.Linear(256, 8),
+        )
+```
+
+**Vision feature 추출** (실시간):
+```python
+# Kosmos-2 base vision model (google-robot 아님 — pure HF)
+# .vlms/kosmos-2-patch14-224 의 vision_model 레이어만 사용
+vision_feat = vision_model(pixel_values).last_hidden_state.mean(dim=1)  # (1, 1024)
+```
+
+**bbox feature 포맷** (WINDOW=8):
+```python
+# frames[-8:] 각각에서: [cx, cy, area, has_bbox]  → 32-dim
+bbox_feat = np.array([
+    [fr["cx"], fr["cy"], fr["area"], float(fr["has_bbox"])]
+    for fr in history[-8:]
+], dtype=np.float32).flatten()
+```
+
+---
+
+### 2. exp53 실시간 추론 추가 (그룹 B)
+
+exp53은 PEFT LoRA adapter를 Kosmos-2 vision_model에 적용한 버전.
+
+```python
+from peft import PeftModel
+base = AutoModelForVision2Seq.from_pretrained(".vlms/kosmos-2-patch14-224", ...)
+vision_model_lora = PeftModel.from_pretrained(
+    base.vision_model,
+    "runs/v5_nav/mlp/exp53/clip_lora_adapter/"
+)
+# 이후 encode는 exp49와 동일
+```
+
+**주의:** exp53 action head의 ckpt 키는 `"mlp"`. 로드 방법:
+```python
+ckpt = torch.load("runs/v5_nav/mlp/exp53/exp53_clip_lora.pt")
+mlp.load_state_dict(ckpt["mlp"])
+```
+
+---
+
+### 3. exp54 stage2 v2 실시간 추론 추가 (그룹 C, 학습 완료 후)
+
+D_IN=288로 가장 작고 빠름. **image_proj (1024→256)** 레이어가 추가됨.
+
+```python
+# stage1_v2 checkpoint에서 image_proj 로드
+stage1_ckpt = torch.load("runs/v5_nav/mlp/exp54/stage1_v2/stage1_v2_projs.pt")
+image_proj = nn.Linear(1024, 256)
+image_proj.load_state_dict(stage1_ckpt["image_proj"])
+
+# encode:
+import torch.nn.functional as F
+raw_feat = vision_model(pixel_values).last_hidden_state.mean(dim=1)  # (1, 1024)
+proj_feat = F.normalize(image_proj(raw_feat.float()), dim=-1)         # (1, 256)
+
+# MLP D_IN = 32 + 256 = 288
+x = torch.cat([bbox_feat_tensor, proj_feat], dim=-1)  # (1, 288)
+action = mlp(x).argmax(dim=-1)
+```
+
+---
+
+## 액션 클래스 매핑 (8-class, V5 공통)
+
+```
+0: STOP      → linear_x=0,    linear_y=0
+1: FORWARD   → linear_x=0.3,  linear_y=0
+2: LEFT      → linear_x=0,    linear_y=0.3
+3: RIGHT     → linear_x=0,    linear_y=-0.3
+4: FWD+L     → linear_x=0.3,  linear_y=0.3
+5: FWD+R     → linear_x=0.3,  linear_y=-0.3
+6: ROT_L     → linear_x=0,    linear_y=0.5   (제자리 회전)
+7: ROT_R     → linear_x=0,    linear_y=-0.5  (제자리 회전)
+```
+
+> ⚠️ inference_server.py 에 9-class 매핑이 있을 수 있음 — **8-class만 사용할 것**
+
+---
+
+## Vision Feature 주의사항
+
+### Pure HF Kosmos-2 vs Google-robot backbone
+
+| 구분 | 경로 | 용도 |
+|------|------|------|
+| Pure HF | `.vlms/kosmos-2-patch14-224` | **exp49~54 전부** — `generate()` 정상 |
+| Google-robot | `.vlms/google_robot_pretrain/kosmos_ph_google-robot-post-train.pt` | Exp11~18 — `generate()` 절대 금지 |
+
+exp49+ 모델은 **모두 Pure HF Kosmos-2** vision encoder 기반.  
+Google-robot backbone으로 feature를 추출하면 완전히 다른 feature 공간 → 예측 불가능.
+
+### Vision model dtype
+
+```python
+# 학습 시: float16으로 인코딩
+pv = inputs["pixel_values"].to(device, dtype=torch.float16)
+out = vision_model(pixel_values=pv)
+feat = out.last_hidden_state.mean(dim=1).float()  # float32로 변환 후 MLP
+```
+
+---
+
+## 평가 우선순위 (SODA에서 실행 순서)
 
 ```bash
-# exp49 (운영 중 — 이미 있어야 함)
-rsync -avz minum:/home/minum/26CS/MoNaVLA/runs/v5_nav/mlp/exp49/ \
-  /home/soda/MoNaVLA/runs/v5_nav/mlp/exp49/
+# 1. Pre-cached feature 기반 (빠름, VLM forward pass 없음)
+python3 scripts/sim/evaluate_closed_loop_v5.py --model exp49
+python3 scripts/sim/evaluate_closed_loop_v5.py --model exp50
+python3 scripts/sim/evaluate_closed_loop_v5.py --model exp51
+python3 scripts/sim/evaluate_closed_loop_v5.py --model exp52
 
-# exp54 stage1_v2 + stage2_v2 (stage1 586MB 제외)
-rsync -avz \
-  minum:/home/minum/26CS/MoNaVLA/runs/v5_nav/mlp/exp54/stage1_v2/ \
-  minum:/home/minum/26CS/MoNaVLA/runs/v5_nav/mlp/exp54/stage2_v2/ \
-  /home/soda/MoNaVLA/runs/v5_nav/mlp/exp54/
+# 2. CLIP LoRA 기반 PM 평가 (VLM 필요)
+.venv/bin/python3 scripts/eval_exp54_stage2.py
 
-# feature 파일 (exp46 vis + exp52 lang_vis)
-rsync -avz \
-  minum:/home/minum/26CS/MoNaVLA/docs/v5/bbox_nav_exp46/ \
-  minum:/home/minum/26CS/MoNaVLA/docs/v5/bbox_nav_exp52/ \
-  /home/soda/MoNaVLA/docs/v5/
+# 3. Stage2 v2 (학습 완료 + rsync 후)
+.venv/bin/python3 scripts/eval_exp54_stage2_v2.py
+.venv/bin/python3 scripts/eval_exp54_stage2_v2_closedloop.py
 ```
 
 ---
 
-## 다음 액션 (우선순위 순)
+## 배포 교체 판단 기준
 
-1. **exp49 사용 유지** — 현재 CL 미평가. 교체 전 free 에피소드 포함 CL 재평가 권장
-2. **exp55 학습** (`train_exp55_free_episodes.py`) — free 에피소드 추가 학습 (FL/FC/FR 21개)
-3. **exp53 inference 구현** — val_acc 2위(0.9468). CLIP LoRA 파이프라인 작성 후 CL 평가
-4. **exp54 inference 구현** — FrozenCLIPV2+ActionMLP. val_acc(0.9259)은 낮지만 구조 참신
-5. **stage2_v2 재학습** — RIGHT 정확도 70%로 약함. free 에피소드 포함 시 개선 가능성
+| 기준 | 값 |
+|------|---|
+| 현재 서버 CL success | **11.1%** (Exp17/18) |
+| 교체 고려 임계값 | **≥ 33.3%** (3배) |
+| 참고 최선 기록 | 55.6% (Exp25) |
+
+CL 평가 결과가 33% 이상인 모델이 나오면 서버 교체 진행.  
+체크포인트 경로는 `CHECKPOINT_REGISTRY_EXP49PLUS.json` 참조.

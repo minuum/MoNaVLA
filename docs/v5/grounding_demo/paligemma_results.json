@@ -1,0 +1,927 @@
+{
+  "stats": {
+    "gray basket": {
+      "hit": 30,
+      "total": 30,
+      "cx_errors": [
+        0.03564453125,
+        0.20751953125,
+        0.08984375,
+        0.1806640625,
+        0.0126953125,
+        0.0107421875,
+        0.02197265625,
+        0.005859375,
+        0.005859375,
+        0.02392578125,
+        0.0810546875,
+        0.087890625,
+        0.0546875,
+        0.10107421875,
+        0.10986328125,
+        0.0014148437500000055,
+        0.0005132812499999972,
+        0.0014898437499999972,
+        0.05419921875,
+        0.0019031250000000055,
+        0.11474609375,
+        0.06298828125,
+        0.10503046875,
+        0.2061046875,
+        0.1044921875,
+        0.08251953125,
+        0.04833984375,
+        0.04638671875,
+        0.18994140625,
+        0.1923828125
+      ]
+    },
+    "red ball": {
+      "hit": 0,
+      "total": 30,
+      "cx_errors": []
+    },
+    "person": {
+      "hit": 1,
+      "total": 30,
+      "cx_errors": []
+    }
+  },
+  "details": [
+    {
+      "frame": 0,
+      "path_type": "center_straight",
+      "phrase": "gray basket",
+      "hit": true,
+      "decoded": "<loc0462><loc0354><loc0862><loc0597> gray basket<eos>",
+      "bbox": [
+        0.345703125,
+        0.451171875,
+        0.5830078125,
+        0.841796875
+      ]
+    },
+    {
+      "frame": 0,
+      "path_type": "center_straight",
+      "phrase": "red ball",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 0,
+      "path_type": "center_straight",
+      "phrase": "person",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 1,
+      "path_type": "center_straight",
+      "phrase": "gray basket",
+      "hit": true,
+      "decoded": "<loc0460><loc0354><loc0838><loc0583> gray basket<eos>",
+      "bbox": [
+        0.345703125,
+        0.44921875,
+        0.5693359375,
+        0.818359375
+      ]
+    },
+    {
+      "frame": 1,
+      "path_type": "center_straight",
+      "phrase": "red ball",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 1,
+      "path_type": "center_straight",
+      "phrase": "person",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 2,
+      "path_type": "center_straight",
+      "phrase": "gray basket",
+      "hit": true,
+      "decoded": "<loc0455><loc0293><loc0880><loc0547> gray basket zove<eos>",
+      "bbox": [
+        0.2861328125,
+        0.4443359375,
+        0.5341796875,
+        0.859375
+      ]
+    },
+    {
+      "frame": 2,
+      "path_type": "center_straight",
+      "phrase": "red ball",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 2,
+      "path_type": "center_straight",
+      "phrase": "person",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 3,
+      "path_type": "center_straight",
+      "phrase": "gray basket",
+      "hit": true,
+      "decoded": "<loc0462><loc0215><loc0849><loc0439> gray basket<eos>",
+      "bbox": [
+        0.2099609375,
+        0.451171875,
+        0.4287109375,
+        0.8291015625
+      ]
+    },
+    {
+      "frame": 3,
+      "path_type": "center_straight",
+      "phrase": "red ball",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 3,
+      "path_type": "center_straight",
+      "phrase": "person",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 4,
+      "path_type": "center_straight",
+      "phrase": "gray basket",
+      "hit": true,
+      "decoded": "<loc0462><loc0373><loc0877><loc0625> gray basket<eos>",
+      "bbox": [
+        0.3642578125,
+        0.451171875,
+        0.6103515625,
+        0.8564453125
+      ]
+    },
+    {
+      "frame": 4,
+      "path_type": "center_straight",
+      "phrase": "red ball",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 4,
+      "path_type": "center_straight",
+      "phrase": "person",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 5,
+      "path_type": "center_straight",
+      "phrase": "gray basket",
+      "hit": true,
+      "decoded": "<loc0462><loc0384><loc0858><loc0618> gray basket<eos>",
+      "bbox": [
+        0.375,
+        0.451171875,
+        0.603515625,
+        0.837890625
+      ]
+    },
+    {
+      "frame": 5,
+      "path_type": "center_straight",
+      "phrase": "red ball",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 5,
+      "path_type": "center_straight",
+      "phrase": "person",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 6,
+      "path_type": "center_straight",
+      "phrase": "gray basket",
+      "hit": true,
+      "decoded": "<loc0462><loc0373><loc0849><loc0606> gray basket<eos>",
+      "bbox": [
+        0.3642578125,
+        0.451171875,
+        0.591796875,
+        0.8291015625
+      ]
+    },
+    {
+      "frame": 6,
+      "path_type": "center_straight",
+      "phrase": "red ball",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 6,
+      "path_type": "center_straight",
+      "phrase": "person",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 7,
+      "path_type": "center_straight",
+      "phrase": "gray basket",
+      "hit": true,
+      "decoded": "<loc0462><loc0397><loc0862><loc0639> gray basket<eos>",
+      "bbox": [
+        0.3876953125,
+        0.451171875,
+        0.6240234375,
+        0.841796875
+      ]
+    },
+    {
+      "frame": 7,
+      "path_type": "center_straight",
+      "phrase": "red ball",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 7,
+      "path_type": "center_straight",
+      "phrase": "person",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 8,
+      "path_type": "center_straight",
+      "phrase": "gray basket",
+      "hit": true,
+      "decoded": "<loc0462><loc0397><loc0870><loc0639> gray basket<eos>",
+      "bbox": [
+        0.3876953125,
+        0.451171875,
+        0.6240234375,
+        0.849609375
+      ]
+    },
+    {
+      "frame": 8,
+      "path_type": "center_straight",
+      "phrase": "red ball",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 8,
+      "path_type": "center_straight",
+      "phrase": "person",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 9,
+      "path_type": "center_straight",
+      "phrase": "gray basket",
+      "hit": true,
+      "decoded": "<loc0462><loc0366><loc0870><loc0609> gray basket zove<eos>",
+      "bbox": [
+        0.357421875,
+        0.451171875,
+        0.5947265625,
+        0.849609375
+      ]
+    },
+    {
+      "frame": 9,
+      "path_type": "center_straight",
+      "phrase": "red ball",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 9,
+      "path_type": "center_straight",
+      "phrase": "person",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 10,
+      "path_type": "center_straight",
+      "phrase": "gray basket",
+      "hit": true,
+      "decoded": "<loc0462><loc0471><loc0867><loc0719> gray basket<eos>",
+      "bbox": [
+        0.4599609375,
+        0.451171875,
+        0.7021484375,
+        0.8466796875
+      ]
+    },
+    {
+      "frame": 10,
+      "path_type": "center_straight",
+      "phrase": "red ball",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 10,
+      "path_type": "center_straight",
+      "phrase": "person",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 11,
+      "path_type": "center_straight",
+      "phrase": "gray basket",
+      "hit": true,
+      "decoded": "<loc0468><loc0297><loc0873><loc0547> gray basket zove<eos>",
+      "bbox": [
+        0.2900390625,
+        0.45703125,
+        0.5341796875,
+        0.8525390625
+      ]
+    },
+    {
+      "frame": 11,
+      "path_type": "center_straight",
+      "phrase": "red ball",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 11,
+      "path_type": "center_straight",
+      "phrase": "person",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 12,
+      "path_type": "center_straight",
+      "phrase": "gray basket",
+      "hit": true,
+      "decoded": "<loc0462><loc0329><loc0877><loc0583> gray basket<eos>",
+      "bbox": [
+        0.3212890625,
+        0.451171875,
+        0.5693359375,
+        0.8564453125
+      ]
+    },
+    {
+      "frame": 12,
+      "path_type": "center_straight",
+      "phrase": "red ball",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 12,
+      "path_type": "center_straight",
+      "phrase": "person",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 13,
+      "path_type": "center_straight",
+      "phrase": "gray basket",
+      "hit": true,
+      "decoded": "<loc0464><loc0279><loc0880><loc0538> gray basket<eos>",
+      "bbox": [
+        0.2724609375,
+        0.453125,
+        0.525390625,
+        0.859375
+      ]
+    },
+    {
+      "frame": 13,
+      "path_type": "center_straight",
+      "phrase": "red ball",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 13,
+      "path_type": "center_straight",
+      "phrase": "person",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 14,
+      "path_type": "center_straight",
+      "phrase": "gray basket",
+      "hit": true,
+      "decoded": "<loc0464><loc0279><loc0854><loc0520> gray basket<eos>",
+      "bbox": [
+        0.2724609375,
+        0.453125,
+        0.5078125,
+        0.833984375
+      ]
+    },
+    {
+      "frame": 14,
+      "path_type": "center_straight",
+      "phrase": "red ball",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 14,
+      "path_type": "center_straight",
+      "phrase": "person",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 15,
+      "path_type": "center_straight",
+      "phrase": "gray basket",
+      "hit": true,
+      "decoded": "<loc0462><loc0428><loc0845><loc0657> gray basket zove<eos>",
+      "bbox": [
+        0.41796875,
+        0.451171875,
+        0.6416015625,
+        0.8251953125
+      ]
+    },
+    {
+      "frame": 15,
+      "path_type": "center_straight",
+      "phrase": "red ball",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 15,
+      "path_type": "center_straight",
+      "phrase": "person",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 16,
+      "path_type": "center_straight",
+      "phrase": "gray basket",
+      "hit": true,
+      "decoded": "<loc0471><loc0316><loc0845><loc0547> gray basket<eos>",
+      "bbox": [
+        0.30859375,
+        0.4599609375,
+        0.5341796875,
+        0.8251953125
+      ]
+    },
+    {
+      "frame": 16,
+      "path_type": "center_straight",
+      "phrase": "red ball",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 16,
+      "path_type": "center_straight",
+      "phrase": "person",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 17,
+      "path_type": "center_straight",
+      "phrase": "gray basket",
+      "hit": true,
+      "decoded": "<loc0464><loc0288><loc0841><loc0515> gray basket<eos>",
+      "bbox": [
+        0.28125,
+        0.453125,
+        0.5029296875,
+        0.8212890625
+      ]
+    },
+    {
+      "frame": 17,
+      "path_type": "center_straight",
+      "phrase": "red ball",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 17,
+      "path_type": "center_straight",
+      "phrase": "person",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 18,
+      "path_type": "center_straight",
+      "phrase": "gray basket",
+      "hit": true,
+      "decoded": "<loc0462><loc0336><loc0862><loc0577> gray basket<eos>",
+      "bbox": [
+        0.328125,
+        0.451171875,
+        0.5634765625,
+        0.841796875
+      ]
+    },
+    {
+      "frame": 18,
+      "path_type": "center_straight",
+      "phrase": "red ball",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 18,
+      "path_type": "center_straight",
+      "phrase": "person",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 19,
+      "path_type": "center_straight",
+      "phrase": "gray basket",
+      "hit": true,
+      "decoded": "<loc0464><loc0361><loc0862><loc0603> gray basket<eos>",
+      "bbox": [
+        0.3525390625,
+        0.453125,
+        0.5888671875,
+        0.841796875
+      ]
+    },
+    {
+      "frame": 19,
+      "path_type": "center_straight",
+      "phrase": "red ball",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 19,
+      "path_type": "center_straight",
+      "phrase": "person",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 20,
+      "path_type": "center_left",
+      "phrase": "gray basket",
+      "hit": true,
+      "decoded": "<loc0460><loc0279><loc0845><loc0510> gray basket<eos>",
+      "bbox": [
+        0.2724609375,
+        0.44921875,
+        0.498046875,
+        0.8251953125
+      ]
+    },
+    {
+      "frame": 20,
+      "path_type": "center_left",
+      "phrase": "red ball",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 20,
+      "path_type": "center_left",
+      "phrase": "person",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 21,
+      "path_type": "center_left",
+      "phrase": "gray basket",
+      "hit": true,
+      "decoded": "<loc0462><loc0329><loc0845><loc0566> gray basket<eos>",
+      "bbox": [
+        0.3212890625,
+        0.451171875,
+        0.552734375,
+        0.8251953125
+      ]
+    },
+    {
+      "frame": 21,
+      "path_type": "center_left",
+      "phrase": "red ball",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 21,
+      "path_type": "center_left",
+      "phrase": "person",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 22,
+      "path_type": "center_left",
+      "phrase": "gray basket",
+      "hit": true,
+      "decoded": "<loc0471><loc0262><loc0838><loc0483> gray basket<eos>",
+      "bbox": [
+        0.255859375,
+        0.4599609375,
+        0.4716796875,
+        0.818359375
+      ]
+    },
+    {
+      "frame": 22,
+      "path_type": "center_left",
+      "phrase": "red ball",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 22,
+      "path_type": "center_left",
+      "phrase": "person",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 23,
+      "path_type": "center_left",
+      "phrase": "gray basket",
+      "hit": true,
+      "decoded": "<loc0460><loc0279><loc0845><loc0515> gray basket<eos>",
+      "bbox": [
+        0.2724609375,
+        0.44921875,
+        0.5029296875,
+        0.8251953125
+      ]
+    },
+    {
+      "frame": 23,
+      "path_type": "center_left",
+      "phrase": "red ball",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 23,
+      "path_type": "center_left",
+      "phrase": "person",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 24,
+      "path_type": "center_left",
+      "phrase": "gray basket",
+      "hit": true,
+      "decoded": "<loc0464><loc0293><loc0834><loc0517> gray basket<eos>",
+      "bbox": [
+        0.2861328125,
+        0.453125,
+        0.5048828125,
+        0.814453125
+      ]
+    },
+    {
+      "frame": 24,
+      "path_type": "center_left",
+      "phrase": "red ball",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 24,
+      "path_type": "center_left",
+      "phrase": "person",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 25,
+      "path_type": "center_left",
+      "phrase": "gray basket",
+      "hit": true,
+      "decoded": "<loc0451><loc0308><loc0845><loc0547> gray basket<eos>",
+      "bbox": [
+        0.30078125,
+        0.4404296875,
+        0.5341796875,
+        0.8251953125
+      ]
+    },
+    {
+      "frame": 25,
+      "path_type": "center_left",
+      "phrase": "red ball",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 25,
+      "path_type": "center_left",
+      "phrase": "person",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 26,
+      "path_type": "center_left",
+      "phrase": "gray basket",
+      "hit": true,
+      "decoded": "<loc0462><loc0348><loc0845><loc0577> gray basket<eos>",
+      "bbox": [
+        0.33984375,
+        0.451171875,
+        0.5634765625,
+        0.8251953125
+      ]
+    },
+    {
+      "frame": 26,
+      "path_type": "center_left",
+      "phrase": "red ball",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 26,
+      "path_type": "center_left",
+      "phrase": "person",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 27,
+      "path_type": "center_left",
+      "phrase": "gray basket",
+      "hit": true,
+      "decoded": "<loc0464><loc0352><loc0835><loc0577> gray basket<eos>",
+      "bbox": [
+        0.34375,
+        0.453125,
+        0.5634765625,
+        0.8154296875
+      ]
+    },
+    {
+      "frame": 27,
+      "path_type": "center_left",
+      "phrase": "red ball",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 27,
+      "path_type": "center_left",
+      "phrase": "person",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 28,
+      "path_type": "center_left",
+      "phrase": "gray basket",
+      "hit": true,
+      "decoded": "<loc0464><loc0267><loc0845><loc0496> gray basket<eos>",
+      "bbox": [
+        0.2607421875,
+        0.453125,
+        0.484375,
+        0.8251953125
+      ]
+    },
+    {
+      "frame": 28,
+      "path_type": "center_left",
+      "phrase": "red ball",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 28,
+      "path_type": "center_left",
+      "phrase": "person",
+      "hit": true,
+      "decoded": "<loc0000><loc0949><loc0238><loc1022> person<eos>",
+      "bbox": [
+        0.9267578125,
+        0.0,
+        0.998046875,
+        0.232421875
+      ]
+    },
+    {
+      "frame": 29,
+      "path_type": "center_left",
+      "phrase": "gray basket",
+      "hit": true,
+      "decoded": "<loc0464><loc0267><loc0838><loc0491> gray basket<eos>",
+      "bbox": [
+        0.2607421875,
+        0.453125,
+        0.4794921875,
+        0.818359375
+      ]
+    },
+    {
+      "frame": 29,
+      "path_type": "center_left",
+      "phrase": "red ball",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    },
+    {
+      "frame": 29,
+      "path_type": "center_left",
+      "phrase": "person",
+      "hit": false,
+      "decoded": "<eos>",
+      "bbox": []
+    }
+  ]
+}

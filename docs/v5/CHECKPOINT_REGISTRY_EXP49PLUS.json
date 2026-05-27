@@ -1,183 +1,131 @@
 {
-  "_meta": {
-    "작성일": "2026-05-22",
-    "기준서버": "minum:/home/minum/26CS/MoNaVLA",
-    "soda경로": "/home/soda/MoNaVLA",
-    "action_space": ["STOP","FORWARD","LEFT","RIGHT","FWD+L","FWD+R","ROT_L","ROT_R"],
-    "num_classes": 8,
-    "val_split": 526,
-    "deployed": "exp49 (proxy_inference_server.py GoalNavInferenceModel)"
-  },
+  "generated": "2026-05-22",
+  "description": "Exp49 이후 SODA 서버에 전송된 MLP/CLIP 체크포인트 레지스트리",
+  "soda_server": "soda@100.85.118.58",
+  "soda_root": "~/MoNaVLA",
+  "note": "exp54/stage1 (586MB LoRA adapter) 는 미전송 — stage1_v2가 대체",
 
-  "exp46": {
-    "weights": "runs/v5_nav/mlp/exp46/exp46_mlp.pt",
-    "size_mb": 2.8,
-    "d_in": 1056,
-    "window": 8,
-    "vision_source": "Kosmos-2 vis_feat 1024-dim (bbox history only, no goal)",
-    "feature_files": [
-      "docs/v5/bbox_nav_exp46/vision_features.npz",
-      "docs/v5/bbox_nav_exp46/vision_features_index.json",
-      "docs/v5/bbox_nav_exp46/bbox_dataset_full.json"
-    ],
-    "n_train": 2100,
-    "val_acc": 0.9316,
-    "goal_dim": 0,
-    "note": "baseline BBox+Vis MLP, no goal conditioning",
-    "eval_script": null,
-    "pm": null,
-    "cl": null
-  },
-
-  "exp49": {
-    "weights": "runs/v5_nav/mlp/exp49/exp49_mlp.pt",
-    "size_mb": 2.8,
-    "d_in": 1059,
-    "window": 8,
-    "vision_source": "Kosmos-2 vis_feat 1024-dim",
-    "feature_files": [
-      "docs/v5/bbox_nav_exp46/vision_features.npz"
-    ],
-    "n_train": 2100,
-    "val_acc": 0.9639,
-    "no_goal_acc": 0.9335,
-    "goal_delta": 0.0304,
-    "goal_dim": 3,
-    "architecture": "GoalNavMLP: bbox(8×4=32) + vis(1024) + goal(3) → 512 → 64 → 8",
-    "inference_class": "GoalNavInferenceModel (proxy_inference_server.py)",
-    "deployed": true,
-    "note": "현재 운영 모델. goal=초기프레임 bbox(cx,cy,area). no_goal 대비 +3%p",
-    "eval_script": "scripts/test_exp49_grounding_consistency.py",
-    "pm": null,
-    "cl": null
-  },
-
-  "exp50": {
-    "weights": "runs/v5_nav/mlp/exp50/exp50_mlp.pt",
-    "size_mb": 2.8,
-    "d_in": 1059,
-    "window": 8,
-    "vision_source": "Kosmos-2 vis_feat 1024-dim + flip augmentation",
-    "feature_files": [
-      "docs/v5/bbox_nav_exp50/flipped_vision_features.npz"
-    ],
-    "n_train": 4200,
-    "val_acc": 0.9202,
-    "goal_dim": 3,
-    "architecture": "GoalNavMLP (exp49와 동일)",
-    "inference_class": "GoalNavInferenceModel",
-    "deployed": false,
-    "note": "flip aug 2x. exp49 대비 -4.4%p 하락 — augmentation이 오히려 해로움",
-    "eval_script": null,
-    "pm": null,
-    "cl": null
-  },
-
-  "exp51": {
-    "weights": "runs/v5_nav/mlp/exp51/exp51_mlp.pt",
-    "size_mb": 2.8,
-    "d_in": 1059,
-    "window": 8,
-    "vision_source": "Kosmos-2 vis_feat 1024-dim + crop augmentation (left10/right10)",
-    "feature_files": [
-      "docs/v5/bbox_nav_exp51/crop_left10_vision_features.npz",
-      "docs/v5/bbox_nav_exp51/crop_right10_vision_features.npz"
-    ],
-    "n_train": 8400,
-    "val_acc": 0.9335,
-    "goal_dim": 3,
-    "architecture": "GoalNavMLP (exp49와 동일)",
-    "inference_class": "GoalNavInferenceModel",
-    "deployed": false,
-    "note": "crop aug 4x. exp49 대비 -3.0%p — crop aug도 도움 안 됨",
-    "eval_script": null,
-    "pm": null,
-    "cl": null
-  },
-
-  "exp52": {
-    "weights": "runs/v5_nav/mlp/exp52/exp52_mlp.pt",
-    "size_mb": 4.8,
-    "d_in": 2083,
-    "window": 8,
-    "vision_source": "Kosmos-2 joint lang+vis hidden (lang_vis 2048-dim)",
-    "feature_files": [
-      "docs/v5/bbox_nav_exp52/lang_vis_features.npz",
-      "docs/v5/bbox_nav_exp52/lang_vis_features_index.json"
-    ],
-    "n_train": 2100,
-    "val_acc": 0.9392,
-    "goal_dim": 3,
-    "architecture": "GoalNavMLP: bbox(8×4=32) + lang_vis(2048) + goal(3) → 512 → 64 → 8",
-    "inference_class": "GoalNavInferenceModel (d_in=2083으로 교체 필요)",
-    "deployed": false,
-    "note": "언어-비전 joint feature. exp49 대비 -2.5%p. 추가 feature 추출 비용 있음",
-    "eval_script": "scripts/extract_lang_vis_features_exp52.py",
-    "pm": null,
-    "cl": null
-  },
-
-  "exp53": {
-    "weights": "runs/v5_nav/mlp/exp53/exp53_clip_lora.pt",
-    "size_mb": 2.8,
-    "d_in": null,
-    "window": 8,
-    "vision_source": "CLIP LoRA fine-tuned visual encoder",
-    "feature_files": [],
-    "n_train": null,
-    "val_acc": 0.9468,
-    "goal_dim": null,
-    "architecture": "CLIP LoRA → 별도 inference pipeline (GoalNavInferenceModel 미호환)",
-    "inference_class": "미구현 (train_clip_lora_exp53.py 참고)",
-    "deployed": false,
-    "note": "summary.json 없음. val_acc=0.9468 (exp54 stage2_v2 로그 참고). CLIP backbone — proxy 서버에 별도 로더 필요",
-    "eval_script": null,
-    "pm": null,
-    "cl": null
-  },
-
-  "exp54": {
-    "stage1": {
-      "weights": "runs/v5_nav/mlp/exp54/stage1/stage1_projs.pt",
-      "size_mb": 584,
-      "note": "⛔ 제외 — stage1_v2로 대체. 전송 안 함"
+  "checkpoints": {
+    "exp49": {
+      "ckpt": "runs/v5_nav/mlp/exp49/exp49_mlp.pt",
+      "type": "ActionMLP",
+      "d_in": 1056,
+      "input": "bbox(32) + vision_feat(1024)",
+      "vision_source": "docs/v5/bbox_nav_exp46/vision_features.npz",
+      "vision_key": "vision_features",
+      "window": 8,
+      "num_classes": 8,
+      "eval_script": "scripts/sim/evaluate_closed_loop_v5.py --model exp49",
+      "pm_offline": null,
+      "cl_success": null,
+      "status": "미평가 — SODA에서 평가 필요"
     },
-    "stage1_v2": {
-      "weights": "runs/v5_nav/mlp/exp54/stage1_v2/stage1_v2_projs.pt",
-      "size_mb": 3.1,
-      "architecture": "FrozenCLIPV2: Kosmos-2 vision_model frozen + frame-level contrastive proj (proj_dim=256)",
-      "val_acc_stage1": 0.9811,
-      "note": "stage1 대체. frame-level contrastive 방식. vision_model + image_proj frozen"
+    "exp50": {
+      "ckpt": "runs/v5_nav/mlp/exp50/exp50_mlp.pt",
+      "type": "ActionMLP",
+      "d_in": 1056,
+      "input": "bbox(32) + vision_feat(1024)",
+      "vision_source": "docs/v5/bbox_nav_exp46/vision_features.npz",
+      "vision_key": "vision_features",
+      "window": 8,
+      "num_classes": 8,
+      "eval_script": "scripts/sim/evaluate_closed_loop_v5.py --model exp50",
+      "pm_offline": null,
+      "cl_success": null,
+      "status": "미평가 — SODA에서 평가 필요"
     },
-    "stage2_v2": {
-      "weights": "runs/v5_nav/mlp/exp54/stage2_v2/stage2_v2_mlp.pt",
-      "size_mb": 0.456,
+    "exp51": {
+      "ckpt": "runs/v5_nav/mlp/exp51/exp51_mlp.pt",
+      "type": "ActionMLP",
+      "d_in": 1056,
+      "input": "bbox(32) + vision_feat(1024)",
+      "vision_source": "docs/v5/bbox_nav_exp46/vision_features.npz",
+      "vision_key": "vision_features",
+      "window": 8,
+      "num_classes": 8,
+      "eval_script": "scripts/sim/evaluate_closed_loop_v5.py --model exp51",
+      "pm_offline": null,
+      "cl_success": null,
+      "status": "미평가 — SODA에서 평가 필요"
+    },
+    "exp52": {
+      "ckpt": "runs/v5_nav/mlp/exp52/exp52_mlp.pt",
+      "type": "ActionMLP",
+      "d_in": 2080,
+      "input": "bbox(32) + lang_vis_feat(2048)",
+      "vision_source": "docs/v5/bbox_nav_exp52/lang_vis_features.npz",
+      "vision_key": "lang_vis_features",
+      "window": 8,
+      "num_classes": 8,
+      "eval_script": "scripts/sim/evaluate_closed_loop_v5.py --model exp52",
+      "pm_offline": null,
+      "cl_success": null,
+      "status": "미평가 — SODA에서 평가 필요"
+    },
+    "exp53": {
+      "ckpt": "runs/v5_nav/mlp/exp53/exp53_clip_lora.pt",
+      "lora_adapter": "runs/v5_nav/mlp/exp53/clip_lora_adapter/",
+      "type": "FrozenCLIPLoRA + ActionMLP",
+      "d_in": 1056,
+      "input": "bbox(32) + CLIP-LoRA-feat(1024)",
+      "vision_source": "online (VLM forward pass required)",
+      "vlm_required": ".vlms/kosmos-2-patch14-224",
+      "window": 8,
+      "num_classes": 8,
+      "eval_script": "scripts/eval_exp54_stage2.py",
+      "pm_offline": 0.9468,
+      "cl_success": null,
+      "status": "PM 평가 완료 (94.68%). CL 미평가"
+    },
+    "exp54_stage2_v1": {
+      "ckpt": "runs/v5_nav/mlp/exp54/stage2/stage2_mlp.pt",
+      "stage1_required": "runs/v5_nav/mlp/exp53/clip_lora_adapter/",
+      "type": "FrozenCLIPLoRA + ActionMLP (Stage1 LoRA frozen)",
+      "d_in": 1056,
+      "input": "bbox(32) + CLIP-LoRA-feat(1024)",
+      "vision_source": "online (VLM + LoRA forward pass required)",
+      "vlm_required": ".vlms/kosmos-2-patch14-224",
+      "window": 8,
+      "num_classes": 8,
+      "eval_script": "scripts/eval_exp54_stage2.py",
+      "pm_offline": null,
+      "cl_success": null,
+      "status": "미평가"
+    },
+    "exp54_stage2_v2": {
+      "ckpt": "runs/v5_nav/mlp/exp54/stage2_v2/stage2_v2_mlp.pt",
+      "stage1_required": "runs/v5_nav/mlp/exp54/stage1_v2/stage1_v2_projs.pt",
+      "type": "FrozenCLIPV2 + ActionMLP",
       "d_in": 288,
-      "architecture": "ActionMLP: bbox(8×4=32) + proj_feat(256) → 256 → 8",
-      "val_acc": 0.9259,
-      "class_acc": {
-        "STOP":    null,
-        "FORWARD": 0.939,
-        "LEFT":    0.917,
-        "RIGHT":   0.700,
-        "FWD+L":   0.941,
-        "FWD+R":   0.852,
-        "ROT_L":   1.000,
-        "ROT_R":   1.000
-      },
-      "inference_class": "미구현 (FrozenCLIPV2 + ActionMLP 파이프라인 필요)",
-      "deployed": false,
-      "note": "exp49 대비 -3.8%p. RIGHT 70%로 약함. stage1_v2와 함께 로드 필요",
-      "eval_script": "scripts/eval_exp54_stage2_v2.py"
-    },
-    "pm": null,
-    "cl": null
+      "input": "bbox(32) + CLIP-proj-feat(256, L2-normed)",
+      "vision_source": "online (base Kosmos-2 + image_proj forward pass)",
+      "vlm_required": ".vlms/kosmos-2-patch14-224",
+      "window": 8,
+      "num_classes": 8,
+      "eval_script_pm": "scripts/eval_exp54_stage2_v2.py",
+      "eval_script_cl": "scripts/eval_exp54_stage2_v2_closedloop.py",
+      "pm_offline": null,
+      "cl_success": null,
+      "status": "학습 중 (PID 1405772) — 완료 후 rsync 추가 필요"
+    }
   },
 
-  "ranking": {
-    "val_acc_순": ["exp49(0.9639)", "exp53(0.9468)", "exp52(0.9392)", "exp51(0.9335)", "exp54_s2v2(0.9259)", "exp50(0.9202)"],
-    "현재_배포": "exp49",
-    "차순위_후보": "exp53 (inference 미구현)",
-    "비고": "val_acc ≠ closed-loop 성능. exp25(PM52%→CL55.6%) 선례처럼 CL 평가 필수"
+  "eval_dependencies": {
+    "exp49_to_52_offline": "docs/v5/bbox_nav_exp46/vision_features.npz (6.7MB)",
+    "exp52_only": "docs/v5/bbox_nav_exp52/lang_vis_features.npz (13MB)",
+    "exp53_to_exp54": ".vlms/kosmos-2-patch14-224 (SODA에 이미 존재해야 함)",
+    "shared_metadata": "docs/v5/bbox_nav_exp46/bbox_dataset_full.json"
+  },
+
+  "baseline_reference": {
+    "exp17": {"cl_success": 0.111, "note": "현재 SODA primary"},
+    "exp18": {"cl_success": 0.111, "note": "현재 SODA fallback"},
+    "exp25": {"pm_offline": 0.524, "cl_success": 0.556, "note": "현재 최선 (minum 기록)"},
+    "exp14_step2": {"pm_offline": 0.759, "cl_success": 0.667, "note": "decomposition best (로봇 미연결)"}
+  },
+
+  "deploy_threshold": {
+    "cl_success_min": 0.333,
+    "note": "Exp17 대비 3배 이상이어야 서버 교체 고려"
   }
 }
