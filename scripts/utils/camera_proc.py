@@ -64,10 +64,17 @@ def stop_camera() -> str:
     return camera_status_text()
 
 
-def camera_control_widget() -> gr.Textbox:
+def camera_control_widget():
     """
     gr.Blocks 컨텍스트 안에서 호출 → 카메라 Start/Stop 위젯 한 Row 추가.
-    반환값: cam_status Textbox (외부에서 업데이트 가능)
+
+    반환: (cam_status, cam_start_btn, cam_stop_btn)
+    - cam_start_btn / cam_stop_btn 은 내부에서 click 미연결 상태로 반환.
+    - 호출측에서 반드시 직접 연결할 것:
+        cam_start_btn.click(fn=start_camera, outputs=cam_status)
+        cam_stop_btn.click(fn=stop_camera,   outputs=cam_status)
+    - timer 연동이 필요하면 .then() 체인 추가:
+        cam_start_btn.click(...).then(lambda: gr.update(active=True), outputs=timer)
     """
     with gr.Row():
         cam_status = gr.Textbox(
@@ -80,8 +87,6 @@ def camera_control_widget() -> gr.Textbox:
         cam_stop  = gr.Button("■ 정지",        variant="stop",    scale=1, size="sm")
         cam_ref   = gr.Button("↻",                                scale=0, size="sm")
 
-    cam_start.click(fn=start_camera, outputs=cam_status)
-    cam_stop.click(fn=stop_camera,   outputs=cam_status)
     cam_ref.click(fn=camera_status_text, outputs=cam_status)
 
-    return cam_status
+    return cam_status, cam_start, cam_stop

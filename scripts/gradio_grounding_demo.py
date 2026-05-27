@@ -1,4 +1,34 @@
 #!/usr/bin/env python3
+# ── ROS workspace 경로 주입 (다른 import보다 먼저) ────────────────────────────
+import os, sys as _sys
+
+_ROS_WS = "/home/soda/MoNaVLA/ROS_action/install"
+_ros_lib_dirs = [
+    f"{_ROS_WS}/camera_interfaces/lib",
+    f"{_ROS_WS}/camera_pub/lib",
+]
+_ros_py_dirs = [
+    f"{_ROS_WS}/camera_interfaces/local/lib/python3.10/dist-packages",
+    f"{_ROS_WS}/camera_pub/local/lib/python3.10/dist-packages",
+]
+
+_ld = os.environ.get("LD_LIBRARY_PATH", "")
+_need_restart = any(p not in _ld for p in _ros_lib_dirs if os.path.isdir(p))
+if _need_restart:
+    _new_ld = ":".join(p for p in _ros_lib_dirs if os.path.isdir(p))
+    os.environ["LD_LIBRARY_PATH"] = _new_ld + (":" + _ld if _ld else "")
+    _pp = os.environ.get("PYTHONPATH", "")
+    _new_pp = ":".join(p for p in _ros_py_dirs if os.path.isdir(p))
+    os.environ["PYTHONPATH"] = _new_pp + (":" + _pp if _pp else "")
+    os.environ.setdefault("ROS_DOMAIN_ID", "42")
+    os.environ.setdefault("RMW_IMPLEMENTATION", "rmw_fastrtps_cpp")
+    os.execv(_sys.executable, [_sys.executable] + _sys.argv)
+
+# Python path (재시작 없이 실행된 경우 대비)
+for _p in _ros_py_dirs:
+    if os.path.isdir(_p) and _p not in _sys.path:
+        _sys.path.insert(0, _p)
+# ─────────────────────────────────────────────────────────────────────────────
 """
 Object Recognition Demo — Kosmos-2 그라운딩 인터랙티브 테스트
 ROS 카메라 자동 피드 / 이미지 업로드 → bbox 오버레이 + VLA 추론 연동
@@ -21,7 +51,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from scripts.utils.camera_proc import camera_control_widget
+from scripts.utils.camera_proc import camera_control_widget, start_camera, stop_camera, is_camera_running
 
 import cv2
 import gradio as gr
@@ -29,6 +59,37 @@ import numpy as np
 import requests
 import torch
 from PIL import Image, ImageDraw
+
+# ─── 실시간 터미널 로그 버퍼 (한국어 주석 적용) ───────────────────────────────────
+import collections
+_log_buffer = collections.deque(maxlen=200)
+_log_lock = threading.Lock()
+
+class DualRedirector:
+    def __init__(self, stream, callback):
+        self.stream = stream
+        self.callback = callback
+
+    def write(self, message):
+        self.callback(message)
+        self.stream.write(message)
+
+    def flush(self):
+        self.stream.flush()
+
+    def __getattr__(self, attr):
+        return getattr(self.stream, attr)
+
+def _log_callback(msg):
+    with _log_lock:
+        _log_buffer.append(msg)
+
+sys.stdout = DualRedirector(sys.stdout, _log_callback)
+sys.stderr = DualRedirector(sys.stderr, _log_callback)
+
+def get_terminal_logs():
+    with _log_lock:
+        return "".join(_log_buffer)
 
 from scripts.run_grounding_realtime import (
     load_model,
@@ -283,22 +344,51 @@ def _ensure_model(adapter_label: str):
         model, processor = load_model(model_path, adapter_path, device)
 
     elif adapter_label == "PaliGemma-3B":
-        from transformers import AutoProcessor, PaliGemmaForConditionalGeneration
-        pg_dtype = torch.bfloat16 if device.type == "cuda" else torch.float32
+        from transformers import AutoProcessor, PaliGemmaForConditionalGeneration, BitsAndBytesConfig
         processor = AutoProcessor.from_pretrained(model_path)
-        model = PaliGemmaForConditionalGeneration.from_pretrained(
-            model_path, torch_dtype=pg_dtype
-        ).to(device).eval()
+        if device.type == "cuda":
+            # Jetson Orin 등 리소스 제약 환경을 위해 4비트 양자화 로드 적용
+            bnb_config = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_quant_type="nf4",
+                bnb_4bit_compute_dtype=torch.bfloat16,
+                bnb_4bit_use_double_quant=True,
+            )
+            model = PaliGemmaForConditionalGeneration.from_pretrained(
+                model_path,
+                quantization_config=bnb_config,
+                device_map={"": device}
+            ).eval()
+        else:
+            model = PaliGemmaForConditionalGeneration.from_pretrained(
+                model_path, torch_dtype=torch.float32
+            ).to(device).eval()
 
     elif adapter_label == "Moondream2":
-        from transformers import AutoModelForCausalLM, AutoTokenizer
+        from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
         processor = AutoTokenizer.from_pretrained(model_path)
-        model = AutoModelForCausalLM.from_pretrained(
-            model_path,
-            trust_remote_code=True,
-            revision=_MOONDREAM_REVISION if "moondream2" in model_path else None,
-            torch_dtype=dtype,
-        ).to(device).eval()
+        if device.type == "cuda":
+            # Jetson Orin 등 리소스 제약 환경을 위해 4비트 양자화 로드 적용
+            bnb_config = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_quant_type="nf4",
+                bnb_4bit_compute_dtype=torch.float16,
+                bnb_4bit_use_double_quant=True,
+            )
+            model = AutoModelForCausalLM.from_pretrained(
+                model_path,
+                trust_remote_code=True,
+                revision=_MOONDREAM_REVISION if "moondream2" in model_path else None,
+                quantization_config=bnb_config,
+                device_map={"": device}
+            ).eval()
+        else:
+            model = AutoModelForCausalLM.from_pretrained(
+                model_path,
+                trust_remote_code=True,
+                revision=_MOONDREAM_REVISION if "moondream2" in model_path else None,
+                torch_dtype=torch.float32,
+            ).to(device).eval()
     else:
         raise ValueError(f"Unknown local VLM: {adapter_label}")
 
@@ -366,7 +456,14 @@ def run_grounding(image, phrase: str, adapter_label: str):
     if not phrase:
         return None, "⚠️ Phrase를 입력해주세요", ""
 
-    model, proc = _ensure_model(adapter_label)
+    try:
+        model, proc = _ensure_model(adapter_label)
+    except Exception as e:
+        import traceback
+        err_msg = f"❌ 모델 로드 오류: {e}\n{traceback.format_exc()}"
+        print(err_msg)
+        return None, f"⚠️ 모델 로드 실패: {e}", "❌ 에러 로그 확인 필요"
+
     img_np = _to_numpy(image)
     pil_img = Image.fromarray(img_np).convert("RGB")
 
@@ -445,7 +542,14 @@ def run_alias_test(image, alias_text: str, adapter_label: str):
     if not phrases:
         return None, "⚠️ Phrase를 한 줄씩 입력해주세요"
 
-    model, proc = _ensure_model(adapter_label)
+    try:
+        model, proc = _ensure_model(adapter_label)
+    except Exception as e:
+        import traceback
+        err_msg = f"❌ 모델 로드 오류: {e}\n{traceback.format_exc()}"
+        print(err_msg)
+        return None, f"⚠️ 모델 로드 실패: {e}\n\n{traceback.format_exc()}"
+
     img_np = _to_numpy(image)
     pil_img = Image.fromarray(img_np).convert("RGB")
 
@@ -542,16 +646,17 @@ def run_vqa(image, prompt: str, adapter_label: str, add_grounding_tag: bool):
     pil_img = Image.fromarray(img_np).convert("RGB")
 
     device = _DEVICE
-    model, proc = _ensure_model(adapter_label)
-
-    if add_grounding_tag and adapter_label in ("Pure Kosmos-2", "Exp56 LoRA"):
-        if not prompt.startswith("<grounding>"):
-            prompt = f"<grounding>{prompt}"
-
-    dtype = torch.float16 if device.type == "cuda" else torch.float32
-
     start_time = time.time()
+
     try:
+        model, proc = _ensure_model(adapter_label)
+        
+        if add_grounding_tag and adapter_label in ("Pure Kosmos-2", "Exp56 LoRA"):
+            if not prompt.startswith("<grounding>"):
+                prompt = f"<grounding>{prompt}"
+
+        dtype = torch.float16 if device.type == "cuda" else torch.float32
+
         if adapter_label in ("Pure Kosmos-2", "Exp56 LoRA"):
             inputs = proc(text=prompt, images=pil_img, return_tensors="pt")
             inputs = {k: v.to(device) for k, v in inputs.items()}
@@ -701,8 +806,8 @@ def build_ui() -> gr.Blocks:
     with gr.Blocks(title="Object Recognition Demo") as demo:
         gr.Markdown("# Object Recognition Demo")
 
-        # 카메라 프로세스 제어
-        camera_control_widget()
+        # 카메라 프로세스 제어 (버튼은 타이머 정의 후 연결)
+        _cam_proc_st, _cam_start_btn, _cam_stop_btn = camera_control_widget()
 
         # 상단 상태 바
         with gr.Row():
@@ -868,16 +973,44 @@ def build_ui() -> gr.Blocks:
                              inputs=[img_va, alias_txt_v, vla_vlm_dd],
                              outputs=[out_img_va, out_sum_va])
 
+        gr.Markdown("---")
+        console_log_txt = gr.Textbox(
+            label="🖥️ 실시간 터미널 로그 (모델 로드/에러 출력)",
+            lines=8,
+            max_lines=15,
+            interactive=False,
+        )
+
+        console_timer = gr.Timer(value=1.0, active=True)
+        console_timer.tick(
+            fn=get_terminal_logs,
+            outputs=[console_log_txt],
+        )
+
         # ── 공유 타이머: 모든 탭의 카메라 이미지 자동 갱신 ─────────────────────
-        timer = gr.Timer(value=1.0, active=ROS_AVAILABLE)
+        # 카메라 프로세스가 실행 중이면 타이머 즉시 활성화
+        timer = gr.Timer(value=1.0, active=ROS_AVAILABLE or is_camera_running())
         timer.tick(
             fn=timer_tick,
             outputs=[img_v, img_va, img_g, img_q, cam_status_txt],
         )
-        # Alias Test 탭은 별도 tick 연결 (Grounding과 공유하면 충돌)
         timer.tick(
             fn=lambda: _last_frame,
             outputs=[img_a],
+        )
+
+        # ── 카메라 위젯 버튼 → 타이머 동기화 ───────────────────────────────────
+        _cam_start_btn.click(
+            fn=start_camera, outputs=_cam_proc_st,
+        ).then(
+            fn=lambda: gr.update(active=is_camera_running()),
+            outputs=timer,
+        )
+        _cam_stop_btn.click(
+            fn=stop_camera, outputs=_cam_proc_st,
+        ).then(
+            fn=lambda: gr.update(active=False),
+            outputs=timer,
         )
 
     return demo
