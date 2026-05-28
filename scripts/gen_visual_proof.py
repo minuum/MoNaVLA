@@ -79,7 +79,7 @@ def draw_bbox_on_image(
     draw.rectangle([0, 0, display_w, banner_h], fill=banner_color)
     text = ("✓ " if hit else "✗ ") + label
     try:
-        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 16)
+        font = ImageFont.truetype("/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc", 16)
     except Exception:
         font = ImageFont.load_default()
     draw.text((8, 6), text, fill=(255, 255, 255), font=font)
@@ -189,7 +189,7 @@ def build_r2_3_cross_object(ann: list, pali_details: list, ep_indices: list) -> 
             draw.rectangle([0, 0, dw, 32], fill=banner_color)
             icon = "✓" if hit else "✗"
             try:
-                font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 15)
+                font = ImageFont.truetype("/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc", 15)
             except Exception:
                 font = ImageFont.load_default()
             draw.text((8, 8), f'{icon}  detect "{phrase}"', fill=(255, 255, 255), font=font)
