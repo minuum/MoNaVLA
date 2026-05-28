@@ -348,23 +348,18 @@ def evaluate(model, processor, samples: list[dict], device, max_eval: int = 80) 
             "n": d["n"],
         }
 
-    # 전체 TP / FP / separation
-    tp_labels = ["gray basket", "brown pot"]
-    fp_labels = ["neg_brown_pot_on_v5", "neg_gray_basket_on_v4"]
-    tp_hits = sum(result[l]["hits"] if l in result else 0
-                  for l in tp_labels for _ in range(1))
-    tp_hits = sum(result[l].get("hits", 0) * result[l].get("n", 0)
-                  for l in tp_labels if l in result)
-    tp_n    = sum(result[l].get("n", 0) for l in tp_labels if l in result)
-    fp_hits = sum(result[l].get("hits", 0) * result[l].get("n", 0)
-                  for l in fp_labels if l in result)
-    fp_n    = sum(result[l].get("n", 0) for l in fp_labels if l in result)
+    # TP: gray basket (positive class)
+    # FP labels: neg_* (negative — 검출 안 해야 하는 것들)
+    tp_labels = ["gray basket"]
+    fp_labels = [l for l in by_label if l.startswith("neg_")]
 
-    # 수정: hit_rate는 이미 계산됨
-    tp_rate = sum(result[l]["hit_rate"] * result[l]["n"]
-                  for l in tp_labels if l in result) / max(tp_n, 1)
-    fp_rate = sum(result[l]["hit_rate"] * result[l]["n"]
-                  for l in fp_labels if l in result) / max(fp_n, 1)
+    tp_n    = sum(result[l]["n"] for l in tp_labels if l in result)
+    fp_n    = sum(result[l]["n"] for l in fp_labels if l in result)
+
+    tp_rate = (sum(result[l]["hit_rate"] * result[l]["n"]
+                   for l in tp_labels if l in result) / max(tp_n, 1))
+    fp_rate = (sum(result[l]["hit_rate"] * result[l]["n"]
+                   for l in fp_labels if l in result) / max(fp_n, 1))
 
     result["overall"]    = {"hit_rate": tp_rate, "n": tp_n}
     result["separation"] = {"tp_rate": tp_rate, "fp_rate": fp_rate,
