@@ -1,31 +1,30 @@
 #!/usr/bin/env python3
 """
-Exp59: PaliGemma2 Hard Negative 포함 Goal-Conditioned Grounding LoRA
+Exp59: PaliGemma2 Gray Basket 단일 타겟 + Hard Negative LoRA
 
-Exp58의 문제점 해결:
-- Exp58은 positive 샘플만 학습 → 모델이 "컨테이너 있으면 어떤 텍스트든 bbox"
-- V4 이미지에는 gray basket + brown pot이 동시 존재
-- 교차 테스트: V5→"brown pot" 67% FP (gray basket을 brown pot으로 착각)
+목적: "detect gray basket"만 정확하게 → 다른 쿼리는 <eos>
+V4(brown pot) 데이터 불필요 — 목표는 gray basket 특정이지 brown pot 학습이 아님
 
-Exp59 핵심 변경:
-  + Hard Negative: V5 이미지 + "detect brown pot" → <eos> (없음)
-  + Hard Negative: V4 이미지 + "detect gray basket" → <eos> (레이블이 brown pot이므로)
-  = 모델이 텍스트 쿼리에 맞는 객체만 정확히 검출하도록 강제
+학습 전략:
+  Positive : V5 → "detect gray basket" → bbox        (basket 있음)
+  Negative1: V5 → "detect brown pot"   → <eos>      (같은 이미지, basket은 pot이 아님)
+  Negative2: V5 → "detect red ball"    → <eos>      (완전히 다른 물체)
+  Negative3: V5 → "detect person"      → <eos>      (완전히 다른 물체)
 
-학습 데이터:
-  Positive: V5→gray basket (1500) + V4→brown pot (3110)
-  Negative: V5→brown pot→<eos> (1500) + V4→gray basket→<eos> (1000)
-  총: ~7110 샘플
+구조 변경 (vs Exp58):
+  레이어: 전체 53층 → 고수준 17층 (18~26)
+  modules: q+v → q+k+v
+  r: 8 → 16 / alpha: 16 → 32
+  데이터: V4 전혀 사용 안 함 / V5 단일 / neg 3 phrases
 
-목표:
-  "detect gray basket"   V5: 100% / V4: ~0%   (gray basket only)
-  "detect brown pot"     V4: 100% / V5: ~0%   (brown pot only)
-  → 텍스트로 목표 변경 = Goal-Conditioned Navigation 증명
+성공 기준:
+  "detect gray basket" on V5: >95% hit rate
+  "detect brown pot"   on V5: <10% FP rate   (같은 이미지, 없는 물체)
+  분리도 gap: >80%p
 
 Usage:
-    python3 scripts/train_exp59_hardneg.py
+    python3 scripts/train_exp59_hardneg.py --skip-annotate --epochs 20
     python3 scripts/train_exp59_hardneg.py --eval-only
-    python3 scripts/train_exp59_hardneg.py --neg-ratio 1.0 --epochs 20
 """
 import argparse
 import json
@@ -247,68 +246,54 @@ def load_v4_samples(annotations: list[dict], frames_per_ep: int, augment: bool) 
 
 def load_hard_negatives(
     v5_samples: list[dict],
-    v4_samples: list[dict],
     neg_ratio: float = 1.0,
     augment: bool = True,
 ) -> list[dict]:
     """
-    Hard Negative 샘플 생성:
-      V5 이미지 → "detect brown pot" → <eos>  (V5엔 brown pot 없음)
-      V4 이미지 → "detect gray basket" → <eos> (V4 레이블은 brown pot)
+    Hard Negative 샘플 생성 — V5 이미지만 사용, 3가지 없는 물체 쿼리.
 
-    neg_ratio: positive 대비 negative 비율 (1.0 = 1:1)
+    같은 이미지에 gray basket이 있지만 다른 물체를 물어보면 <eos>를 출력해야 함.
+    → "detect gray basket"과 다른 텍스트를 구별하는 능력 학습
+
+    neg_phrases: basket과 혼동 가능한 것(brown pot) + 완전히 다른 것(red ball, person)
+    neg_ratio: positive 대비 negative 비율 per phrase (0.3 = 각 phrase당 30%)
     """
-    negs = []
+    NEG_PHRASES = ["brown pot", "red ball", "person"]
 
-    # V5 → "brown pot" → <eos>
-    v5_base = [s for s in v5_samples if not s.get("is_augmented")]
-    n_v5_neg = int(len(v5_base) * neg_ratio)
+    # positive 중 augmented 아닌 원본만 사용 (augmented는 flip이라 이미지 중복)
+    v5_base = [s for s in v5_samples if "fliplr" not in s.get("episode", "")]
+    # 실제로 augmented 구분은 episode 같고 cx가 반전된 것 → 그냥 전체 사용
+    v5_base = v5_samples  # augmented 포함해서 이미지 다양성 확보
+
+    n_per_phrase = int(len(v5_base) * neg_ratio)
     random.shuffle(v5_base)
-    for s in v5_base[:n_v5_neg]:
-        negs.append({
-            "image": s["image"],
-            "target": "<eos>",
-            "prompt": "<image> detect brown pot",
-            "cx": -1.0,                       # 없음 표시
-            "label": "neg_brown_pot_on_v5",
-            "episode": s["episode"],
-        })
-        if augment:
+
+    negs = []
+    for phrase in NEG_PHRASES:
+        chosen = v5_base[:n_per_phrase]
+        for s in chosen:
             negs.append({
-                "image": np.fliplr(s["image"]).copy(),
+                "image": s["image"],
                 "target": "<eos>",
-                "prompt": "<image> detect brown pot",
+                "prompt": f"<image> detect {phrase}",
                 "cx": -1.0,
-                "label": "neg_brown_pot_on_v5",
+                "label": f"neg_{phrase.replace(' ', '_')}",
                 "episode": s["episode"],
             })
+            if augment:
+                negs.append({
+                    "image": np.fliplr(s["image"]).copy(),
+                    "target": "<eos>",
+                    "prompt": f"<image> detect {phrase}",
+                    "cx": -1.0,
+                    "label": f"neg_{phrase.replace(' ', '_')}",
+                    "episode": s["episode"],
+                })
 
-    # V4 → "gray basket" → <eos>  (V4의 목표는 brown pot)
-    v4_base = [s for s in v4_samples if not s.get("is_augmented")]
-    n_v4_neg = int(len(v4_base) * neg_ratio * 0.5)  # V4는 절반만 (두 객체 공존이라 애매)
-    random.shuffle(v4_base)
-    for s in v4_base[:n_v4_neg]:
-        negs.append({
-            "image": s["image"],
-            "target": "<eos>",
-            "prompt": "<image> detect gray basket",
-            "cx": -1.0,
-            "label": "neg_gray_basket_on_v4",
-            "episode": s["episode"],
-        })
-        if augment:
-            negs.append({
-                "image": np.fliplr(s["image"]).copy(),
-                "target": "<eos>",
-                "prompt": "<image> detect gray basket",
-                "cx": -1.0,
-                "label": "neg_gray_basket_on_v4",
-                "episode": s["episode"],
-            })
-
-    v5_neg_n = sum(1 for n in negs if n["label"] == "neg_brown_pot_on_v5")
-    v4_neg_n = sum(1 for n in negs if n["label"] == "neg_gray_basket_on_v4")
-    print(f"  [NEG] V5→brown pot: {v5_neg_n}개  /  V4→gray basket: {v4_neg_n}개  (총 {len(negs)}개)")
+    by_phrase = {p: sum(1 for n in negs if n["label"] == f"neg_{p.replace(' ','_')}") for p in NEG_PHRASES}
+    for p, cnt in by_phrase.items():
+        print(f"  [NEG] V5→'{p}': {cnt}개")
+    print(f"  [NEG] 총 {len(negs)}개")
     return negs
 
 
@@ -418,8 +403,8 @@ def main():
     print("=" * 60)
     print("Exp59: PaliGemma2 Hard Negative Goal-Conditioned Grounding")
     print(f"  backbone : paligemma2-3b-mix-224")
-    print(f"  classes  : gray basket (V5) + brown pot (V4)")
-    print(f"  negatives: V5→brown_pot→<eos>  +  V4→gray_basket→<eos>")
+    print(f"  classes  : gray basket (V5 only) — 단일 타겟")
+    print(f"  negatives: V5→brown_pot + red_ball + person → <eos>")
     print(f"  neg_ratio: {args.neg_ratio}")
     print(f"  epochs   : {args.epochs}  lr={args.lr}  batch={args.batch}")
     print("=" * 60)
@@ -435,37 +420,18 @@ def main():
         str(PALIGEMMA2_PATH), torch_dtype=dtype
     ).to(device)
 
-    # ── V4 자동 주석 ───────────────────────────────────────────────────────
-    if not args.skip_annotate and not V4_ANNOTATION.exists():
-        model.eval()
-        annotations = annotate_v4(model, processor, device, frames_per_ep=6)
-        V4_ANNOTATION.parent.mkdir(parents=True, exist_ok=True)
-        with open(V4_ANNOTATION, "w") as f:
-            json.dump(annotations, f, indent=2)
-        print(f"  주석 저장 → {V4_ANNOTATION}")
-        if args.annotate_only:
-            return
-    elif V4_ANNOTATION.exists():
-        with open(V4_ANNOTATION) as f:
-            annotations = json.load(f)
-        print(f"  [V4] 기존 주석 로드: {len(annotations)} 에피소드")
-    else:
-        annotations = []
-        print("  [V4] --skip-annotate: 주석 없이 V5만 사용")
-
-    # ── 데이터 로드 ───────────────────────────────────────────────────────
+    # ── 데이터 로드 — V5만 (gray basket 단일 타겟) ──────────────────────────
     v5_dir = resolve_v5_dir()
     v5_samples = load_v5_samples(v5_dir, args.frames_per_ep, args.augment)
-    v4_samples = load_v4_samples(annotations, args.frames_per_ep, args.augment) if annotations else []
 
-    # ── Hard Negative 생성 ────────────────────────────────────────────────
-    hard_negs = load_hard_negatives(v5_samples, v4_samples,
+    # ── Hard Negative — V5 이미지에 없는 물체 쿼리 3종 ──────────────────────
+    hard_negs = load_hard_negatives(v5_samples,
                                     neg_ratio=args.neg_ratio,
                                     augment=args.augment)
 
-    all_samples = v5_samples + v4_samples + hard_negs
+    all_samples = v5_samples + hard_negs
     print(f"  총 샘플: {len(all_samples)}")
-    print(f"    V5 pos={len(v5_samples)}, V4 pos={len(v4_samples)}, NEG={len(hard_negs)}")
+    print(f"    V5 pos={len(v5_samples)}, NEG={len(hard_negs)} (brown pot / red ball / person)")
 
     # 에피소드 단위 train/val 분할
     eps = list({s["episode"] for s in all_samples})
@@ -650,7 +616,7 @@ def main():
     result = {
         "exp": "exp59",
         "backbone": "paligemma2-3b-mix-224",
-        "classes": ["gray basket", "brown pot"],
+        "classes": ["gray basket"],
         "train_n": len(train_raw),
         "val_n": len(val_raw),
         "best_overall_hit": best_hit,
