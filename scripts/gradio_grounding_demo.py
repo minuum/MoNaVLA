@@ -340,8 +340,19 @@ def _ensure_model(adapter_label: str):
     print(f"Loading {adapter_label} from: {model_path}")
 
     if adapter_label in ("Pure Kosmos-2", "Exp56 LoRA"):
+        # Kosmos-2: uint8 image token 텐서 포함 → bitsandbytes 양자화 절대 불가
+        # float16(CUDA) / float32(CPU) 로드만 허용 (load_in_4bit/8bit 금지)
+        from transformers import AutoModelForVision2Seq, AutoProcessor
+        from peft import PeftModel
+        dtype = torch.float16 if device.type == "cuda" else torch.float32
+        processor = AutoProcessor.from_pretrained(model_path)
+        model = AutoModelForVision2Seq.from_pretrained(
+            model_path, torch_dtype=dtype, low_cpu_mem_usage=True
+        ).to(device).eval()
         adapter_path = ADAPTER_OPTIONS.get(adapter_label)
-        model, processor = load_model(model_path, adapter_path, device)
+        if adapter_path and Path(adapter_path).exists():
+            model = PeftModel.from_pretrained(model, str(adapter_path))
+        print(f"[LOAD] Kosmos-2 완료 ({dtype}, no quantization)")
 
     elif adapter_label == "PaliGemma-3B":
         from transformers import AutoProcessor, PaliGemmaForConditionalGeneration, BitsAndBytesConfig

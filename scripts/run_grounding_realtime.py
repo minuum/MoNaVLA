@@ -78,10 +78,15 @@ def load_model(vlm_path: Path, adapter_path: Path | None, device: torch.device):
     from peft import PeftModel
 
     print(f"[LOAD] Kosmos-2 from {vlm_path}")
+    # Kosmos-2는 uint8 텐서(image embedding) 포함 → bitsandbytes 양자화 불가
+    # 반드시 float16/float32로만 로드해야 함 (quantization 옵션 없이)
     dtype = torch.float16 if device.type == "cuda" else torch.float32
     processor = AutoProcessor.from_pretrained(str(vlm_path))
     model = AutoModelForVision2Seq.from_pretrained(
-        str(vlm_path), torch_dtype=dtype
+        str(vlm_path),
+        torch_dtype=dtype,
+        low_cpu_mem_usage=True,
+        # load_in_4bit / load_in_8bit 절대 사용 금지 — uint8 텐서 충돌
     ).to(device)
 
     if adapter_path is not None and adapter_path.exists():
