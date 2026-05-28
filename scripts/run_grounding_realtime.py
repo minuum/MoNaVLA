@@ -1,21 +1,25 @@
 #!/usr/bin/env python3
 """
-Kosmos-2 실시간 그라운딩 데모 — 로봇서버 배포용
+Kosmos-2 / PaliGemma 실시간 그라운딩 데모 — 로봇서버 배포용
 
-카메라/H5 프레임 → Kosmos-2 Grounding → bbox 오버레이 저장
+카메라/H5 프레임 → VLM Grounding → bbox 오버레이 저장
 로컬 HTTP 서버(7860)로 결과 실시간 확인 가능.
 
 Usage:
-  # H5 에피소드 처리
+  # H5 에피소드 처리 (Kosmos-2 기본)
   python3 run_grounding_realtime.py --source /path/to/episode.h5
+
+  # Exp57 PaliGemma LoRA 사용 (백본 자동 감지)
+  python3 run_grounding_realtime.py --source /path/to/episode.h5 \
+      --adapter exp57
 
   # 여러 phrase 비교 (R2-3 데모)
   python3 run_grounding_realtime.py --source /path/to/episode.h5 \
-      --phrases "gray basket" "red ball" "person"
+      --adapter exp57 --phrases "gray basket" "red ball" "person"
 
-  # Exp56 adapter 사용
+  # Exp56 Kosmos-2 adapter 사용
   python3 run_grounding_realtime.py --source /path/to/episode.h5 \
-      --adapter /path/to/runs/v5_nav/grounding/exp56
+      --adapter exp56
 
   # 결과 HTTP 서버
   python3 run_grounding_realtime.py --source /path/to/episode.h5 --serve
@@ -40,11 +44,15 @@ from PIL import Image, ImageDraw, ImageFont
 
 # ─── 설정 ──────────────────────────────────────────────────────────────────
 
-DEFAULT_VLM    = ROOT / ".vlms" / "kosmos-2-patch14-224"
+DEFAULT_VLM         = ROOT / ".vlms" / "kosmos-2-patch14-224"
+PALIGEMMA_VLM       = Path("/home/minum/.cache/huggingface/hub/models--google--paligemma-3b-pt-224/snapshots/35e4f46485b4d07967e7e9935bc3786aad50687c")
 DEFAULT_ADAPTERS = {
     "old":   ROOT / "docs" / "v5" / "bbox_nav_step1" / "grounding_lora",
     "exp56": ROOT / "runs" / "v5_nav" / "grounding" / "exp56",
+    "exp57": ROOT / "runs" / "v5_nav" / "grounding" / "exp57",   # PaliGemma LoRA
 }
+# exp57는 PaliGemma backbone 필요
+PALIGEMMA_ADAPTERS = {"exp57"}
 OUT_DIR = ROOT / "docs" / "v5" / "grounding_demo" / "realtime_test"
 
 BASKET_KW = ("basket", "gray box", "container", "bin", "laundry")
@@ -86,6 +94,27 @@ def load_model(vlm_path: Path, adapter_path: Path | None, device: torch.device):
     return model, processor
 
 
+def load_paligemma_model(vlm_path: Path, adapter_path: Path | None, device: torch.device):
+    from transformers import PaliGemmaProcessor, PaliGemmaForConditionalGeneration
+    from peft import PeftModel
+
+    print(f"[LOAD] PaliGemma from {vlm_path}")
+    dtype = torch.bfloat16 if device.type == "cuda" else torch.float32
+    processor = PaliGemmaProcessor.from_pretrained(str(vlm_path))
+    model = PaliGemmaForConditionalGeneration.from_pretrained(
+        str(vlm_path), torch_dtype=dtype
+    ).to(device)
+
+    if adapter_path is not None and adapter_path.exists():
+        print(f"[LOAD] PaliGemma Adapter from {adapter_path}")
+        model = PeftModel.from_pretrained(model, str(adapter_path))
+    else:
+        print("[LOAD] No adapter — pure PaliGemma")
+
+    model.eval()
+    return model, processor
+
+
 @torch.no_grad()
 def ground(model, processor, image: np.ndarray, phrase: str, device) -> dict:
     """이미지 + 문자열 → bbox + 캡션 반환"""
@@ -117,6 +146,31 @@ def ground(model, processor, image: np.ndarray, phrase: str, device) -> dict:
                 "bbox_xyxy": list(box),  # normalized [x1,y1,x2,y2]
             })
     return {"caption": caption, "entities": entities, "boxes": boxes}
+
+
+@torch.no_grad()
+def ground_paligemma(model, processor, image: np.ndarray, phrase: str, device) -> dict:
+    """PaliGemma detect 추론: detect <phrase> → <loc####>×4 or <eos>"""
+    import re
+    pil = Image.fromarray(image).convert("RGB")
+    prompt = f"detect {phrase}"
+    dtype = torch.bfloat16 if device.type == "cuda" else torch.float32
+    inp = processor(text=prompt, images=pil, return_tensors="pt").to(device)
+    inp["pixel_values"] = inp["pixel_values"].to(dtype)
+    gen = model.generate(**inp, max_new_tokens=64, do_sample=False)
+    new_ids = gen[:, inp["input_ids"].shape[1]:]
+    raw = processor.batch_decode(new_ids, skip_special_tokens=False)[0]
+
+    loc_tokens = re.findall(r"<loc(\d{4})>", raw)
+    boxes = []
+    if len(loc_tokens) >= 4:
+        for i in range(0, len(loc_tokens) - 3, 5):
+            y1, x1, y2, x2 = [int(loc_tokens[i+j]) / 1023.0 for j in range(4)]
+            boxes.append({
+                "entity": phrase,
+                "bbox_xyxy": [x1, y1, x2, y2],  # convert to xyxy normalized
+            })
+    return {"caption": raw.strip(), "entities": [], "boxes": boxes}
 
 
 def draw_overlay(image: np.ndarray, phrase: str, result: dict) -> Image.Image:
@@ -205,7 +259,10 @@ def process_episode(
     out_dir: Path,
     fps_limit: float = 2.0,
     max_frames: int = 0,
+    ground_fn=None,
 ) -> dict:
+    if ground_fn is None:
+        ground_fn = ground
     out_dir.mkdir(parents=True, exist_ok=True)
 
     stats = {p: {"hits": 0, "total": 0} for p in phrases}
@@ -224,7 +281,7 @@ def process_episode(
 
         row_imgs = []
         for phrase in phrases:
-            result = ground(model, processor, frame, phrase, device)
+            result = ground_fn(model, processor, frame, phrase, device)
             hit = check_hit(result, phrase)
             stats[phrase]["total"] += 1
             if hit:
@@ -245,7 +302,7 @@ def process_episode(
 
         elapsed = time.time() - t0
         hit_str = " | ".join(
-            f"{p}={'✅' if check_hit(ground(model, processor, frame, p, device), p) else '❌'}"
+            f"{p}={'✅' if check_hit(ground_fn(model, processor, frame, p, device), p) else '❌'}"
             for p in phrases
         ) if len(phrases) == 1 else " | ".join(
             f"{p.split()[0]}={'HIT' if stats[p]['hits'] > 0 and stats[p]['total'] > 0 else 'MISS'}"
@@ -274,7 +331,7 @@ def main():
                         default=["gray basket"],
                         help="테스트할 phrase 목록. 기본: 'gray basket'")
     parser.add_argument("--adapter",   default="",
-                        help="LoRA adapter 경로. 'old'=72frame / 'exp56'=Exp56 / 경로 직접")
+                        help="LoRA adapter 경로. 'old'=72frame / 'exp56'=Exp56(Kosmos-2) / 'exp57'=Exp57(PaliGemma) / 경로 직접")
     parser.add_argument("--vlm-path",  default=str(DEFAULT_VLM))
     parser.add_argument("--fps",       type=float, default=1.0,
                         help="목표 FPS (1.0 권장 — Kosmos-2 추론 시간 고려)")
@@ -291,19 +348,27 @@ def main():
     h5_path   = Path(args.source)
     vlm_path  = Path(args.vlm_path)
 
-    # adapter 경로 해석
+    # adapter 경로 해석 + 백본 자동감지
     adapter_path = None
+    use_paligemma = False
     if args.adapter:
         if args.adapter in DEFAULT_ADAPTERS:
             adapter_path = DEFAULT_ADAPTERS[args.adapter]
+            use_paligemma = args.adapter in PALIGEMMA_ADAPTERS
         else:
             adapter_path = Path(args.adapter)
+            use_paligemma = (adapter_path / "adapter_config.json").exists() and \
+                "paligemma" in open(adapter_path / "adapter_config.json").read().lower()
+
+    backbone_name = "PaliGemma" if use_paligemma else "Kosmos-2"
+    if use_paligemma:
+        vlm_path = PALIGEMMA_VLM
 
     print("=" * 60)
-    print("Kosmos-2 Grounding Demo")
+    print(f"{backbone_name} Grounding Demo")
     print(f"  Source  : {h5_path.name}")
     print(f"  Phrases : {args.phrases}")
-    print(f"  Adapter : {adapter_path or 'pure Kosmos-2'}")
+    print(f"  Adapter : {adapter_path or f'pure {backbone_name}'}")
     print(f"  Device  : {device}")
     print(f"  Out dir : {out_dir}")
     print("=" * 60)
@@ -314,7 +379,12 @@ def main():
     print(f"  Loaded {len(frames)} frames  ({frames[0].shape})")
 
     # 모델 로딩
-    model, processor = load_model(vlm_path, adapter_path, device)
+    if use_paligemma:
+        model, processor = load_paligemma_model(vlm_path, adapter_path, device)
+        _ground_fn = lambda m, p, img, phrase, dev: ground_paligemma(m, p, img, phrase, dev)
+    else:
+        model, processor = load_model(vlm_path, adapter_path, device)
+        _ground_fn = lambda m, p, img, phrase, dev: ground(m, p, img, phrase, dev)
 
     # HTTP 서버
     if args.serve:
@@ -324,6 +394,7 @@ def main():
     stats = process_episode(
         frames, args.phrases, model, processor, device,
         out_dir, fps_limit=args.fps, max_frames=args.max_frames,
+        ground_fn=_ground_fn,
     )
 
     # 결과 출력

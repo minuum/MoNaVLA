@@ -29,5 +29,6 @@
                 "/home/billy/.nvm/versions/node/v22.19.0/lib/node_modules/@modelcontextprotocol/server-sequential-thinking/dist/index.js"
             ]
         }
-    }
+    },
+    "remote.autoForwardPortsFallback": 0
 }
