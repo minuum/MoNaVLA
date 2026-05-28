@@ -398,8 +398,8 @@ def main():
     parser.add_argument("--epochs",         type=int,   default=25)
     parser.add_argument("--lr",             type=float, default=2e-5)
     parser.add_argument("--batch",          type=int,   default=4)
-    parser.add_argument("--lora-r",         type=int,   default=8)
-    parser.add_argument("--lora-alpha",     type=int,   default=16)
+    parser.add_argument("--lora-r",         type=int,   default=16)   # 고수준 레이어 집중 → rank 상향
+    parser.add_argument("--lora-alpha",     type=int,   default=32)
     parser.add_argument("--val-ratio",      type=float, default=0.15)
     parser.add_argument("--annotate-only",  action="store_true",
                         help="V4 auto-annotation만 실행 후 종료")
@@ -488,11 +488,15 @@ def main():
             print(f"  {lbl}: hit={d['hit_rate']*100:.1f}%  n={d['n']}")
         return
 
-    # ── LoRA 적용 ──────────────────────────────────────────────────────────
+    # ── LoRA 적용 — 고수준 레이어(18~26)만 타겟 ────────────────────────────
+    # Vision 18~26 (시멘틱 객체 인식) + LM 18~25 (언어-시각 바인딩, loc 토큰 생성)
+    # 전체 53레이어 → 17레이어 / r 8→16 (표현력 보강) / k_proj 추가 (어텐션 완전 제어)
+    high_layers = list(range(18, 27))  # 18,19,...,26 → vision 18~26 + LM 18~25
     lora_cfg = LoraConfig(
         r=args.lora_r,
         lora_alpha=args.lora_alpha,
-        target_modules=["q_proj", "v_proj"],
+        target_modules=["q_proj", "k_proj", "v_proj"],
+        layers_to_transform=high_layers,
         lora_dropout=0.05,
         bias="none",
         task_type=TaskType.CAUSAL_LM,
