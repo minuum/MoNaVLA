@@ -20,7 +20,7 @@ Usage:
   .venv/bin/python3 scripts/exp54_basket_mask_ablation.py
 """
 
-import json, sys, warnings
+import json, sys, warnings, argparse
 from pathlib import Path
 from collections import defaultdict
 
@@ -29,7 +29,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
 warnings.filterwarnings("ignore")
 ROOT = Path(__file__).resolve().parent.parent
@@ -52,6 +52,8 @@ N_SAMPLE      = 15      # 방향별 샘플 수
 # 에피소드 내 상대 위치 0~1 중 이 비율 이하 프레임만 사용 (도착 직전 제외)
 # 0.33 = 초기만, 0.66 = 초기+중기, 1.0 = 전체
 EPISODE_PHASE_MAX = 0.66   # 초기+중기(앞 66%)만 사용
+
+OUT_DIR = Path(__file__).resolve().parent.parent / "docs" / "v5" / "masking_ablation_earlymid"
 
 
 def load_model(device):
@@ -106,7 +108,76 @@ def mask_basket(img_pil, cx, cy, area, scale=MASK_SCALE):
     return masked, (x1, y1, x2, y2)
 
 
+DIR_COLORS = {"left": (59, 130, 246), "center": (34, 197, 94), "right": (249, 115, 22)}
+LABEL_BG   = (15, 23, 42)
+
+
+def _try_font(size):
+    for name in ["DejaVuSans.ttf", "LiberationSans-Regular.ttf", "arial.ttf"]:
+        try:
+            return ImageFont.truetype(name, size)
+        except Exception:
+            pass
+    return ImageFont.load_default()
+
+
+def save_pair(orig: Image.Image, masked: Image.Image, row: dict, idx: int, out_dir: Path):
+    """원본 | 마스킹 나란히 붙여 PNG로 저장."""
+    W, H = orig.size
+    PAD = 4
+    LABEL_H = 28
+    canvas_w = W * 2 + PAD * 3
+    canvas_h = H + LABEL_H * 2 + PAD * 2
+
+    canvas = Image.new("RGB", (canvas_w, canvas_h), LABEL_BG)
+    canvas.paste(orig,   (PAD,         PAD + LABEL_H))
+    canvas.paste(masked, (W + PAD * 2, PAD + LABEL_H))
+
+    draw = ImageDraw.Draw(canvas)
+    font_sm = _try_font(11)
+    font_md = _try_font(13)
+
+    d   = row["direction"]
+    col = DIR_COLORS[d]
+    flipped = row["flipped"]
+    border_col = (239, 68, 68) if flipped else (71, 85, 105)
+
+    # 테두리
+    draw.rectangle([0, 0, canvas_w - 1, canvas_h - 1], outline=border_col, width=2)
+
+    # 상단 레이블
+    tag = f"[{d.upper()}]  cx={row['cx']:.2f}  area={row['area']:.4f}  phase={row.get('phase','?'):.2f}"
+    draw.text((PAD + 2, 6), tag, fill=col, font=font_md)
+
+    # 하단 레이블 (conf)
+    conf_txt = (f"orig={row['conf_orig']:+.4f}  →  mask={row['conf_mask']:+.4f}"
+                f"  drop={row['conf_drop']:+.4f}")
+    flip_txt = f"  ★FLIP {row['pred_orig']}→{row['pred_mask']}" if flipped else "  stable"
+    draw.text((PAD + 2, H + LABEL_H + PAD + 4), conf_txt + flip_txt,
+              fill=(239, 68, 68) if flipped else (148, 163, 184), font=font_sm)
+
+    # 중앙 구분선
+    draw.line([(W + PAD, PAD), (W + PAD, H + LABEL_H + PAD)], fill=(51, 65, 85), width=PAD)
+
+    # 열 제목
+    draw.text((PAD + W // 2 - 20, H + LABEL_H + PAD - 14), "original", fill=(148, 163, 184), font=font_sm)
+    draw.text((W + PAD * 2 + W // 2 - 20, H + LABEL_H + PAD - 14), "masked",   fill=(148, 163, 184), font=font_sm)
+
+    fname = f"{d}_{idx:02d}_{'FLIP' if flipped else 'stable'}.png"
+    canvas.save(out_dir / fname)
+    return fname
+
+
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--save-images", action="store_true", default=True,
+                        help="before/after 이미지 저장 (기본 ON)")
+    parser.add_argument("--no-save-images", dest="save_images", action="store_false")
+    args = parser.parse_args()
+
+    if args.save_images:
+        OUT_DIR.mkdir(parents=True, exist_ok=True)
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"[DEVICE] {device}")
     processor, vm, image_proj, anchor_feats = load_model(device)
@@ -131,14 +202,17 @@ def main():
         ]
         for fr in frames:
             if len(dir_samples[d]) < N_SAMPLE:
+                fr["_phase"] = round(fr["frame_idx"] / max(max_idx, 1), 3)
                 dir_samples[d].append((ep["episode"], fr))
 
     results = []
     dir_stats = defaultdict(lambda: {"conf_drop": [], "flip": 0, "total": 0})
+    saved_images = defaultdict(list)  # direction → list of filenames
+    dir_counters = defaultdict(int)
 
     print(f"\n[MASK] basket 마스킹 ablation 시작 (MIN_AREA={MIN_AREA}, scale={MASK_SCALE}×)\n")
-    print(f"  {'방향':<8} {'cx':>5} {'area':>6} {'conf_orig':>10} {'conf_mask':>10} {'drop':>8} {'pred변화':>8}")
-    print("  " + "-" * 65)
+    print(f"  {'방향':<8} {'cx':>5} {'area':>6} {'phase':>6} {'conf_orig':>10} {'conf_mask':>10} {'drop':>8} {'pred변화':>8}")
+    print("  " + "-" * 72)
 
     for direction in DIRS:
         samples = dir_samples[direction]
@@ -151,6 +225,7 @@ def main():
             cx     = fr["cx_det"]
             cy     = fr["cy_det"]
             area   = fr["area_det"]
+            phase  = fr.get("_phase", -1)
 
             try:
                 with h5py.File(ep_path, "r") as f:
@@ -168,7 +243,8 @@ def main():
 
             row = {
                 "direction": direction,
-                "cx": round(cx, 3), "area": round(area, 4),
+                "cx": round(cx, 3), "cy": round(cy, 3), "area": round(area, 4),
+                "phase": round(phase, 3),
                 "conf_orig": round(conf_orig, 4),
                 "conf_mask": round(conf_mask, 4),
                 "conf_drop": round(drop, 4),
@@ -176,6 +252,14 @@ def main():
                 "pred_mask": DIRS[pred_mask],
                 "flipped":   flipped,
             }
+
+            # 이미지 저장
+            if args.save_images:
+                dir_counters[direction] += 1
+                fname = save_pair(img, masked_img, row, dir_counters[direction], OUT_DIR)
+                row["img_file"] = fname
+                saved_images[direction].append(fname)
+
             results.append(row)
             dir_stats[direction]["conf_drop"].append(drop)
             dir_stats[direction]["total"] += 1
@@ -184,7 +268,7 @@ def main():
 
             flip_str = f"{'→'+DIRS[pred_mask]:>8}" if flipped else "      —"
             print(
-                f"  {direction:<8} {cx:>5.2f} {area:>6.4f} "
+                f"  {direction:<8} {cx:>5.2f} {area:>6.4f} {phase:>6.2f} "
                 f"{conf_orig:>10.4f} {conf_mask:>10.4f} "
                 f"{drop:>+8.4f} {flip_str}"
             )
@@ -235,6 +319,40 @@ def main():
         print(f"  → 판정: {verdict}")
 
     print(f"{'='*65}")
+
+    # JSON 결과 저장
+    if args.save_images:
+        summary = {
+            "episode_phase_max": EPISODE_PHASE_MAX,
+            "min_area": MIN_AREA,
+            "mask_scale": MASK_SCALE,
+            "n_sample": N_SAMPLE,
+            "per_direction": {},
+            "overall": {},
+            "rows": results,
+        }
+        for d in DIRS:
+            s = dir_stats[d]
+            if not s["conf_drop"]:
+                continue
+            summary["per_direction"][d] = {
+                "n":          s["total"],
+                "mean_drop":  round(float(np.mean(s["conf_drop"])), 4),
+                "flip":       s["flip"],
+                "flip_pct":   round(s["flip"] / s["total"] * 100, 1),
+            }
+        if all_drops:
+            summary["overall"] = {
+                "mean_drop": round(float(np.mean(all_drops)), 4),
+                "flip":      overall_flip,
+                "total":     overall_total,
+                "flip_pct":  round(flip_pct, 1),
+                "verdict":   verdict,
+            }
+        result_json = OUT_DIR / "results.json"
+        result_json.write_text(json.dumps(summary, ensure_ascii=False, indent=2))
+        print(f"\n[SAVED] 이미지 → {OUT_DIR}/")
+        print(f"[SAVED] JSON  → {result_json}")
 
 
 if __name__ == "__main__":
