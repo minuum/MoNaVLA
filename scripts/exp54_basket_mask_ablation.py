@@ -45,10 +45,13 @@ VIS_DIM   = 1024
 DIR_IDX   = {"left": 0, "center": 1, "right": 2}
 DIRS      = ["left", "center", "right"]
 
-MIN_AREA  = 0.005   # 마스킹 의미 있으려면 최소 이 면적 이상
-MASK_SCALE = 1.5    # bbox 크기의 1.5배로 마스킹 (약간 넉넉하게)
-MASK_COLOR = (128, 128, 128)
-N_SAMPLE   = 15     # 방향별 샘플 수
+MIN_AREA      = 0.005   # 마스킹 의미 있으려면 최소 이 면적 이상
+MASK_SCALE    = 1.5     # bbox 크기의 1.5배로 마스킹 (약간 넉넉하게)
+MASK_COLOR    = (128, 128, 128)
+N_SAMPLE      = 15      # 방향별 샘플 수
+# 에피소드 내 상대 위치 0~1 중 이 비율 이하 프레임만 사용 (도착 직전 제외)
+# 0.33 = 초기만, 0.66 = 초기+중기, 1.0 = 전체
+EPISODE_PHASE_MAX = 0.66   # 초기+중기(앞 66%)만 사용
 
 
 def load_model(device):
@@ -110,16 +113,21 @@ def main():
 
     data = json.loads(DATA_PATH.read_text())
 
-    # 방향별로 area_det 충분한 프레임 수집
+    # 방향별로 area_det 충분한 프레임 수집 (초기+중기 프레임만 — 도착 직전 제외)
     dir_samples = defaultdict(list)
     for ep in data:
         d = ep["direction"]
         if len(dir_samples[d]) >= N_SAMPLE:
             continue
+
+        all_idxs = [f["frame_idx"] for f in ep["frames"]]
+        max_idx = max(all_idxs) if all_idxs else 0
+
         frames = [
             f for f in ep["frames"]
             if f["consistent"] and f["label"]
             and f.get("area_det") and f["area_det"] >= MIN_AREA
+            and (f["frame_idx"] / max(max_idx, 1)) <= EPISODE_PHASE_MAX
         ]
         for fr in frames:
             if len(dir_samples[d]) < N_SAMPLE:
