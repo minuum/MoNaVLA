@@ -606,7 +606,10 @@ def main():
     r = evaluate(model, processor, val_raw, device, max_eval=len(val_raw))
     print("\n최종 평가 (전체 val set):")
     for lbl, d in r.items():
-        print(f"  {lbl}: hit={d['hit_rate']*100:.1f}%  n={d['n']}")
+        if isinstance(d, dict) and "hit_rate" in d:
+            print(f"  {lbl}: hit={d['hit_rate']*100:.1f}%  n={d['n']}")
+        elif lbl == "separation":
+            print(f"  separation: TP={d.get('tp_rate',0)*100:.0f}%  FP={d.get('fp_rate',0)*100:.0f}%  gap={d.get('gap',0)*100:+.0f}%p")
 
     result = {
         "exp": "exp59",
