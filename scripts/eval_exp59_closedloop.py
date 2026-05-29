@@ -100,7 +100,7 @@ class Exp59Grounder:
     @torch.no_grad()
     def detect(self, pil_img):
         """→ (cx, cy, area) or None if not detected"""
-        inp = self.proc(text="detect gray basket", images=pil_img,
+        inp = self.proc(text="<image>detect gray basket", images=pil_img,
                         return_tensors="pt").to(self.device)
         inp["pixel_values"] = inp["pixel_values"].to(self.dtype)
         gen = self.model.generate(**inp, max_new_tokens=48, do_sample=False)
@@ -173,12 +173,14 @@ def eval_episode(ep_entry, enc, mlp, grounder, device):
 # ── 시뮬레이션 지표 ──────────────────────────────────────────────────────
 
 def compute_metrics(pred, expert, dt=0.5, success_fpe=0.5):
-    from scripts.sim.rollout_core import simulate_trajectory, compute_fpe_tld
+    from scripts.sim.rollout_core import build_trajectory, compute_metrics as core_compute_metrics
     try:
-        pred_traj   = simulate_trajectory(pred,   dt=dt)
-        expert_traj = simulate_trajectory(expert, dt=dt)
-        fpe, tld    = compute_fpe_tld(pred_traj, expert_traj)
-        success = (fpe < success_fpe) and (0.7 <= tld <= 1.5)
+        pred_traj   = build_trajectory(pred,   dt=dt)
+        expert_traj = build_trajectory(expert, dt=dt)
+        res = core_compute_metrics(expert_traj, pred_traj, success_fpe)
+        fpe = res["fpe"]
+        tld = res["tld"]
+        success = res["success"]
     except Exception:
         fpe, tld, success = 9.9, 0.0, False
     return {"fpe": fpe, "tld": tld, "success": success}
