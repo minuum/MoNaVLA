@@ -565,7 +565,7 @@ def main():
         lr_now   = scheduler.get_last_lr()[0]
 
         # 5 epoch마다 평가
-        if epoch % 5 == 0 or epoch == args.epochs:
+        if epoch % 2 == 0 or epoch == args.epochs:
             r = evaluate(model, processor, val_raw, device, max_eval=80)
             overall_hit = r["overall"]["hit_rate"]
             sep = r.get("separation", {})
