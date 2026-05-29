@@ -74,19 +74,63 @@ def load_frames_from_h5(h5_path: Path) -> list[np.ndarray]:
 
 
 def load_model(vlm_path: Path, adapter_path: Path | None, device: torch.device):
-    from transformers import AutoModelForVision2Seq, AutoProcessor
+    from transformers import AutoModelForVision2Seq, AutoProcessor, BitsAndBytesConfig
     from peft import PeftModel
 
-    print(f"[LOAD] Kosmos-2 from {vlm_path}")
-    dtype = torch.float16 if device.type == "cuda" else torch.float32
     processor = AutoProcessor.from_pretrained(str(vlm_path))
-    model = AutoModelForVision2Seq.from_pretrained(
-        str(vlm_path), torch_dtype=dtype
-    ).to(device)
+
+    # Jetson(aarch64) bitsandbytes 4bit는 uint8 텐서 지원 안 함 → fp16으로 로드
+    import platform as _platform
+    _is_arm = _platform.machine().startswith("aarch")
+    if device.type == "cuda" and not _is_arm:
+        bnb_config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype=torch.float16,
+            bnb_4bit_use_double_quant=True,
+        )
+        print(f"[LOAD] Kosmos-2 from {vlm_path} (4bit quantized)")
+        model = AutoModelForVision2Seq.from_pretrained(
+            str(vlm_path),
+            quantization_config=bnb_config,
+            device_map={"": device}
+        )
+    elif device.type == "cuda":
+        print(f"[LOAD] Kosmos-2 from {vlm_path} (fp16, Jetson ARM)")
+        model = AutoModelForVision2Seq.from_pretrained(
+            str(vlm_path), torch_dtype=torch.float16
+        ).to(device)
+    else:
+        print(f"[LOAD] Kosmos-2 from {vlm_path} (fp32, CPU)")
+        model = AutoModelForVision2Seq.from_pretrained(
+            str(vlm_path), torch_dtype=torch.float32
+        ).to(device)
 
     if adapter_path is not None and adapter_path.exists():
         print(f"[LOAD] Adapter from {adapter_path}")
-        model = PeftModel.from_pretrained(model, str(adapter_path))
+        try:
+            model = PeftModel.from_pretrained(model, str(adapter_path))
+        except TypeError as e:
+            # PEFT 버전 불일치: adapter_config.json에 알 수 없는 필드 있을 때 임시 제거 후 재시도
+            import json, shutil, tempfile
+            cfg_path = adapter_path / "adapter_config.json"
+            if cfg_path.exists():
+                cfg = json.loads(cfg_path.read_text())
+                unknown_key = str(e).split("'")[1] if "'" in str(e) else None
+                if unknown_key and unknown_key in cfg:
+                    print(f"[LOAD] PEFT 버전 불일치 — '{unknown_key}' 필드 무시하고 재시도")
+                    with tempfile.TemporaryDirectory() as tmp:
+                        shutil.copytree(str(adapter_path), tmp + "/adapter", dirs_exist_ok=True)
+                        tmp_cfg = json.loads((Path(tmp) / "adapter" / "adapter_config.json").read_text())
+                        tmp_cfg.pop(unknown_key, None)
+                        (Path(tmp) / "adapter" / "adapter_config.json").write_text(
+                            json.dumps(tmp_cfg, indent=2)
+                        )
+                        model = PeftModel.from_pretrained(model, tmp + "/adapter")
+                else:
+                    raise
+            else:
+                raise
     else:
         print("[LOAD] No adapter — pure Kosmos-2")
 
@@ -139,11 +183,28 @@ def ground(model, processor, image: np.ndarray, phrase: str, device) -> dict:
     caption, entities = processor.post_process_generation(raw)
 
     boxes = []
-    for ent_name, ent_boxes, _ in entities:
+    for ent_tuple in entities:
+        # Kosmos-2 포맷: (entity_text, token_span, [(x1,y1,x2,y2), ...])
+        # 또는 일부 버전: (entity_text, [(x1,y1,x2,y2), ...], token_span)
+        ent_name = ent_tuple[0]
+        ent_boxes = []
+        for item in ent_tuple[1:]:
+            if not item:
+                continue
+            if isinstance(item, (list, tuple)) and isinstance(item[0], (list, tuple)):
+                # [(x1,y1,x2,y2), ...] 형태
+                ent_boxes = list(item)
+                break
+            if isinstance(item, (list, tuple)) and len(item) == 4:
+                first = item[0]
+                if isinstance(first, (int, float)):
+                    # 단일 flat box (x1,y1,x2,y2)
+                    ent_boxes = [item]
+                    break
         for box in ent_boxes:
             boxes.append({
                 "entity": ent_name,
-                "bbox_xyxy": list(box),  # normalized [x1,y1,x2,y2]
+                "bbox_xyxy": [float(v) for v in box],
             })
     return {"caption": caption, "entities": entities, "boxes": boxes}
 

@@ -40,6 +40,7 @@ SERVICES = [
         "cmd":    "python3 scripts/gradio_inference_dashboard.py",
         "desc":   "메인 추론 대시보드 — GoalNav 로봇 제어",
         "group":  "Robot",
+        "timeout": 180,
     },
     {
         "name":   "Trial Logger",
@@ -97,6 +98,7 @@ SERVICES = [
         "desc":   "GoalNav FastAPI 백엔드 — bbox grounding + MLP 추론",
         "group":  "System",
         "path":   "/dashboard",
+        "timeout": 120,
     },
     {
         "name":   "Inference Server",
@@ -106,6 +108,7 @@ SERVICES = [
         "desc":   "GoalNav MLP 직접 서버 — exp54_s2v2 (CL 96.7%)",
         "group":  "System",
         "path":   "/goalnav/status",
+        "timeout": 180,
     },
 ]
 
@@ -372,21 +375,29 @@ def build_hub(server_ip: str) -> gr.Blocks:
 
             log_name = svc["script"].replace("/", "_").replace(".py", "")
             log_path = ROOT / "logs" / f"{log_name}.log"
-            launch_cmd = f"nohup {svc['cmd']} > {log_path} 2>&1 &"
+            launch_cmd = f"setsid nohup {svc['cmd']} > {log_path} 2>&1 &"
             subprocess.Popen(launch_cmd, shell=True, cwd=str(ROOT),
                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
+            max_wait = svc.get("timeout", 60)
             spinners = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
-            for i in range(30):  # 최대 30초 대기
+            for i in range(max_wait):
                 sp = spinners[i % len(spinners)]
-                yield f"{sp} {svc['name']} 시작 중... ({i+1}s)  로그: logs/{log_path.name}", gr.update()
+                # 로그 마지막 줄도 함께 표시
+                try:
+                    last_log = log_path.read_text(errors="replace").strip().splitlines()
+                    log_tail = last_log[-1][:60] if last_log else ""
+                except Exception:
+                    log_tail = ""
+                hint = f"  │ {log_tail}" if log_tail else ""
+                yield f"{sp} {svc['name']} 시작 중... ({i+1}/{max_wait}s){hint}", gr.update()
                 time.sleep(1)
                 if is_port_up(port):
                     pid = get_pid_on_port(port)
                     yield f"✅ {svc['name']} 시작됨 ({i+1}s)  pid={pid}", render_hub_html(server_ip)
                     return
 
-            yield f"⚠️ {svc['name']} 타임아웃 (30s) — 로그 확인: logs/{log_path.name}", render_hub_html(server_ip)
+            yield f"⚠️ {svc['name']} 타임아웃 ({max_wait}s) — 로그 확인: logs/{log_path.name}", render_hub_html(server_ip)
 
         refresh_btn.click(do_refresh, outputs=[hub_html, ctrl_out])
         action_btn.click(
