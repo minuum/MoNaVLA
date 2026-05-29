@@ -1,3 +1,24 @@
+# ── ROS camera_interfaces LD_LIBRARY_PATH 주입 (다른 import보다 먼저) ──────────
+import os, sys as _sys
+_ROS_WS = "/home/soda/MoNaVLA/ROS_action/install"
+_ros_lib_dirs = [f"{_ROS_WS}/camera_interfaces/lib", f"{_ROS_WS}/camera_pub/lib"]
+_ros_py_dirs  = [f"{_ROS_WS}/camera_interfaces/local/lib/python3.10/dist-packages"]
+_ld = os.environ.get("LD_LIBRARY_PATH", "")
+if any(p not in _ld for p in _ros_lib_dirs if os.path.isdir(p)):
+    os.environ["LD_LIBRARY_PATH"] = ":".join(
+        p for p in _ros_lib_dirs if os.path.isdir(p)
+    ) + (":" + _ld if _ld else "")
+    _pp = os.environ.get("PYTHONPATH", "")
+    os.environ["PYTHONPATH"] = ":".join(
+        p for p in _ros_py_dirs if os.path.isdir(p)
+    ) + (":" + _pp if _pp else "")
+    os.environ.setdefault("ROS_DOMAIN_ID", "42")
+    os.environ.setdefault("RMW_IMPLEMENTATION", "rmw_fastrtps_cpp")
+    os.execv(_sys.executable, [_sys.executable] + _sys.argv)
+for _p in _ros_py_dirs:
+    if os.path.isdir(_p) and _p not in _sys.path:
+        _sys.path.insert(0, _p)
+# ─────────────────────────────────────────────────────────────────────────────
 import base64
 import gc
 import io
@@ -53,6 +74,8 @@ EXP_MODES = {
         "speed_scaling": False,
         "grounding_skip_n": 3,
         "desc": "기본 GoalNav — 96.4% val acc",
+        "config": None,
+        "checkpoint": "runs/v5_nav/mlp/exp49/exp49_mlp.pt",
     },
     "GoalNav-scaled (Exp49, 거리비례속도)": {
         "instruction": GOAL_NAV_PRESETS[0],
@@ -61,6 +84,8 @@ EXP_MODES = {
         "speed_scaling": True,
         "grounding_skip_n": 3,
         "desc": "기본 GoalNav + 거리비례속도 — 96.4% val acc",
+        "config": None,
+        "checkpoint": "runs/v5_nav/mlp/exp49/exp49_mlp.pt",
     },
     "GoalNav (Exp50, flip-aug)": {
         "instruction": GOAL_NAV_PRESETS[0],
@@ -93,6 +118,18 @@ EXP_MODES = {
         "speed_scaling": False,
         "grounding_skip_n": 3,
         "desc": "CLIP LoRA fine-tuned vision encoder — 94.7% val acc",
+        "config": "configs/bbox_nav_exp53_clip_lora.json",
+        "checkpoint": "runs/v5_nav/mlp/exp53_clip_lora.pt",
+    },
+    "GoalNav (Exp54_s2v2, Best)": {
+        "instruction": GOAL_NAV_PRESETS[0],
+        "backend_mode": "GoalNav (exp54_s2v2)",
+        "model": "exp54_s2v2",
+        "speed_scaling": False,
+        "grounding_skip_n": 3,
+        "desc": "Stage2 v2 MLP + image projection — 96.7% CL (최고 성능)",
+        "config": "configs/exp54_stage2_action.json",
+        "checkpoint": "runs/v5_nav/mlp/exp54/stage2_v2/stage2_v2_mlp.pt",
     },
     "PathType-fixed (Exp47, 고정속도)": {
         "instruction": "right_right",
@@ -141,7 +178,7 @@ def load_env() -> None:
 
 load_env()
 
-DEFAULT_API_URL = os.getenv("VLA_API_SERVER", "http://localhost:8000")
+DEFAULT_API_URL = os.getenv("VLA_API_SERVER", "http://localhost:8001")
 API_KEY = os.getenv("VLA_API_KEY", "vla_devel_key_2026")
 DEFAULT_BACKEND_MODE = os.getenv(
     "VLA_DASHBOARD_BACKEND",
@@ -492,7 +529,8 @@ def make_backend(mode: str, api_url: str):
 
 class ROSDashboardNode(Node):
     def __init__(self):
-        super().__init__("gradio_dashboard_node")
+        import os as _os
+        super().__init__(f"gradio_dashboard_{_os.getpid()}")
         self.callback_group = ReentrantCallbackGroup()
         self.cv_bridge = CvBridge()
         self.get_image_client = self.create_client(
@@ -502,23 +540,29 @@ class ROSDashboardNode(Node):
         self.control = VLAControlManager(self, default_throttle=50, move_duration=0.4)
 
     def get_inference_frame(self):
-        if not self.get_image_client.wait_for_service(timeout_sec=1.0):
-            return None
-        request = GetImage.Request()
-        future = self.get_image_client.call_async(request)
-        start_time = time.time()
-        while rclpy.ok() and not future.done():
-            if time.time() - start_time > 2.0:
+        try:
+            if not self.get_image_client.wait_for_service(timeout_sec=1.0):
                 return None
-            time.sleep(0.01)
-        if future.done():
-            try:
-                response = future.result()
-                if response and response.image.data:
-                    cv_image = self.cv_bridge.imgmsg_to_cv2(response.image, "bgr8")
-                    return Image.fromarray(cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB))
-            except Exception:
-                return None
+            request = GetImage.Request()
+            future = self.get_image_client.call_async(request)
+            start_time = time.time()
+            while rclpy.ok() and not future.done():
+                if time.time() - start_time > 2.0:
+                    return None
+                time.sleep(0.01)
+            if future.done():
+                try:
+                    response = future.result()
+                    if response and response.image.data:
+                        cv_image = self.cv_bridge.imgmsg_to_cv2(response.image, "bgr8")
+                        return Image.fromarray(cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB))
+                except Exception:
+                    return None
+        except Exception as e:
+            if "context is invalid" in str(e) or "rcl" in str(e).lower():
+                # ROS context 무효화 → 백그라운드에서 재초기화
+                print(f"[Dashboard] ROS context 무효 → 재초기화 시도")
+                threading.Thread(target=_init_ros_node, daemon=True).start()
         return None
 
     def generate_trajectory_plot(self, full_chunk):
@@ -553,16 +597,28 @@ class ROSDashboardNode(Node):
 
 
 ros_node = None
-if ROS_AVAILABLE:
+_ros_node_lock = threading.Lock()
+
+def _init_ros_node():
+    global ros_node
     try:
-        if not rclpy.ok():
-            rclpy.init()
-        ros_node = ROSDashboardNode()
-        threading.Thread(target=lambda: rclpy.spin(ros_node), daemon=True).start()
+        try:
+            rclpy.shutdown()
+        except Exception:
+            pass
+        rclpy.init()
+        node = ROSDashboardNode()
+        threading.Thread(target=lambda: rclpy.spin(node), daemon=True).start()
+        ros_node = node
+        print("[Dashboard] ROSDashboardNode 초기화 ✅")
+        return True
     except Exception as e:
-        ROS_AVAILABLE = False
         ros_node = None
-        print(f"⚠️ ROS dashboard node disabled: {e}")
+        print(f"[Dashboard] ROSDashboardNode 초기화 실패: {e}")
+        return False
+
+if ROS_AVAILABLE:
+    _init_ros_node()
 
 
 def annotate_image(img: Image.Image, bbox: dict | None = None, draw_grid: bool = True) -> Image.Image:
@@ -611,6 +667,8 @@ state = {
     "camera_status": "Unknown",
     "model_status": "Not Loaded",
     "model_path": "N/A",
+    "action_history": [],   # [(lx, ly, az), ...] 추론 중 실행된 액션 기록
+    "is_returning": False,
 }
 
 
@@ -645,10 +703,12 @@ def load_model_wrapper(backend_mode: str, api_url: str, precision_label: str, ck
         return f"❌ Load Failed: {e}", state["model_path"]
 
 
-def set_running(running: bool, backend_mode: str, api_url: str, instruction: str):
+def set_running(running: bool, backend_mode: str, api_url: str, instruction: str, gt_object: str = ""):
     state["is_running"] = running
     state["step_count"] = 0 if running else state["step_count"]
+    state["gt_object"] = gt_object
     if running:
+        state["action_history"] = []  # 새 에피소드 시작 시 초기화
         try:
             make_backend(backend_mode, api_url).reset(instruction)
         except Exception:
@@ -667,12 +727,13 @@ def run_backend_inference(image: Image.Image, instruction: str, backend_mode: st
         chunk = chunk.reshape(1, -1)
 
     if ROS_AVAILABLE and ros_node:
+        lx = float(action[0])
+        ly = float(action[1])
+        az = float(action[2]) if action.size > 2 else 0.0
         state["current_log"] = ros_node.control.move_and_stop_ramped(
-            float(action[0]),
-            float(action[1]),
-            float(action[2]) if action.size > 2 else 0.0,
-            source="gradio_inference",
+            lx, ly, az, source="gradio_inference",
         )
+        state["action_history"].append((lx, ly, az))
 
     strategy = result.get("strategy", "")
     pred_label = result.get("predicted_label") or ""
@@ -736,9 +797,14 @@ def update_ui(mode, backend_mode, api_url, instr, apply_cc, _run_status):
 
     state["auto_inference"] = mode in ("Inference (Auto)", "Inference (18-step)")
 
-    if not ROS_AVAILABLE or ros_node is None:
+    if not ROS_AVAILABLE:
         state["camera_status"] = "ROS Not Available"
         return None, "ROS Not Available", "N/A", "N/A", "N/A", gr.update(value="Stopped"), state["camera_status"], state["model_path"], None
+
+    if ros_node is None:
+        # 재초기화 시도 중
+        state["camera_status"] = "ROS 재연결 중..."
+        return None, "⏳ ROS 재연결 중...", "N/A", "N/A", "N/A", gr.update(), state["camera_status"], state["model_path"], None
 
     img = ros_node.get_inference_frame()
     if img is None:
@@ -760,6 +826,8 @@ def update_ui(mode, backend_mode, api_url, instr, apply_cc, _run_status):
             if current_step == 1:
                 if logger_instance:
                     logger_instance.start_session(short_model_name(state["model_path"]), instr, instruction_mode=backend_mode)
+                    if logger_instance and state.get("gt_object"):
+                        logger_instance.data["gt_object"] = state["gt_object"]
                     logger_instance.log_step(current_step, [0.0, 0.0, 0.0], 0, image=img)
                 ros_node.control.robust_stop(source="inference_start")
                 try:
@@ -835,6 +903,37 @@ def handle_control(direction):
     return state["current_log"]
 
 
+def return_to_start() -> str:
+    """추론 중 실행된 액션을 역순/부호반전으로 재생 → 시작 위치 복귀."""
+    if state["is_returning"]:
+        state["is_returning"] = False
+        if ROS_AVAILABLE and ros_node:
+            ros_node.control.robust_stop(source="return_cancel")
+        return "🛑 복귀 취소됨"
+
+    history = state.get("action_history", [])
+    if not history:
+        return "⚠️ 복귀할 경로 없음 (주행 기록이 없습니다)"
+
+    def _run():
+        state["is_returning"] = True
+        try:
+            rev = [(-lx, -ly, -az) for lx, ly, az in reversed(history)]
+            for lx, ly, az in rev:
+                if not state["is_returning"]:
+                    break
+                if ROS_AVAILABLE and ros_node:
+                    ros_node.control.move_and_stop_ramped(lx, ly, az, source="return")
+            if ROS_AVAILABLE and ros_node:
+                ros_node.control.robust_stop(source="return_done")
+        finally:
+            state["is_returning"] = False
+
+    import threading
+    threading.Thread(target=_run, daemon=True).start()
+    return f"🔄 복귀 중... ({len(history)}스텝 역재생)"
+
+
 def reset_model_wrapper(backend_mode: str, api_url: str, instruction: str):
     try:
         return make_backend(backend_mode, api_url).reset(instruction)
@@ -844,8 +943,21 @@ def reset_model_wrapper(backend_mode: str, api_url: str, instruction: str):
 
 with gr.Blocks(title="VLA PRO Dashboard") as demo:
     gr.Markdown("# 🚀 Mobile VLA Real-time Dashboard & Teleop")
+    gr.Markdown(
+        """
+        <div style="background-color: #1e293b; border-left: 4px solid #3b82f6; padding: 12px; border-radius: 4px; margin-bottom: 15px; color: #e2e8f0;">
+            <h4 style="margin: 0 0 6px 0; color: #60a5fa; font-size: 1.05rem;">📊 실로봇 주행 평가 세션 수집 목표 (Real Robot Eval Protocol)</h4>
+            <ul style="margin: 0; padding-left: 20px; font-size: 0.92rem; line-height: 1.5;">
+                <li><strong>정식 평가 목표:</strong> 9개 경로 타입(path_type) × 각 2회 = <strong>총 18회 주행 세션 기록</strong></li>
+                <li><strong>최소 단축 평가:</strong> 바스켓 위치 3종(LEFT / CENTER / RIGHT) × 각 3회 = <strong>총 9회 주행 세션 기록</strong></li>
+                <li><strong>평가 기록 도구:</strong> 주행 완료 시 즉시 <code>vla-trial-logger</code> (포트 7862)를 통해 기록을 저장하십시오.</li>
+            </ul>
+        </div>
+        """
+    )
 
     _cam_st, _cam_start_btn, _cam_stop_btn = camera_control_widget()
+    # 카메라 시작 → 완료 후 즉시 카메라 프레임 fetch
     _cam_start_btn.click(fn=start_camera, outputs=_cam_st)
     _cam_stop_btn.click(fn=stop_camera,   outputs=_cam_st)
 
@@ -870,31 +982,53 @@ with gr.Blocks(title="VLA PRO Dashboard") as demo:
                             label="Inference Backend",
                         )
                         api_url_box = gr.Textbox(label="API URL", value=DEFAULT_API_URL)
+
                         ckpts, confs = scan_local_files()
-                        ckpt_dropdown = gr.Dropdown(
-                            choices=ckpts,
-                            label="🎯 Select Checkpoint (.ckpt/.pth)",
-                            value=pick_default_choice(ckpts, "VLA_CHECKPOINT_PATH"),
+                        # Local Runtime 전용 컨트롤 — API Server 선택 시 자동 숨김
+                        _is_api = DEFAULT_BACKEND_MODE == "API Server"
+                        with gr.Column(visible=not _is_api) as local_panel:
+                            ckpt_dropdown = gr.Dropdown(
+                                choices=ckpts,
+                                label="🎯 Select Checkpoint (.ckpt/.pth)",
+                                value=pick_default_choice(ckpts, "VLA_CHECKPOINT_PATH"),
+                            )
+                            conf_dropdown = gr.Dropdown(
+                                choices=confs,
+                                label="⚙️ Select Config (.json)",
+                                value=pick_default_choice(confs, "VLA_CONFIG_PATH"),
+                            )
+                            quant_radio = gr.Radio(
+                                choices=["INT8 (Fast)", "FP16 (Accurate)"],
+                                value="FP16 (Accurate)",
+                                label="Model Precision",
+                            )
+                            btn_load_model = gr.Button("📂 Load Selected Model", variant="primary")
+
+                        load_status = gr.Textbox(
+                            label="Model Status",
+                            value="API Server 연결됨" if _is_api else "Not Loaded",
+                            interactive=False,
                         )
-                        conf_dropdown = gr.Dropdown(
-                            choices=confs,
-                            label="⚙️ Select Config (.json)",
-                            value=pick_default_choice(confs, "VLA_CONFIG_PATH"),
-                        )
-                        quant_radio = gr.Radio(
-                            choices=["INT8 (Fast)", "FP16 (Accurate)"],
-                            value="FP16 (Accurate)",
-                            label="Model Precision",
-                        )
-                        btn_load_model = gr.Button("📂 Load Selected Model", variant="primary")
-                        load_status = gr.Textbox(label="Model Status", value="Not Loaded", interactive=False)
-                        model_path = gr.Textbox(label="Loaded Checkpoint Path", value="N/A", interactive=False)
+                        model_path = gr.Textbox(label="Active Model / Checkpoint", value="N/A", interactive=False)
                         toggle_cc = gr.Checkbox(label="🎨 RGB Red Gain Boost", value=False)
+
+                        def on_backend_change(backend):
+                            is_api = backend == "API Server"
+                            status = "API Server 연결됨" if is_api else "Not Loaded"
+                            return gr.update(visible=not is_api), gr.update(value=status)
+
+                        backend_radio.change(
+                            fn=on_backend_change,
+                            inputs=[backend_radio],
+                            outputs=[local_panel, load_status],
+                        )
+
                     with gr.Column():
                         gr.Markdown("#### 🏁 Inference Control")
                         with gr.Row():
                             btn_start_inf = gr.Button("▶️ START", variant="primary")
                             btn_stop_inf = gr.Button("⏹️ STOP", variant="stop")
+                        btn_return = gr.Button("🔄 시작 위치 복귀", variant="secondary")
                         run_status_box = gr.Textbox(label="Run Status", value="Stopped", interactive=False)
 
             def on_mode_change(selected_mode):
@@ -945,8 +1079,55 @@ with gr.Blocks(title="VLA PRO Dashboard") as demo:
                     label="Path Type 선택",
                     visible=False,
                 )
-                instr_box_real = gr.Textbox(label="Robot Prompt (GoalNav: 자연어 물체 설명 / PathType: 경로 코드)", value=DEFAULT_INSTRUCTION)
+                instr_box_real = gr.Textbox(
+                    label="🤖 Robot Prompt (모델에게 주는 프롬프트 — 틀린 값 테스트 가능)",
+                    value=DEFAULT_INSTRUCTION,
+                )
+                gt_object_box = gr.Textbox(
+                    label="🎯 GT Object (실제 있는 물체 — 로깅/평가용, 모델에 전달 안됨)",
+                    value="gray basket",
+                    placeholder="예: gray basket (wrong prompt 테스트 시 실제 물체 기록)",
+                )
             camera_status = gr.Textbox(label="Camera Status", value="Unknown", interactive=False)
+
+            with gr.Accordion("🛑 자동 정지 설정", open=True):
+                gr.Markdown(
+                    "실제 grounding bbox area가 threshold 이상이면 자동 STOP\n"
+                    "_(fallback bbox는 area=0.06 고정 → 정지 안됨)_"
+                )
+                stop_area_slider = gr.Slider(
+                    minimum=0.05, maximum=0.50, step=0.01, value=0.18,
+                    label="정지 area threshold (0=항상정지, 0.18=약 0.5m, 0.30=약 0.3m)",
+                )
+                stop_cx_slider = gr.Slider(
+                    minimum=0.10, maximum=0.50, step=0.05, value=0.25,
+                    label="중앙 허용 편차 cx ± (0.25 = 화면 중앙 50% 이내)",
+                )
+                bbox_area_display = gr.Textbox(
+                    label="현재 bbox area (실시간)", value="—", interactive=False
+                )
+
+                def apply_stop_config(area_thr, cx_tol, api_url):
+                    try:
+                        import requests as _req
+                        r = _req.post(
+                            f"{api_url.rstrip('/')}/config",
+                            json={"stop_area_threshold": area_thr, "stop_cx_tolerance": cx_tol},
+                            headers={"X-API-Key": API_KEY},
+                            timeout=5,
+                        )
+                        return f"✅ 적용: area≥{area_thr:.2f}, cx±{cx_tol:.2f}"
+                    except Exception as e:
+                        return f"⚠️ 적용 실패: {e}"
+
+                stop_apply_btn = gr.Button("적용", size="sm", variant="secondary")
+                stop_config_status = gr.Textbox(label="", value="", interactive=False, lines=1)
+                stop_apply_btn.click(
+                    fn=apply_stop_config,
+                    inputs=[stop_area_slider, stop_cx_slider, api_url_box],
+                    outputs=stop_config_status,
+                )
+
             status_log = gr.Textbox(label="Status", value="Ready")
             latency_val = gr.Textbox(label="Latency", value="0 ms")
             action_val = gr.Textbox(label="Predicted Action [lx, ly, az]", value="0, 0, 0")
@@ -955,12 +1136,16 @@ with gr.Blocks(title="VLA PRO Dashboard") as demo:
             btn_reset = gr.Button("🔄 Reset Model History")
 
     btn_start_inf.click(
-        fn=lambda mode, url, instruction: set_running(True, mode, url, instruction),
-        inputs=[backend_radio, api_url_box, instr_box_real],
+        fn=lambda mode, url, instr, gt: set_running(True, mode, url, instr, gt),
+        inputs=[backend_radio, api_url_box, instr_box_real, gt_object_box],
         outputs=run_status_box,
     )
     btn_stop_inf.click(
         fn=lambda: state.update({"is_running": False, "step_count": 0}) or "Stopped",
+        outputs=run_status_box,
+    )
+    btn_return.click(
+        fn=return_to_start,
         outputs=run_status_box,
     )
 
@@ -978,8 +1163,39 @@ with gr.Blocks(title="VLA PRO Dashboard") as demo:
     for button, direction in directions.items():
         button.click(fn=handle_control, inputs=[gr.State(direction)], outputs=status_log)
 
+    def _get_bbox_area_display():
+        """최근 예측의 bbox area 표시 (정지 판단 기준 시각화)."""
+        try:
+            import requests as _req
+            r = _req.get(f"{DEFAULT_API_URL}/recent", timeout=2)
+            preds = r.json().get("predictions", [])
+            if preds:
+                p = preds[0]
+                bbox = p.get("bbox", {})
+                area = bbox.get("area", 0)
+                entity = bbox.get("entity", "?")
+                cx = bbox.get("cx", 0.5)
+                near = "🔴 STOP 조건 충족!" if area >= 0.18 and abs(cx - 0.5) <= 0.25 and entity not in ("coarse_clf", "center_fallback", "") and not entity.startswith("caption:") else ""
+                return f"area={area:.3f}  cx={cx:.2f}  [{entity[:20]}]  {near}"
+        except Exception:
+            pass
+        return "—"
+
     timer = gr.Timer(0.5, active=True)
     timer.tick(
+        fn=update_ui,
+        inputs=[mode_radio, backend_radio, api_url_box, instr_box_real, toggle_cc, run_status_box],
+        outputs=[camera_output, status_log, latency_val, action_val, chunk_val, run_status_box, camera_status, model_path, traj_plot],
+    )
+    timer.tick(fn=_get_bbox_area_display, outputs=bbox_area_display)
+    # 페이지 열리자마자 첫 프레임 즉시 표시
+    demo.load(
+        fn=update_ui,
+        inputs=[mode_radio, backend_radio, api_url_box, instr_box_real, toggle_cc, run_status_box],
+        outputs=[camera_output, status_log, latency_val, action_val, chunk_val, run_status_box, camera_status, model_path, traj_plot],
+    )
+    # 카메라 시작 버튼 완료 후 즉시 프레임 가져오기
+    _cam_start_btn.click(fn=start_camera, outputs=_cam_st).then(
         fn=update_ui,
         inputs=[mode_radio, backend_radio, api_url_box, instr_box_real, toggle_cc, run_status_box],
         outputs=[camera_output, status_log, latency_val, action_val, chunk_val, run_status_box, camera_status, model_path, traj_plot],
@@ -997,34 +1213,50 @@ with gr.Blocks(title="VLA PRO Dashboard") as demo:
         instr = cfg["instruction"]
         model_key = cfg.get("model")
         desc = cfg.get("desc", "")
-        # Apply /config to server if using API backend
-        cfg_status = "미적용 (Local 모드)"
-        if backend_mode == "API Server":
+
+        # config/checkpoint 자동 매칭
+        auto_conf = cfg.get("config")
+        auto_ckpt = cfg.get("checkpoint")
+        conf_update = gr.update(value=auto_conf) if auto_conf else gr.update()
+        ckpt_update = gr.update(value=auto_ckpt) if auto_ckpt else gr.update()
+
+        # GoalNav 모드면 backend 종류 상관없이 API 서버에 config push 시도
+        cfg_status = ""
+        if is_goal and model_key:
             try:
                 ApiInferenceBackend(api_url).set_config(
                     speed_scaling=cfg["speed_scaling"],
                     grounding_skip_n=cfg["grounding_skip_n"],
                     model=model_key,
                 )
-                speed_on = cfg["speed_scaling"]
-                skip_n = cfg["grounding_skip_n"]
-                parts = [f"model={model_key}", f"speed_scaling={speed_on}", f"skip_n={skip_n}"]
-                if desc:
-                    parts.append(desc)
-                cfg_status = "✅ 적용: " + ", ".join(parts)
+                parts = [f"model={model_key}", f"skip_n={cfg['grounding_skip_n']}"]
+                if cfg["speed_scaling"]:
+                    parts.append("속도비례ON")
+                cfg_status = "✅ 서버 적용: " + ", ".join(parts)
+                if auto_conf:
+                    cfg_status += f"  |  📋 {Path(auto_conf).name}"
             except Exception as e:
-                cfg_status = f"⚠️ 적용 실패: {e}"
+                cfg_status = f"⚠️ 서버 적용 실패: {e}"
+                if auto_conf:
+                    cfg_status += f"  |  📋 로컬: {Path(auto_conf).name}"
+        elif auto_conf:
+            cfg_status = f"📋 자동 매칭: {Path(auto_conf).name}"
+        else:
+            cfg_status = "미적용"
+
         return (
             gr.update(visible=is_goal),
             gr.update(visible=not is_goal),
             instr,
             cfg_status,
+            conf_update,
+            ckpt_update,
         )
 
     exp_mode.change(
         fn=on_exp_mode_change,
         inputs=[exp_mode, api_url_box, backend_radio],
-        outputs=[goal_dropdown, path_dropdown, instr_box_real, exp_config_status],
+        outputs=[goal_dropdown, path_dropdown, instr_box_real, exp_config_status, conf_dropdown, ckpt_dropdown],
     )
 
     def on_goal_select(choice):
@@ -1087,10 +1319,31 @@ if __name__ == "__main__":
     print(f"🏠 Local Access: http://{local_ip}:{server_port}")
     print("=" * 60)
 
+    import socket as _sock
+    try:
+        _s = _sock.socket(_sock.AF_INET, _sock.SOCK_DGRAM)
+        _s.connect(("8.8.8.8", 80))
+        _server_ip = _s.getsockname()[0]
+        _s.close()
+    except Exception:
+        _server_ip = "localhost"
+    # Tailscale IP 우선
+    try:
+        import subprocess as _sp
+        _out = _sp.check_output(["ip", "addr"], text=True)
+        for _line in _out.splitlines():
+            if _line.strip().startswith("inet 100."):
+                _server_ip = _line.strip().split()[1].split("/")[0]
+                break
+    except Exception:
+        pass
+    _root = f"http://{_server_ip}:{server_port}"
+
     demo.launch(
         server_name="0.0.0.0",
         server_port=server_port,
         share=share_enabled,
         theme=gr.themes.Soft(),
         ssl_verify=False,
+        root_path=_root,
     )
