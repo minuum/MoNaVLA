@@ -49,20 +49,58 @@ EXP_MODES = {
     "GoalNav-fixed (Exp49, 고정속도)": {
         "instruction": GOAL_NAV_PRESETS[0],
         "backend_mode": "GoalNav (exp49)",
+        "model": "exp49",
         "speed_scaling": False,
         "grounding_skip_n": 3,
+        "desc": "기본 GoalNav — 96.4% val acc",
     },
     "GoalNav-scaled (Exp49, 거리비례속도)": {
         "instruction": GOAL_NAV_PRESETS[0],
         "backend_mode": "GoalNav (exp49)",
+        "model": "exp49",
         "speed_scaling": True,
         "grounding_skip_n": 3,
+        "desc": "기본 GoalNav + 거리비례속도 — 96.4% val acc",
+    },
+    "GoalNav (Exp50, flip-aug)": {
+        "instruction": GOAL_NAV_PRESETS[0],
+        "backend_mode": "GoalNav (exp50)",
+        "model": "exp50",
+        "speed_scaling": False,
+        "grounding_skip_n": 3,
+        "desc": "flip augmentation 2x — 92.0% val acc",
+    },
+    "GoalNav (Exp51, crop-aug)": {
+        "instruction": GOAL_NAV_PRESETS[0],
+        "backend_mode": "GoalNav (exp51)",
+        "model": "exp51",
+        "speed_scaling": False,
+        "grounding_skip_n": 3,
+        "desc": "crop augmentation 4x — 93.4% val acc",
+    },
+    "GoalNav (Exp52, lang+vis) ⚠️": {
+        "instruction": GOAL_NAV_PRESETS[0],
+        "backend_mode": "GoalNav (exp52)",
+        "model": "exp52",
+        "speed_scaling": False,
+        "grounding_skip_n": 3,
+        "desc": "⚠️ lang+vis 2048-dim — 실시간 추출 미지원, 실험적",
+    },
+    "GoalNav (Exp53, CLIP-LoRA)": {
+        "instruction": GOAL_NAV_PRESETS[0],
+        "backend_mode": "GoalNav (exp53)",
+        "model": "exp53",
+        "speed_scaling": False,
+        "grounding_skip_n": 3,
+        "desc": "CLIP LoRA fine-tuned vision encoder — 94.7% val acc",
     },
     "PathType-fixed (Exp47, 고정속도)": {
         "instruction": "right_right",
         "backend_mode": "PathType (exp47)",
+        "model": None,
         "speed_scaling": False,
         "grounding_skip_n": 1,
+        "desc": "PathType 분류기 — 고정속도",
     },
 }
 EXP_MODE_NAMES = list(EXP_MODES.keys())
@@ -121,6 +159,7 @@ except ImportError:
 sys.path.insert(0, str(PROJECT_ROOT))
 from robovlm_nav.serve.inference_server import MobileVLAInference
 from robovlm_nav.serve.vla_control_utils import VLAControlManager
+from scripts.utils.camera_proc import camera_control_widget, start_camera, stop_camera
 
 
 def prepend_env_path(key: str, value: str) -> None:
@@ -426,9 +465,12 @@ class ApiInferenceBackend:
             },
         )
 
-    def set_config(self, speed_scaling: bool, grounding_skip_n: int) -> dict:
+    def set_config(self, speed_scaling: bool, grounding_skip_n: int, model: str | None = None) -> dict:
         try:
-            return self._post("/config", {"speed_scaling": speed_scaling, "grounding_skip_n": grounding_skip_n})
+            payload: dict = {"speed_scaling": speed_scaling, "grounding_skip_n": grounding_skip_n}
+            if model is not None:
+                payload["model"] = model
+            return self._post("/config", payload)
         except Exception as e:
             return {"status": "error", "reason": str(e)}
 
@@ -625,7 +667,7 @@ def run_backend_inference(image: Image.Image, instruction: str, backend_mode: st
         chunk = chunk.reshape(1, -1)
 
     if ROS_AVAILABLE and ros_node:
-        state["current_log"] = ros_node.control.move_and_stop_timed(
+        state["current_log"] = ros_node.control.move_and_stop_ramped(
             float(action[0]),
             float(action[1]),
             float(action[2]) if action.size > 2 else 0.0,
@@ -803,6 +845,10 @@ def reset_model_wrapper(backend_mode: str, api_url: str, instruction: str):
 with gr.Blocks(title="VLA PRO Dashboard") as demo:
     gr.Markdown("# 🚀 Mobile VLA Real-time Dashboard & Teleop")
 
+    _cam_st, _cam_start_btn, _cam_stop_btn = camera_control_widget()
+    _cam_start_btn.click(fn=start_camera, outputs=_cam_st)
+    _cam_stop_btn.click(fn=stop_camera,   outputs=_cam_st)
+
     with gr.Row():
         with gr.Column(scale=2):
             camera_output = gr.Image(label="Live Camera (via Service)", interactive=False)
@@ -949,17 +995,23 @@ with gr.Blocks(title="VLA PRO Dashboard") as demo:
         cfg = EXP_MODES.get(mode_name, EXP_MODES[EXP_MODE_NAMES[0]])
         is_goal = "GoalNav" in mode_name
         instr = cfg["instruction"]
+        model_key = cfg.get("model")
+        desc = cfg.get("desc", "")
         # Apply /config to server if using API backend
         cfg_status = "미적용 (Local 모드)"
         if backend_mode == "API Server":
             try:
-                result = ApiInferenceBackend(api_url).set_config(
+                ApiInferenceBackend(api_url).set_config(
                     speed_scaling=cfg["speed_scaling"],
                     grounding_skip_n=cfg["grounding_skip_n"],
+                    model=model_key,
                 )
                 speed_on = cfg["speed_scaling"]
                 skip_n = cfg["grounding_skip_n"]
-                cfg_status = f"✅ 적용: speed_scaling={speed_on}, skip_n={skip_n}"
+                parts = [f"model={model_key}", f"speed_scaling={speed_on}", f"skip_n={skip_n}"]
+                if desc:
+                    parts.append(desc)
+                cfg_status = "✅ 적용: " + ", ".join(parts)
             except Exception as e:
                 cfg_status = f"⚠️ 적용 실패: {e}"
         return (

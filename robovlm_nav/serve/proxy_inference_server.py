@@ -82,6 +82,14 @@ _GOAL_NAV_WEIGHTS: dict[str, Path] = {
     "exp49": ROOT / "runs" / "v5_nav" / "mlp" / "exp49" / "exp49_mlp.pt",
     "exp50": ROOT / "runs" / "v5_nav" / "mlp" / "exp50" / "exp50_mlp.pt",
     "exp51": ROOT / "runs" / "v5_nav" / "mlp" / "exp51" / "exp51_mlp.pt",
+    # exp52: lang+vis 2048-dim — weight 로드는 가능하지만 실시간 feature 추출 미지원
+    "exp52": ROOT / "runs" / "v5_nav" / "mlp" / "exp52" / "exp52_mlp.pt",
+    "exp53": ROOT / "runs" / "v5_nav" / "mlp" / "exp53_clip_lora.pt",
+}
+
+# exp53용 CLIP LoRA adapter 경로 (vision_model layers 16-23 q_proj/v_proj)
+_GOAL_NAV_LORA_ADAPTERS: dict[str, Path] = {
+    "exp53": ROOT / "runs" / "v5_nav" / "mlp" / "clip_lora_adapter",
 }
 
 NUM_CLASSES = 8
@@ -118,12 +126,14 @@ ACTION_3D = {
 }
 
 model_instance = None
-goal_nav_instance = None
+_goal_nav_cache: dict[str, "GoalNavInferenceModel"] = {}
+_active_goal_nav_model: str = os.getenv("VLA_MODEL", "exp49")
 
 
 class InferenceRequest(BaseModel):
     image: str
     instruction: str
+    vlm_model: Optional[str] = "kosmos"
 
 
 class InferenceResponse(BaseModel):
@@ -149,6 +159,10 @@ class InferenceResponse(BaseModel):
 class ConfigRequest(BaseModel):
     speed_scaling: Optional[bool] = None
     grounding_skip_n: Optional[int] = None
+    smooth_enabled: Optional[bool] = None
+    smooth_alpha_xy: Optional[float] = None
+    smooth_alpha_az: Optional[float] = None
+    model: Optional[str] = None  # "exp49" | "exp50" | "exp51" | "exp52"
 
 
 class ProxyMLP(nn.Module):
@@ -227,34 +241,30 @@ _GROUNDING_LORA    = ROOT / "docs" / "v5" / "bbox_nav_step1" / "grounding_lora"
 _COARSE_LABEL_CX   = {0: 0.25, 1: 0.5, 2: 0.75}
 
 
+def _parse_paligemma_locs(text: str) -> Optional[dict]:
+    # PaliGemma outputs <loc_XXXX> tokens in y1,x1,y2,x2 order (0-1023)
+    locs = re.findall(r"<loc(\d{4})>", text)
+    if len(locs) < 4:
+        return None
+    y1, x1, y2, x2 = [int(v) / 1023.0 for v in locs[:4]]
+    if x2 <= x1 or y2 <= y1:
+        return None
+    return {
+        "cx":   (x1 + x2) / 2,
+        "cy":   (y1 + y2) / 2,
+        "area": (x2 - x1) * (y2 - y1),
+    }
+
+
 class GroundingBackend:
-    def __init__(self, model_path: Path, device: torch.device):
-        if not model_path.exists():
-            raise FileNotFoundError(f"Grounding model not found: {model_path}")
-        self.model_path = model_path
+    def __init__(self, default_model_path: Path, device: torch.device, vis_lora_adapter_path: Optional[Path] = None):
+        self.default_model_path = default_model_path
         self.device = device
-        self.processor = AutoProcessor.from_pretrained(str(model_path))
-        self.model = AutoModelForVision2Seq.from_pretrained(
-            str(model_path),
-            torch_dtype=torch.float16 if device.type == "cuda" else torch.float32,
-        ).to(device).eval()
-
-        # Optional LoRA grounding adapter — DISABLED BY DEFAULT.
-        # The 5/4 fine-tune (grounding_lora/) collapses caption to "" and zeros
-        # entity matching (verified 0/72 on bbox_truth_mini, 2026-05-05).
-        # Set VLA_ENABLE_GROUNDING_LORA=1 to opt back in once a working adapter
-        # is trained. See docs/v5/grounding_3tier_ablation.md for the diagnosis.
-        if _GROUNDING_LORA.exists() and os.getenv("VLA_ENABLE_GROUNDING_LORA") == "1":
-            try:
-                from peft import PeftModel
-                self.model = PeftModel.from_pretrained(self.model, str(_GROUNDING_LORA))
-                self.model = self.model.merge_and_unload()
-                self.model.eval()
-                logger.info("Loaded grounding LoRA adapter from %s", _GROUNDING_LORA)
-            except Exception as e:
-                logger.warning("Failed to load grounding LoRA (%s); using base model", e)
-
-        logger.info("Loaded grounding backend from %s on %s", model_path, device)
+        self.vis_lora_adapter_path = vis_lora_adapter_path
+        self.current_model_name = None
+        self.model = None
+        self.processor = None
+        self.tokenizer = None
 
         # Coarse direction classifier (optional, loaded if weights file exists)
         self._coarse_clf: Optional[nn.Linear] = None
@@ -271,6 +281,80 @@ class GroundingBackend:
             logger.info("Loaded coarse direction classifier (%d samples)", ckpt.get("n_samples", 0))
         else:
             logger.info("No coarse direction classifier found at %s", _COARSE_CLF_PATH)
+
+    def _switch_model(self, model_name: str) -> None:
+        """On-demand switches the active VLM grounding model to save GPU memory."""
+        if self.current_model_name == model_name:
+            return
+
+        logger.info("Switching VLM grounding model from %s to %s...", self.current_model_name, model_name)
+
+        # Clear existing model to free VRAM
+        if self.model is not None:
+            del self.model
+            self.model = None
+        if self.processor is not None:
+            self.processor = None
+        if self.tokenizer is not None:
+            self.tokenizer = None
+        
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+        device = self.device
+        dtype = torch.float16 if device.type == "cuda" else torch.float32
+
+        if model_name == "kosmos":
+            self.processor = AutoProcessor.from_pretrained(str(self.default_model_path))
+            self.model = AutoModelForVision2Seq.from_pretrained(
+                str(self.default_model_path),
+                torch_dtype=dtype,
+            ).to(device).eval()
+
+            # Optional LoRA grounding adapter
+            if _GROUNDING_LORA.exists() and os.getenv("VLA_ENABLE_GROUNDING_LORA") == "1":
+                try:
+                    from peft import PeftModel
+                    self.model = PeftModel.from_pretrained(self.model, str(_GROUNDING_LORA))
+                    self.model = self.model.merge_and_unload()
+                    self.model.eval()
+                    logger.info("Loaded grounding LoRA adapter from %s", _GROUNDING_LORA)
+                except Exception as e:
+                    logger.warning("Failed to load grounding LoRA (%s); using base model", e)
+
+            # Optional vis LoRA adapter (applied for exp53)
+            if self.vis_lora_adapter_path is not None and self.vis_lora_adapter_path.exists():
+                try:
+                    from peft import PeftModel
+                    self.model.vision_model = PeftModel.from_pretrained(
+                        self.model.vision_model, str(self.vis_lora_adapter_path)
+                    ).eval()
+                    logger.info("Loaded vis LoRA adapter from %s", self.vis_lora_adapter_path)
+                except Exception as e:
+                    logger.warning("Failed to load vis LoRA adapter (%s); using base vision model", e)
+
+        elif model_name == "paligemma":
+            model_id = _MODEL_IDS.get("paligemma-mix", "google/paligemma-3b-mix-224")
+            # PaliGemma prefers bfloat16 on GPU
+            pg_dtype = torch.bfloat16 if device.type == "cuda" else torch.float32
+            from transformers import PaliGemmaForConditionalGeneration
+            self.processor = AutoProcessor.from_pretrained(model_id)
+            self.model = PaliGemmaForConditionalGeneration.from_pretrained(
+                model_id, torch_dtype=pg_dtype
+            ).to(device).eval()
+
+        elif model_name == "moondream":
+            model_id = _MODEL_IDS.get("moondream", "vikhyatk/moondream2")
+            from transformers import AutoModelForCausalLM
+            self.model = AutoModelForCausalLM.from_pretrained(
+                model_id,
+                trust_remote_code=True,
+                revision=_MOONDREAM_REVISION,
+                torch_dtype=dtype,
+            ).to(device).eval()
+
+        self.current_model_name = model_name
+        logger.info("Successfully loaded VLM: %s on %s", model_name, device)
 
     # caption 방향 패턴: (phrases, cx값) — 긴 구문 먼저 체크
     _CAPTION_DIRECTION_PATTERNS = [
@@ -294,11 +378,7 @@ class GroundingBackend:
         return None
 
     def _coarse_direction_cx(self, pixel_values: torch.Tensor) -> Optional[float]:
-        """Frozen Kosmos-2 vision features → coarse direction (LEFT/CENTER/RIGHT) → cx.
-
-        Reuses already-computed pixel_values; no text generation needed.
-        Returns None if classifier weights are not loaded.
-        """
+        """Frozen Kosmos-2 vision features → coarse direction (LEFT/CENTER/RIGHT) → cx."""
         if self._coarse_clf is None:
             return None
         with torch.no_grad():
@@ -308,11 +388,15 @@ class GroundingBackend:
             pred = self._coarse_clf(feats_norm).argmax(dim=-1).item()
         return _COARSE_LABEL_CX[pred]
 
-    def _parse_basket_bbox(self, caption: str, entities: list[Any]) -> Optional[dict[str, Any]]:
-        # "basket", "container", "bin", "laundry", "gray box" 등 바구니 특화 키워드만 사용.
-        # 과거에 있던 "gray" 단독 키워드는 "gray trash can", "gray wall" 등 무관한 객체까지
-        # 매칭해서 잘못된 bbox 좌표를 리턴하는 문제가 있어 제거.
-        basket_keywords = ("basket", "gray box", "container", "bin", "laundry")
+    def _parse_basket_bbox(self, caption: str, entities: list[Any], target_object: str = "basket") -> Optional[dict[str, Any]]:
+        target_lower = target_object.lower()
+        target_keywords = {target_lower}
+        for word in target_lower.split():
+            if len(word) > 2:
+                target_keywords.add(word)
+        if "basket" in target_lower:
+            target_keywords.update(["container", "bin", "laundry", "gray box"])
+
         candidates = []
         for entity_name, _span, boxes in entities:
             for box in boxes:
@@ -332,11 +416,11 @@ class GroundingBackend:
                         "cx": (x1 + x2) / 2.0,
                         "cy": (y1 + y2) / 2.0,
                         "area": area,
-                        "is_basket": any(k in entity_name.lower() for k in basket_keywords),
+                        "is_target": any(k in entity_name.lower() for k in target_keywords),
                     }
                 )
 
-        matched = [b for b in candidates if b["is_basket"]]
+        matched = [b for b in candidates if b["is_target"]]
         if matched:
             return matched[0]
 
@@ -357,13 +441,13 @@ class GroundingBackend:
                 label = "caption:center"
             return {"entity": label, "cx": cx, "cy": 0.6, "area": 0.06}
 
-        # caption 방향도 없으면 coarse_clf에 위임 (seed_coarse_agreement=1.0, 오탐 entity보다 정확)
         return None
 
     def extract_vis_feat(self, image_rgb: np.ndarray) -> np.ndarray:
         """Kosmos-2 vision encoder mean-pool → (1024,) float32. Reuses loaded model."""
+        self._switch_model("kosmos")
         pil = Image.fromarray(image_rgb.astype(np.uint8)).convert("RGB")
-        inputs = self.processor(text=GROUNDING_PROMPT, images=pil, return_tensors="pt")
+        inputs = self.processor(text="<grounding>The gray basket is at", images=pil, return_tensors="pt")
         pv = inputs["pixel_values"].to(self.device)
         if self.device.type == "cuda":
             pv = pv.to(torch.float16)
@@ -372,46 +456,107 @@ class GroundingBackend:
             feat = vo.last_hidden_state[0].mean(0).float().cpu().numpy()
         return feat  # (1024,)
 
-    def run(self, image_rgb: np.ndarray, extract_vis: bool = False) -> dict[str, Any]:
+    def run(self, image_rgb: np.ndarray, instruction: str = "basket", vlm_model: str = "kosmos", extract_vis: bool = False) -> dict[str, Any]:
+        self._switch_model(vlm_model)
+        target_object = instruction.lower().replace("the", "").replace("a", "").strip()
+
         pil_image = Image.fromarray(image_rgb.astype(np.uint8)).convert("RGB")
-        inputs = self.processor(text=GROUNDING_PROMPT, images=pil_image, return_tensors="pt")
-        inputs = {k: v.to(self.device) for k, v in inputs.items()}
-        pixel_values = inputs["pixel_values"].to(torch.float16 if self.device.type == "cuda" else torch.float32)
+        bbox = None
+        caption = ""
+        latency_ms = 0.0
+        vis_feat = None
 
         start = time.time()
-        with torch.no_grad():
-            generated = self.model.generate(
-                pixel_values=pixel_values,
-                input_ids=inputs["input_ids"],
-                attention_mask=inputs["attention_mask"],
-                image_embeds=None,
-                image_embeds_position_mask=inputs.get("image_embeds_position_mask"),
-                use_cache=True,
-                max_new_tokens=64,
-            )
+
+        if vlm_model == "kosmos":
+            prompt = f"<grounding>The {target_object} is at"
+            inputs = self.processor(text=prompt, images=pil_image, return_tensors="pt")
+            inputs = {k: v.to(self.device) for k, v in inputs.items()}
+            pixel_values = inputs["pixel_values"].to(torch.float16 if self.device.type == "cuda" else torch.float32)
+
+            with torch.no_grad():
+                generated = self.model.generate(
+                    pixel_values=pixel_values,
+                    input_ids=inputs["input_ids"],
+                    attention_mask=inputs["attention_mask"],
+                    image_embeds=None,
+                    image_embeds_position_mask=inputs.get("image_embeds_position_mask"),
+                    use_cache=True,
+                    max_new_tokens=64,
+                )
+
+            new_ids = generated[:, inputs["input_ids"].shape[1] :]
+            raw = self.processor.batch_decode(new_ids, skip_special_tokens=False)[0]
+            caption, entities = self.processor.post_process_generation(raw)
+            bbox = self._parse_basket_bbox(caption, entities, target_object)
+
+            if extract_vis:
+                with torch.no_grad():
+                    vo = self.model.vision_model(pixel_values=pixel_values)
+                    vis_feat = vo.last_hidden_state[0].mean(0).float().cpu().numpy()
+
+        elif vlm_model == "paligemma":
+            prompt = f"detect {target_object}\n"
+            inputs = self.processor(text=prompt, images=pil_image, return_tensors="pt").to(self.device)
+            with torch.no_grad():
+                gen = self.model.generate(**inputs, max_new_tokens=100)
+            full_decoded = self.processor.decode(gen[0], skip_special_tokens=False)
+            prompt_end = full_decoded.find(prompt.strip())
+            decoded = full_decoded[prompt_end + len(prompt):] if prompt_end >= 0 else full_decoded
+            caption = decoded.strip()
+
+            locs = _parse_paligemma_locs(caption)
+            if locs:
+                bbox = {"entity": f"paligemma:{target_object}", "cx": locs["cx"], "cy": locs["cy"], "area": locs["area"]}
+
+        elif vlm_model == "moondream":
+            with torch.no_grad():
+                try:
+                    raw = self.model.detect(pil_image, target_object)
+                    objects = raw.get("objects", raw) if isinstance(raw, dict) else raw
+                except Exception as e:
+                    logger.warning("Moondream detect error: %s", e)
+                    objects = []
+
+            caption = f"{len(objects)} object(s) detected"
+            if objects:
+                obj = objects[0]
+                x1 = float(obj.get("x_min", obj.get("xmin", 0)))
+                y1 = float(obj.get("y_min", obj.get("ymin", 0)))
+                x2 = float(obj.get("x_max", obj.get("xmax", 1)))
+                y2 = float(obj.get("y_max", obj.get("ymax", 1)))
+                area = abs(x2 - x1) * abs(y2 - y1)
+                if area < 0.95:
+                    bbox = {"cx": (x1+x2)/2, "cy": (y1+y2)/2, "area": area}
+
         latency_ms = (time.time() - start) * 1000.0
 
-        new_ids = generated[:, inputs["input_ids"].shape[1] :]
-        raw = self.processor.batch_decode(new_ids, skip_special_tokens=False)[0]
-        caption, entities = self.processor.post_process_generation(raw)
-        bbox = self._parse_basket_bbox(caption, entities)
-
-        # Coarse classifier fallback: fires only when entity match AND caption both fail
-        if bbox is None:
-            cx = self._coarse_direction_cx(pixel_values)
+        # Fallback if detection fails
+        if bbox is None and vlm_model == "kosmos":
+            prompt = f"<grounding>The {target_object} is at"
+            inputs = self.processor(text=prompt, images=pil_image, return_tensors="pt")
+            pv = inputs["pixel_values"].to(self.device).to(torch.float16 if self.device.type == "cuda" else torch.float32)
+            cx = self._coarse_direction_cx(pv)
             if cx is not None:
                 bbox = {"entity": "coarse_clf", "cx": cx, "cy": 0.6, "area": 0.06}
+        elif bbox is None:
+            # Caption fallback for other models
+            caption_lower = caption.lower()
+            cx = self._caption_to_cx(caption_lower)
+            if cx is not None:
+                if cx < 0.2: label = "caption:far_left"
+                elif cx < 0.4: label = "caption:left"
+                elif cx > 0.8: label = "caption:far_right"
+                elif cx > 0.6: label = "caption:right"
+                else: label = "caption:center"
+                bbox = {"entity": label, "cx": cx, "cy": 0.6, "area": 0.06}
 
         result: dict[str, Any] = {
             "caption": caption,
             "bbox": bbox,
             "latency_ms": latency_ms,
-            "vis_feat": None,
+            "vis_feat": vis_feat,
         }
-        if extract_vis:
-            with torch.no_grad():
-                vo = self.model.vision_model(pixel_values=pixel_values)
-                result["vis_feat"] = vo.last_hidden_state[0].mean(0).float().cpu().numpy()
         return result
 
 
@@ -774,14 +919,14 @@ class ProxyInferenceModel:
         instr_emb, matched_path = self._get_instruction_embedding(instruction)
         return np.concatenate([exp46_feat, instr_emb]), matched_path
 
-    def predict(self, image_base64: str, instruction: str) -> dict[str, Any]:
+    def predict(self, image_base64: str, instruction: str, vlm_model: str = "kosmos") -> dict[str, Any]:
         if self.model is None:
             raise RuntimeError("Proxy model is not loaded")
 
         start = time.time()
         image_rgb = self._decode_image(image_base64)
         extract_vis = self.model_type in ("exp46", "exp47")
-        grounding = self.grounder.run(image_rgb, extract_vis=extract_vis)
+        grounding = self.grounder.run(image_rgb, instruction=instruction, vlm_model=vlm_model, extract_vis=extract_vis)
         bbox = grounding["bbox"]
         vis_feat = grounding.get("vis_feat")
 
@@ -855,6 +1000,7 @@ class GoalNavInferenceModel:
         grounding_model_path: Path,
         grounding_device: torch.device,
         device: torch.device,
+        lora_adapter_path: Optional[Path] = None,
     ):
         self.device = device
         self.model: Optional[GoalNavMLP] = None
@@ -866,7 +1012,7 @@ class GoalNavInferenceModel:
         self.model_info: dict[str, Any] = {}
         self.model_name = weights_path.stem
 
-        self.grounder = GroundingBackend(grounding_model_path, grounding_device)
+        self.grounder = GroundingBackend(grounding_model_path, grounding_device, vis_lora_adapter_path=lora_adapter_path)
         self._load(weights_path)
 
         # grounding 캐시: _grounding_skip_n 스텝마다 1번만 Kosmos-2 실행 (1=캐시 없음)
@@ -874,17 +1020,35 @@ class GoalNavInferenceModel:
         self._grounding_cache: Optional[dict] = None
         # 속도 스케일링: bbox area 기반 감속 활성화 여부
         self.speed_scaling_enabled: bool = os.getenv("VLA_SPEED_SCALING", "1") != "0"
+        # EMA 스무딩: 연속 스텝 간 액션 블렌딩
+        self.smooth_enabled: bool = os.getenv("VLA_SMOOTH", "1") != "0"
+        self.smooth_alpha_xy: float = float(os.getenv("VLA_SMOOTH_ALPHA_XY", "0.65"))
+        self.smooth_alpha_az: float = float(os.getenv("VLA_SMOOTH_ALPHA_AZ", "0.80"))
+        self.prev_action_3d: list[float] = [0.0, 0.0, 0.0]
 
     def _load(self, weights_path: Path) -> None:
         if not weights_path.exists():
             raise FileNotFoundError(f"GoalNav weights not found: {weights_path}")
         ckpt = torch.load(weights_path, map_location="cpu", weights_only=False)
-        d_in = int(ckpt["d_in"])
-        self.window = int(ckpt.get("window", 8))
-        self.goal_dim = int(ckpt.get("goal_dim") or 0)
 
-        net = GoalNavMLP(d_in=d_in)
-        net.net.load_state_dict(ckpt["model_state_dict"])
+        if "mlp" in ckpt and "model_state_dict" not in ckpt:
+            # exp53 format: {'mlp': full_state_dict, 'val_acc': float}
+            state = ckpt["mlp"]
+            d_in = state["net.0.weight"].shape[1]
+            self.window = 8
+            self.goal_dim = d_in - 32 - VIS_DIM  # 1059 - 32 - 1024 = 3
+            net = GoalNavMLP(d_in=d_in)
+            net.load_state_dict(state)
+            overall_acc = ckpt.get("val_acc")
+        else:
+            # exp49/50/51 format: {'d_in', 'model_state_dict', 'window', ...}
+            d_in = int(ckpt["d_in"])
+            self.window = int(ckpt.get("window", 8))
+            self.goal_dim = int(ckpt.get("goal_dim") or 0)
+            net = GoalNavMLP(d_in=d_in)
+            net.net.load_state_dict(ckpt["model_state_dict"])
+            overall_acc = ckpt.get("overall_acc")
+
         self.model = net.to(self.device).eval()
         self.model_info = {
             "source": "loaded",
@@ -892,11 +1056,11 @@ class GoalNavInferenceModel:
             "d_in": d_in,
             "window": self.window,
             "goal_dim": self.goal_dim,
-            "overall_acc": ckpt.get("overall_acc"),
+            "overall_acc": overall_acc,
         }
         logger.info(
             "Loaded GoalNav MLP from %s (d_in=%d, window=%d, goal_dim=%d, acc=%.4f)",
-            weights_path, d_in, self.window, self.goal_dim, ckpt.get("overall_acc", 0.0),
+            weights_path, d_in, self.window, self.goal_dim, overall_acc or 0.0,
         )
 
     def reset(self) -> None:
@@ -904,20 +1068,33 @@ class GoalNavInferenceModel:
         self.goal = None
         self.inference_count = 0
         self._grounding_cache = None
+        self.prev_action_3d = [0.0, 0.0, 0.0]
 
     def set_config(
         self,
         speed_scaling: Optional[bool] = None,
         grounding_skip_n: Optional[int] = None,
+        smooth_enabled: Optional[bool] = None,
+        smooth_alpha_xy: Optional[float] = None,
+        smooth_alpha_az: Optional[float] = None,
     ) -> dict:
         if speed_scaling is not None:
             self.speed_scaling_enabled = speed_scaling
         if grounding_skip_n is not None:
             self._grounding_skip_n = max(1, grounding_skip_n)
             self._grounding_cache = None
+        if smooth_enabled is not None:
+            self.smooth_enabled = smooth_enabled
+        if smooth_alpha_xy is not None:
+            self.smooth_alpha_xy = max(0.0, min(1.0, smooth_alpha_xy))
+        if smooth_alpha_az is not None:
+            self.smooth_alpha_az = max(0.0, min(1.0, smooth_alpha_az))
         return {
             "speed_scaling_enabled": self.speed_scaling_enabled,
             "grounding_skip_n": self._grounding_skip_n,
+            "smooth_enabled": self.smooth_enabled,
+            "smooth_alpha_xy": self.smooth_alpha_xy,
+            "smooth_alpha_az": self.smooth_alpha_az,
         }
 
     def _build_feature(self, vis_feat: np.ndarray) -> np.ndarray:
@@ -937,25 +1114,27 @@ class GoalNavInferenceModel:
         pil = Image.open(io.BytesIO(image_bytes)).convert("RGB")
         return np.array(pil)
 
-    def predict(self, image_base64: str, instruction: str) -> dict[str, Any]:
+    def predict(self, image_base64: str, instruction: str, vlm_model: str = "kosmos") -> dict[str, Any]:
         if self.model is None:
             raise RuntimeError("GoalNav model not loaded")
 
         start = time.time()
         image_rgb = self._decode_image(image_base64)
 
-        # Grounding 캐시: _grounding_skip_n 스텝마다 1번만 Kosmos-2 실행
+        # Grounding 캐시
         use_cache = (
             self._grounding_skip_n > 1
             and self.inference_count > 0
             and self.inference_count % self._grounding_skip_n != 0
             and self._grounding_cache is not None
+            and self._grounding_cache.get("vlm_model") == vlm_model
         )
         if use_cache:
             grounding = self._grounding_cache
             grounding = dict(grounding, latency_ms=0.0)  # 캐시 히트 표시
         else:
-            grounding = self.grounder.run(image_rgb, extract_vis=True)
+            grounding = self.grounder.run(image_rgb, instruction=instruction, vlm_model=vlm_model, extract_vis=True)
+            grounding["vlm_model"] = vlm_model
             self._grounding_cache = grounding
 
         bbox = grounding["bbox"]
@@ -1012,6 +1191,17 @@ class GoalNavInferenceModel:
             scaled_2d = list(raw_2d)
             scaled_3d = list(raw_3d)
 
+        # EMA 스무딩: 첫 스텝 이후부터 이전 액션과 블렌딩
+        if self.smooth_enabled and self.inference_count > 0:
+            p = self.prev_action_3d
+            scaled_3d = [
+                self.smooth_alpha_xy * scaled_3d[0] + (1 - self.smooth_alpha_xy) * p[0],
+                self.smooth_alpha_xy * scaled_3d[1] + (1 - self.smooth_alpha_xy) * p[1],
+                self.smooth_alpha_az * scaled_3d[2] + (1 - self.smooth_alpha_az) * p[2],
+            ]
+            scaled_2d = [scaled_3d[0], scaled_3d[1]]
+        self.prev_action_3d = list(scaled_3d)
+
         self.inference_count += 1
         return {
             "action": scaled_2d,
@@ -1025,6 +1215,9 @@ class GoalNavInferenceModel:
             "goal_near_proxy": goal_near_proxy(bbox_frame),
             "speed_scale": speed_scale,
             "grounding_cached": use_cache,
+            "smooth_applied": self.smooth_enabled and self.inference_count > 0,
+            "smooth_alpha_xy": self.smooth_alpha_xy,
+            "smooth_alpha_az": self.smooth_alpha_az,
             "buffer_status": {
                 "history_size": len(self.history),
                 "window": self.window,
@@ -1072,31 +1265,33 @@ def _get_proxy_model(refresh: bool = False) -> ProxyInferenceModel:
 
 
 def _get_goal_nav_model(model_name: str, refresh: bool = False) -> GoalNavInferenceModel:
-    global goal_nav_instance
+    global _goal_nav_cache, _active_goal_nav_model
     if refresh:
-        goal_nav_instance = None
+        _goal_nav_cache.pop(model_name, None)
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
-    if goal_nav_instance is None:
+    if model_name not in _goal_nav_cache:
         override = os.getenv("VLA_GOAL_NAV_WEIGHTS_PATH")
         weights_path = Path(override) if override else _GOAL_NAV_WEIGHTS[model_name]
         grounding_model_path = Path(os.getenv("VLA_GROUNDING_MODEL_PATH", str(DEFAULT_GROUNDING_MODEL)))
         device = resolve_device(os.getenv("VLA_GOAL_NAV_DEVICE", "auto"))
         grounding_device = resolve_device(os.getenv("VLA_PROXY_GROUNDING_DEVICE", "auto"))
-        goal_nav_instance = GoalNavInferenceModel(
+        lora_path = _GOAL_NAV_LORA_ADAPTERS.get(model_name)
+        _goal_nav_cache[model_name] = GoalNavInferenceModel(
             weights_path=weights_path,
             grounding_model_path=grounding_model_path,
             grounding_device=grounding_device,
             device=device,
+            lora_adapter_path=lora_path,
         )
-    return goal_nav_instance
+    _active_goal_nav_model = model_name
+    return _goal_nav_cache[model_name]
 
 
 def get_model(refresh: bool = False):
-    """VLA_MODEL=exp49 (or exp46/50/51) → GoalNavInferenceModel. Default → ProxyInferenceModel."""
-    vla_model = os.getenv("VLA_MODEL", "exp19").lower()
-    if vla_model in _GOAL_NAV_WEIGHTS:
-        return _get_goal_nav_model(vla_model, refresh)
+    """_active_goal_nav_model → GoalNavInferenceModel. Default → ProxyInferenceModel."""
+    if _active_goal_nav_model in _GOAL_NAV_WEIGHTS:
+        return _get_goal_nav_model(_active_goal_nav_model, refresh)
     return _get_proxy_model(refresh)
 
 
@@ -1109,17 +1304,17 @@ class ModelLoadRequest(BaseModel):
 
 @app.get("/")
 async def root() -> dict[str, Any]:
-    vla_model = os.getenv("VLA_MODEL", "exp19").lower()
-    model = model_instance
-    model_type = getattr(model, "model_type", "exp19") if model else "exp19"
+    model = _goal_nav_cache.get(_active_goal_nav_model) or model_instance
+    model_type = getattr(model, "model_type", "goal_nav") if isinstance(model, GoalNavInferenceModel) else getattr(model, "model_type", "exp19") if model else "exp19"
     return {
         "name": "Mobile VLA Proxy API",
         "version": "0.2.0",
         "status": "running",
         "model_type": model_type,
-        "active_model": vla_model,
+        "active_model": _active_goal_nav_model,
+        "loaded_models": list(_goal_nav_cache.keys()),
         "goal_nav_models": list(_GOAL_NAV_WEIGHTS.keys()),
-        "note": "Supports Exp19 (bbox proxy), Exp46/47 (bbox+vision+instruction), Exp49+ (GoalNav).",
+        "note": "Supports Exp19 (bbox proxy), Exp46/47 (bbox+vision+instruction), Exp49+ (GoalNav). Switch via POST /config {model: expNN}.",
     }
 
 
@@ -1188,14 +1383,15 @@ async def health_check() -> dict[str, Any]:
             "device_name": torch.cuda.get_device_name(0),
         }
 
-    active = goal_nav_instance if goal_nav_instance is not None else model_instance
+    active = _goal_nav_cache.get(_active_goal_nav_model) or model_instance
     return {
         "status": "healthy",
-        "active_model": os.getenv("VLA_MODEL", "exp19"),
+        "active_model": _active_goal_nav_model,
+        "loaded_models": list(_goal_nav_cache.keys()),
         "model_loaded": active is not None,
-        "model_name": None if active is None else active.model_name,
+        "model_name": None if active is None else getattr(active, "model_name", "unknown"),
         "gpu_memory": gpu_memory,
-        "model_info": None if active is None else active.model_info,
+        "model_info": None if active is None else getattr(active, "model_info", {}),
     }
 
 
@@ -1210,7 +1406,7 @@ async def predict(request: InferenceRequest, x_api_key: Optional[str] = Header(d
     _verify_api_key(x_api_key)
     try:
         model = get_model()
-        result = model.predict(request.image, request.instruction)
+        result = model.predict(request.image, request.instruction, vlm_model=request.vlm_model)
         strategy = "goal_nav" if isinstance(model, GoalNavInferenceModel) else "proxy_mlp"
         response = InferenceResponse(
             action=result["action"],
@@ -1261,12 +1457,22 @@ async def set_config(
     x_api_key: Optional[str] = Header(default=None),
 ) -> dict[str, Any]:
     _verify_api_key(x_api_key)
+    # 모델 전환 먼저 처리
+    if request.model is not None:
+        if request.model not in _GOAL_NAV_WEIGHTS:
+            return {"status": "error", "reason": f"Unknown model: {request.model}. Available: {list(_GOAL_NAV_WEIGHTS.keys())}"}
+        _get_goal_nav_model(request.model)  # 캐시 확보 + _active_goal_nav_model 갱신
+        logger.info("Model switched to %s", request.model)
     model = get_model()
     if isinstance(model, GoalNavInferenceModel):
         cfg = model.set_config(
             speed_scaling=request.speed_scaling,
             grounding_skip_n=request.grounding_skip_n,
+            smooth_enabled=request.smooth_enabled,
+            smooth_alpha_xy=request.smooth_alpha_xy,
+            smooth_alpha_az=request.smooth_alpha_az,
         )
+        cfg["active_model"] = _active_goal_nav_model
         return {"status": "success", "config": cfg}
     return {"status": "skipped", "reason": "Not a GoalNavInferenceModel"}
 

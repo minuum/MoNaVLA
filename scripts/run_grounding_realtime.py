@@ -46,13 +46,18 @@ from PIL import Image, ImageDraw, ImageFont
 
 DEFAULT_VLM         = ROOT / ".vlms" / "kosmos-2-patch14-224"
 PALIGEMMA_VLM       = Path("/home/minum/.cache/huggingface/hub/models--google--paligemma-3b-pt-224/snapshots/35e4f46485b4d07967e7e9935bc3786aad50687c")
+PALIGEMMA2_VLM      = Path.home() / ".cache/huggingface/hub" \
+                      / "models--google--paligemma2-3b-mix-224" \
+                      / "snapshots/8e40ab4cc5df93dfb7fd2fff754bcdff8b62ee78"
 DEFAULT_ADAPTERS = {
     "old":   ROOT / "docs" / "v5" / "bbox_nav_step1" / "grounding_lora",
     "exp56": ROOT / "runs" / "v5_nav" / "grounding" / "exp56",
-    "exp57": ROOT / "runs" / "v5_nav" / "grounding" / "exp57",   # PaliGemma LoRA
+    "exp57": ROOT / "runs" / "v5_nav" / "grounding" / "exp57",   # PaliGemma-3b-pt LoRA
+    "exp59": ROOT / "runs" / "v5_nav" / "grounding" / "exp59",   # PaliGemma2-3b-mix LoRA (hard negative)
 }
-# exp57는 PaliGemma backbone 필요
-PALIGEMMA_ADAPTERS = {"exp57"}
+# PaliGemma 계열 어댑터 (PG backbone 필요)
+PALIGEMMA_ADAPTERS  = {"exp57"}                   # PaliGemma-3b-pt
+PALIGEMMA2_ADAPTERS = {"exp59"}                   # PaliGemma2-3b-mix (별도 VLM 경로)
 OUT_DIR = ROOT / "docs" / "v5" / "grounding_demo" / "realtime_test"
 
 BASKET_KW = ("basket", "gray box", "container", "bin", "laundry")
@@ -78,10 +83,15 @@ def load_model(vlm_path: Path, adapter_path: Path | None, device: torch.device):
     from peft import PeftModel
 
     print(f"[LOAD] Kosmos-2 from {vlm_path}")
+    # Kosmos-2는 uint8 텐서(image embedding) 포함 → bitsandbytes 양자화 불가
+    # 반드시 float16/float32로만 로드해야 함 (quantization 옵션 없이)
     dtype = torch.float16 if device.type == "cuda" else torch.float32
     processor = AutoProcessor.from_pretrained(str(vlm_path))
     model = AutoModelForVision2Seq.from_pretrained(
-        str(vlm_path), torch_dtype=dtype
+        str(vlm_path),
+        torch_dtype=dtype,
+        low_cpu_mem_usage=True,
+        # load_in_4bit / load_in_8bit 절대 사용 금지 — uint8 텐서 충돌
     ).to(device)
 
     if adapter_path is not None and adapter_path.exists():
@@ -350,19 +360,28 @@ def main():
 
     # adapter 경로 해석 + 백본 자동감지
     adapter_path = None
-    use_paligemma = False
+    use_paligemma  = False
+    use_paligemma2 = False
     if args.adapter:
         if args.adapter in DEFAULT_ADAPTERS:
-            adapter_path = DEFAULT_ADAPTERS[args.adapter]
-            use_paligemma = args.adapter in PALIGEMMA_ADAPTERS
+            adapter_path   = DEFAULT_ADAPTERS[args.adapter]
+            use_paligemma  = args.adapter in PALIGEMMA_ADAPTERS
+            use_paligemma2 = args.adapter in PALIGEMMA2_ADAPTERS
         else:
             adapter_path = Path(args.adapter)
-            use_paligemma = (adapter_path / "adapter_config.json").exists() and \
-                "paligemma" in open(adapter_path / "adapter_config.json").read().lower()
+            cfg_text = open(adapter_path / "adapter_config.json").read().lower() \
+                       if (adapter_path / "adapter_config.json").exists() else ""
+            use_paligemma2 = "paligemma2" in cfg_text or "mix-224" in cfg_text
+            use_paligemma  = (not use_paligemma2) and "paligemma" in cfg_text
 
-    backbone_name = "PaliGemma" if use_paligemma else "Kosmos-2"
-    if use_paligemma:
+    if use_paligemma2:
+        backbone_name = "PaliGemma2"
+        vlm_path = PALIGEMMA2_VLM
+    elif use_paligemma:
+        backbone_name = "PaliGemma"
         vlm_path = PALIGEMMA_VLM
+    else:
+        backbone_name = "Kosmos-2"
 
     print("=" * 60)
     print(f"{backbone_name} Grounding Demo")
@@ -379,7 +398,11 @@ def main():
     print(f"  Loaded {len(frames)} frames  ({frames[0].shape})")
 
     # 모델 로딩
-    if use_paligemma:
+    if use_paligemma2:
+        # PaliGemma2 — PaliGemmaForConditionalGeneration (PG2도 동일 클래스)
+        model, processor = load_paligemma_model(vlm_path, adapter_path, device)
+        _ground_fn = lambda m, p, img, phrase, dev: ground_paligemma(m, p, img, phrase, dev)
+    elif use_paligemma:
         model, processor = load_paligemma_model(vlm_path, adapter_path, device)
         _ground_fn = lambda m, p, img, phrase, dev: ground_paligemma(m, p, img, phrase, dev)
     else:
