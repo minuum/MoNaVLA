@@ -50,7 +50,7 @@ class Stage1Encoder(nn.Module):
     def __init__(self, vlm_path, stage1_pt, device):
         super().__init__()
         from transformers import AutoModelForVision2Seq, AutoProcessor
-        ckpt = torch.load(str(stage1_pt), map_location=device, weights_only=False)
+        ckpt = torch.load(str(stage1_pt), map_location=device, weights_only=True)
         self.processor = AutoProcessor.from_pretrained(str(vlm_path))
         base = AutoModelForVision2Seq.from_pretrained(str(vlm_path), torch_dtype=torch.float16)
         self.vm = base.vision_model.to(device).eval()
@@ -118,17 +118,17 @@ class Exp59Grounder:
 
 # ── 에피소드 평가 ────────────────────────────────────────────────────────
 
-def eval_episode(ep_entry, enc, mlp, grounder, device):
+def eval_episode(ep_entry, enc, mlp, grounder, device, ema_alpha=1.0):
     frames = ep_entry["frames"]
     h5_path = Path(ep_entry["episode"])
     if not h5_path.exists():
-        return None, None
+        return None, None, 0.0
 
     try:
         with h5py.File(str(h5_path), "r") as f:
             imgs_np = f["observations"]["images"][:]
     except Exception as e:
-        return None, None
+        return None, None, 0.0
 
     n = len(frames)
     pil_imgs = [Image.fromarray(imgs_np[fr["frame_idx"]].astype("uint8")) for fr in frames]
@@ -148,19 +148,38 @@ def eval_episode(ep_entry, enc, mlp, grounder, device):
     expert_classes = [fr["gt_class"] for fr in frames]
 
     # bbox_hist 구성 (WINDOW 이전 프레임까지 축적)
-    hist = [(0.5, 0.5, 0.05)] * WINDOW  # fallback: 중앙
+    # (cx, cy, area, has_bbox)
+    hist = [(0.5, 0.5, 0.05, 0.0)] * WINDOW  # fallback: 중앙
+
+    smoothed_cx = None
+    smoothed_cy = None
+    smoothed_area = None
 
     with torch.no_grad():
         for t in range(n):
             det = detections[t]
             if det is not None:
-                hist.append(det)
+                cx, cy, area = det
+                if ema_alpha < 1.0:
+                    if smoothed_cx is None:
+                        smoothed_cx = cx
+                        smoothed_cy = cy
+                        smoothed_area = area
+                    else:
+                        smoothed_cx   = ema_alpha * cx + (1.0 - ema_alpha) * smoothed_cx
+                        smoothed_cy   = ema_alpha * cy + (1.0 - ema_alpha) * smoothed_cy
+                        smoothed_area = ema_alpha * area + (1.0 - ema_alpha) * smoothed_area
+                    hist.append((smoothed_cx, smoothed_cy, smoothed_area, 1.0))
+                else:
+                    hist.append((cx, cy, area, 1.0))
             else:
-                hist.append(hist[-1])  # 이전 값 유지
+                last_cx, last_cy, last_area, _ = hist[-1]
+                hist.append((last_cx, last_cy, last_area, 0.0))  # 이전 좌표 유지하되, 미검출(0.0)
+            
             hist = hist[-WINDOW:]
 
             bbox_vec = torch.tensor(
-                [v for cx, cy, a in hist for v in (cx, cy, a, 1.0 if det else 0.0)],
+                [v for item in hist for v in item],
                 dtype=torch.float32, device=device
             )[:32]  # 8×4 = 32
 
@@ -176,7 +195,7 @@ def compute_metrics(pred, expert, dt=0.5, success_fpe=0.5):
     from scripts.sim.rollout_core import build_trajectory, compute_metrics as core_compute_metrics
     try:
         pred_traj   = build_trajectory(pred,   dt=dt)
-        expert_traj = build_trajectory(expert, dt=dt)
+        expert_traj = build_trajectory(expert, dt=dt)  # note: expert here is class list
         res = core_compute_metrics(expert_traj, pred_traj, success_fpe)
         fpe = res["fpe"]
         tld = res["tld"]
@@ -194,15 +213,22 @@ def main():
     parser.add_argument("--n-eps",       type=int,   default=None,
                         help="테스트 에피소드 수 (None=전체)")
     parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
+    parser.add_argument("--ema-alpha",   type=float, default=1.0,
+                        help="BBox 스무딩용 EMA 가중치 (1.0=EMA 비활성, 0.0~1.0 사이 값)")
+    parser.add_argument("--stage2-pt",   default=str(STAGE2_PT),
+                        help="Stage2 MLP 가중치 (Exp60 aug 모델 평가용)")
+    parser.add_argument("--out-tag",     default="",
+                        help="결과 JSON 파일명 suffix (모델별 분리 저장)")
     args = parser.parse_args()
     device = torch.device(args.device)
 
     print(f"[DEVICE] {device}")
+    print(f"[EMA-ALPHA] {args.ema_alpha if args.ema_alpha < 1.0 else 'Disabled'}")
     print("\n[1/3] Stage1 v2 CLIP 인코더 로드...")
     enc  = Stage1Encoder(VLM_PATH, STAGE1_PT, device).eval()
 
-    print("[2/3] Stage2 v2 MLP 로드...")
-    ckpt = torch.load(str(STAGE2_PT), map_location=device, weights_only=False)
+    print(f"[2/3] Stage2 v2 MLP 로드... ({Path(args.stage2_pt).name})")
+    ckpt = torch.load(str(args.stage2_pt), map_location=device, weights_only=True)
     mlp  = ActionMLP().to(device)
     mlp.load_state_dict(ckpt["mlp"])
     mlp.eval()
@@ -231,7 +257,7 @@ def main():
 
     for i, ep in enumerate(val_ep):
         pt = ep.get("path_type", "unknown")
-        out = eval_episode(ep, enc, mlp, grounder, device)
+        out = eval_episode(ep, enc, mlp, grounder, device, ema_alpha=args.ema_alpha)
         if out[0] is None:
             continue
         pred, expert, grnd_rate = out
@@ -265,13 +291,16 @@ def main():
 
     result = {
         "exp": "exp59_closedloop",
+        "ema_alpha": args.ema_alpha,
         "success_rate": success / total if total > 0 else 0,
         "mean_fpe": float(np.mean([m["fpe"] for m in all_m])),
         "mean_tld": float(np.mean([m["tld"] for m in all_m])),
         "mean_grounding_rate": float(np.mean(grnd_rates)),
         "n_episodes": total,
     }
-    out_path = OUT_DIR / "exp59_closedloop_result.json"
+    result["stage2_pt"] = Path(args.stage2_pt).name
+    fname = f"exp59_closedloop_result{('_' + args.out_tag) if args.out_tag else ''}.json"
+    out_path = OUT_DIR / fname
     out_path.write_text(json.dumps(result, indent=2, ensure_ascii=False))
     print(f"\nJSON → {out_path}")
 
