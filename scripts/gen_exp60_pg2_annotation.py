@@ -74,14 +74,20 @@ def main():
             img_np = imgs[min(fidx, len(imgs)-1)].astype("uint8")
             cx_pg2, cy_pg2, area_pg2, hit = detect(model, proc, img_np, device, dtype)
 
+            # ── 오탐 필터 A+B ────────────────────────────────────────────
+            # A: cy < 0.35 → 이미지 상단 (basket은 항상 바닥에 있음)
+            # B: area < 0.010 → bbox가 너무 작음 (노이즈/오탐)
+            if hit and (cy_pg2 < 0.35 or area_pg2 < 0.010):
+                hit = False  # 오탐으로 간주, 미검출 처리
+
             new_fr = dict(fr)
             # HSV 값을 pg2 값으로 교체 (원본도 보존)
             new_fr["cx_det_hsv"]   = fr.get("cx_det", 0.5)
             new_fr["cy_det_hsv"]   = fr.get("cy_det", 0.5)
             new_fr["area_det_hsv"] = fr.get("area_det", 0.05)
-            new_fr["cx_det"]   = cx_pg2
-            new_fr["cy_det"]   = cy_pg2
-            new_fr["area_det"] = area_pg2
+            new_fr["cx_det"]   = cx_pg2 if hit else 0.5
+            new_fr["cy_det"]   = cy_pg2 if hit else 0.5
+            new_fr["area_det"] = area_pg2 if hit else 0.05
             new_fr["detected"] = hit
             new_fr["has_bbox"] = hit
 
