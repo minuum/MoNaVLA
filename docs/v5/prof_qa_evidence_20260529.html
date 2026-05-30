@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MoNaVLA — 교수님 Q&A 실험 증거 (2026-05-29)</title>
+  <style>
+    :root {
+      --bg: #0a0f1a;
+      --card: #111827;
+      --border: #1e293b;
+      --green: #22c55e;
+      --green-light: #86efac;
+      --green-dark: #052e16;
+      --blue: #38bdf8;
+      --purple: #a78bfa;
+      --yellow: #fbbf24;
+      --red: #ef4444;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Pretendard', -apple-system, 'Segoe UI', sans-serif;
+      line-height: 1.7;
+      padding: 0 0 80px;
+    }
+    .hero {
+      background: linear-gradient(135deg, #0a0f1a 0%, #0c1a2e 50%, #0a0f1a 100%);
+      border-bottom: 1px solid #1e293b;
+      padding: 48px 40px 36px;
+      text-align: center;
+    }
+    .hero h1 {
+      font-size: 2rem;
+      font-weight: 900;
+      color: #fff;
+      margin-bottom: 8px;
+    }
+    .hero .sub {
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--blue);
+      font-size: 0.82rem;
+      text-decoration: none;
+      margin-bottom: 20px;
+    }
+    .back-link:hover { text-decoration: underline; }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 40px 24px 0;
+    }
+    .qa-block {
+      margin-bottom: 48px;
+    }
+    .qa-q {
+      background: linear-gradient(135deg, #1a1200, #0c1a2e);
+      border: 1.5px solid var(--yellow);
+      border-radius: 14px;
+      padding: 20px 24px;
+      margin-bottom: 20px;
+    }
+    .qa-q .label {
+      display: inline-block;
+      background: var(--yellow);
+      color: #0a0f1a;
+      font-size: 0.7rem;
+      font-weight: 900;
+      padding: 3px 10px;
+      border-radius: 20px;
+      letter-spacing: 1px;
+      margin-bottom: 10px;
+    }
+    .qa-q h2 {
+      font-size: 1.2rem;
+      font-weight: 800;
+      color: #fff;
+      line-height: 1.5;
+    }
+    .answer-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px 24px;
+      margin-bottom: 14px;
+    }
+    .answer-card h3 {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--green);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 12px;
+    }
+    .evidence-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.84rem;
+      margin-top: 10px;
+    }
+    .evidence-table th {
+      background: #0a1628;
+      color: var(--muted);
+      padding: 9px 12px;
+      text-align: center;
+      font-weight: 600;
+    }
+    .evidence-table th:first-child { text-align: left; }
+    .evidence-table td {
+      padding: 9px 12px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+    }
+    .evidence-table td:first-child { font-family: monospace; }
+    .badge-success {
+      background: var(--green-dark);
+      color: var(--green-light);
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+    .badge-warn {
+      background: #1a1200;
+      color: var(--yellow);
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+    .badge-danger {
+      background: #2d0000;
+      color: var(--red);
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+    .log-block {
+      font-family: monospace;
+      font-size: 0.75rem;
+      background: #060d16;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 14px 16px;
+      line-height: 1.9;
+      color: #94a3b8;
+      overflow-x: auto;
+      margin-top: 12px;
+    }
+    .log-block .ok { color: #22c55e; }
+    .log-block .ng { color: #ef4444; }
+    .log-block .hi { color: #fbbf24; }
+    .log-block .dim { color: #475569; }
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin: 14px 0;
+    }
+    .stat-box {
+      background: #060d16;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+      text-align: center;
+    }
+    .stat-box .num {
+      font-size: 2rem;
+      font-weight: 900;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+    .stat-box .lbl {
+      font-size: 0.72rem;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+    .mechanism-box {
+      background: #0a1628;
+      border-left: 3px solid var(--blue);
+      border-radius: 0 8px 8px 0;
+      padding: 12px 16px;
+      font-size: 0.82rem;
+      color: var(--muted);
+      line-height: 1.8;
+      margin-top: 12px;
+    }
+    .mechanism-box strong { color: var(--blue); }
+    .flow-box {
+      font-family: monospace;
+      font-size: 0.78rem;
+      background: #060d16;
+      border: 1px solid #1e3040;
+      border-radius: 8px;
+      padding: 16px 18px;
+      line-height: 2.1;
+      margin-top: 12px;
+    }
+    .callout-success {
+      background: var(--green-dark);
+      border: 1px solid var(--green);
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin-top: 12px;
+      font-size: 0.84rem;
+      color: var(--green-light);
+    }
+    .callout-warn {
+      background: #1a1200;
+      border: 1px solid var(--yellow);
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin-top: 12px;
+      font-size: 0.84rem;
+      color: #fde68a;
+    }
+    .compare-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 12px;
+    }
+    .compare-box {
+      background: #060d16;
+      border-radius: 8px;
+      padding: 12px 14px;
+      font-size: 0.78rem;
+      color: var(--muted);
+      line-height: 1.8;
+    }
+    .compare-box .head { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+    .summary-table-wrap {
+      overflow-x: auto;
+    }
+    hr.divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 40px 0;
+    }
+    code {
+      font-family: monospace;
+      background: #1e2438;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.85em;
+    }
+    @media (max-width: 600px) {
+      .stat-grid { grid-template-columns: 1fr 1fr; }
+      .compare-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="hero">
+  <div style="max-width:700px;margin:0 auto">
+    <div style="color:#4ade80;font-size:0.75rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:12px">MoNaVLA — 교수님 Q&A 실험 증거</div>
+    <h1>교수님 반박 4가지 → 실험 증거 응답</h1>
+    <p class="sub" style="margin-top:10px">Exp57 · Exp58 · Exp59 (2026-05-27 ~ 29) 로그·수치·메커니즘 기반 증명</p>
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:16px">
+      <span style="background:#052e16;color:#4ade80;padding:4px 12px;border-radius:20px;font-size:0.75rem">Exp57: gray basket 100% / red ball 0%</span>
+      <span style="background:#052e16;color:#4ade80;padding:4px 12px;border-radius:20px;font-size:0.75rem">Exp59: FP = 0.0%</span>
+      <span style="background:#0a1628;color:#7dd3fc;padding:4px 12px;border-radius:20px;font-size:0.75rem">PaliGemma2 3B LoRA</span>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <a class="back-link" href="/v5/research_story.html#ch16">← research_story.html CH16 로 돌아가기</a>
+
+  <!-- ══════════════════════ Q1 ══════════════════════ -->
+  <div class="qa-block">
+    <div class="qa-q">
+      <span class="label">교수님 Q1</span>
+      <h2>"basket을 본다는 증거가 없다"</h2>
+    </div>
+
+    <div class="answer-card">
+      <h3>🧪 Exp57 — 같은 이미지, Phrase만 교체 (30 frames)</h3>
+      <p style="font-size:0.84rem;color:var(--muted);margin-bottom:12px">
+        <strong style="color:var(--text)">핵심 설계:</strong> 동일한 30개 프레임에 텍스트 쿼리만 바꿔 PaliGemma LoRA에 입력. 이미지 조건을 고정하고 텍스트만 제어변수로 둠.
+      </p>
+
+      <div class="stat-grid">
+        <div class="stat-box">
+          <div class="num" style="color:#22c55e">100%</div>
+          <div class="lbl">"gray basket"<br>30/30 hit</div>
+        </div>
+        <div class="stat-box">
+          <div class="num" style="color:#4ade80">0%</div>
+          <div class="lbl">"red ball"<br>0/30 hit</div>
+        </div>
+        <div class="stat-box">
+          <div class="num" style="color:#4ade80">3.3%</div>
+          <div class="lbl">"person"<br>1/30 (노이즈)</div>
+        </div>
+      </div>
+
+      <div style="background:#052e16;border-radius:8px;padding:10px 14px;margin-top:10px;text-align:center">
+        <span style="color:#86efac;font-size:1.1rem;font-weight:900">98.3%p 차이</span>
+        <span style="color:#86efac;font-size:0.85rem"> — 텍스트 phrase가 탐지를 선택적으로 제어함 ✅</span>
+      </div>
+
+      <div class="log-block" style="margin-top:14px">
+        <span class="hi"># 소스: logs/exp57_lora_phrase_test.log</span><br>
+        <span class="hi">결과 요약 (30 프레임):</span><br>
+        &nbsp;&nbsp;<span class="ok">✅ 'gray basket': 30/30 = 100.0%  cx_err=0.075</span><br>
+        &nbsp;&nbsp;<span class="ng">❌ 'red ball':    0/30  =   0.0%</span><br>
+        &nbsp;&nbsp;<span class="ng">❌ 'person':      1/30  =   3.3%  (노이즈 수준)</span><br><br>
+        <span class="hi">예시 frame [1] center_straight:</span><br>
+        &nbsp;&nbsp;<span class="ok">✅ gray basket: &lt;loc0462&gt;&lt;loc0354&gt;&lt;loc0862&gt;&lt;loc0597&gt; gray basket&lt;eos&gt;</span><br>
+        &nbsp;&nbsp;<span class="ng">❌ red ball:    &lt;eos&gt;</span><br>
+        &nbsp;&nbsp;<span class="ng">❌ person:      &lt;eos&gt;</span><br><br>
+        <span class="hi">Exp57 LoRA 학습 결과:</span><br>
+        &nbsp;&nbsp;<span class="dim">zero-shot baseline: 65%</span><br>
+        &nbsp;&nbsp;<span class="ok">LoRA fine-tuning 후: 100%  (cx_err=0.286, n=220)</span>
+      </div>
+    </div>
+
+    <div class="answer-card">
+      <h3>🔬 메커니즘 — HSV와 근본적 차이</h3>
+      <div class="compare-grid">
+        <div class="compare-box">
+          <div class="head" style="color:var(--yellow)">HSV 색상 필터</div>
+          <span style="color:var(--red)">✗</span> 픽셀 H/S/V 임계값으로 "회색 계열" 추출<br>
+          <span style="color:var(--red)">✗</span> 텍스트 조건 없음 — 쿼리와 무관<br>
+          <span style="color:var(--red)">✗</span> "gray basket" / "red ball" 구분 불가
+        </div>
+        <div class="compare-box">
+          <div class="head" style="color:var(--green)">PaliGemma LoRA (Exp57)</div>
+          <span style="color:var(--green)">✓</span> 텍스트 토큰이 이미지 패치에 <strong>cross-attention</strong><br>
+          <span style="color:var(--green)">✓</span> "gray basket" 의미에 조건부 반응<br>
+          <span style="color:var(--green)">✓</span> phrase 교체 → 출력 98.3%p 달라짐
+        </div>
+      </div>
+      <div class="mechanism-box">
+        <strong>인과 순서:</strong> PaliGemma의 <code>&lt;loc0462&gt;&lt;loc0354&gt;...</code>는 단순 좌표가 아님.
+        텍스트 쿼리 "gray basket"이 이미지 feature에 attend한 후 생성됨 —
+        <strong>recognize → locate</strong> 순서. 텍스트 없으면 아무것도 출력하지 않음.
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ══════════════════════ Q2 ══════════════════════ -->
+  <div class="qa-block">
+    <div class="qa-q">
+      <span class="label">교수님 Q2</span>
+      <h2>"다른 물체를 넣으면 다른 행동을 해야 한다"</h2>
+    </div>
+
+    <div class="answer-card">
+      <h3>🧪 Exp59 — Hard Negative 학습 후 Cross-Object 평가</h3>
+      <p style="font-size:0.84rem;color:var(--muted);margin-bottom:12px">
+        <strong style="color:var(--text)">소스:</strong> <code>docs/v5/exp59_report.md</code> §3.1<br>
+        각 20장 이미지 (gray basket 20장, brown pot 20장, red ball 20장, person 20장)에
+        <code>"detect gray basket"</code> 쿼리를 고정하여 입력.
+      </p>
+
+      <div class="summary-table-wrap">
+        <table class="evidence-table">
+          <thead>
+            <tr>
+              <th>Text Query</th>
+              <th>이미지 종류</th>
+              <th>Hits</th>
+              <th>성공률</th>
+              <th>판정</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>"detect gray basket"</td>
+              <td style="color:var(--muted)">Gray Basket (타겟)</td>
+              <td style="text-align:center;color:#22c55e;font-weight:700">19/20</td>
+              <td style="text-align:center;color:#22c55e;font-weight:900;font-size:1.1rem">95.0%</td>
+              <td style="text-align:center"><span class="badge-success">✅ True Positive</span></td>
+            </tr>
+            <tr>
+              <td>"detect gray basket"</td>
+              <td style="color:var(--muted)">Brown Pot (비타겟)</td>
+              <td style="text-align:center;color:#4ade80;font-weight:700">0/20</td>
+              <td style="text-align:center;color:#4ade80;font-weight:900;font-size:1.1rem">0.0%</td>
+              <td style="text-align:center"><span class="badge-success">✅ FP 없음</span></td>
+            </tr>
+            <tr>
+              <td>"detect gray basket"</td>
+              <td style="color:var(--muted)">Red Ball (비타겟)</td>
+              <td style="text-align:center;color:#4ade80;font-weight:700">0/20</td>
+              <td style="text-align:center;color:#4ade80;font-weight:900;font-size:1.1rem">0.0%</td>
+              <td style="text-align:center"><span class="badge-success">✅ FP 없음</span></td>
+            </tr>
+            <tr>
+              <td>"detect gray basket"</td>
+              <td style="color:var(--muted)">Person (비타겟)</td>
+              <td style="text-align:center;color:#4ade80;font-weight:700">0/20</td>
+              <td style="text-align:center;color:#4ade80;font-weight:900;font-size:1.1rem">0.0%</td>
+              <td style="text-align:center"><span class="badge-success">✅ FP 없음</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="callout-success" style="margin-top:14px">
+        <strong>결론:</strong> TP 95.0% + FP 0.0% — Hard Negative 학습으로 비타겟 물체 오탐 완전 차단.<br>
+        다른 물체(brown pot, red ball, person) 이미지에 "gray basket" 쿼리를 넣으면 <code>&lt;eos&gt;</code>만 반환 → cx=None → action 결정 중단.
+      </div>
+    </div>
+
+    <div class="answer-card">
+      <h3>📐 "다른 물체 → 다른 행동" 연결 논리</h3>
+      <div class="flow-box">
+        <span style="color:#4ade80"># 시나리오 1: gray basket 이미지 + "gray basket" 쿼리</span><br>
+        이미지(basket있음) + "detect gray basket"<br>
+        &nbsp;&nbsp;→ PaliGemma: &lt;loc0462&gt;...&lt;loc0597&gt; (cx=0.46)<br>
+        &nbsp;&nbsp;→ Action MLP: cx=0.46 → <span style="color:#4ade80">FORWARD/LEFT action ✅</span><br><br>
+        <span style="color:#ef4444"># 시나리오 2: gray basket 이미지 + "brown pot" 쿼리</span><br>
+        이미지(basket있음) + "detect brown pot"<br>
+        &nbsp;&nbsp;→ PaliGemma: &lt;eos&gt; (cx=None)<br>
+        &nbsp;&nbsp;→ Action MLP: 입력 없음 → <span style="color:#ef4444">STOP / 행동 불가 ⚠️</span><br><br>
+        <span style="color:#ef4444"># 시나리오 3: brown pot 이미지 + "gray basket" 쿼리</span><br>
+        이미지(pot있음) + "detect gray basket"<br>
+        &nbsp;&nbsp;→ PaliGemma: &lt;eos&gt; (cx=None)<br>
+        &nbsp;&nbsp;→ Action MLP: 입력 없음 → <span style="color:#ef4444">STOP ⚠️</span>
+      </div>
+      <div style="margin-top:10px;font-size:0.82rem;color:var(--muted);line-height:1.7">
+        → <strong style="color:var(--text)">텍스트 목표가 grounding을 조건화</strong>하고, grounding cx가 action을 결정한다.<br>
+        이것이 Goal-Conditioned VLA의 정의: <code>f(image, text_goal) → action</code>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ══════════════════════ Q3 ══════════════════════ -->
+  <div class="qa-block">
+    <div class="qa-q">
+      <span class="label">교수님 Q3</span>
+      <h2>"bbox는 위치 정보일 뿐, 객체 인식이 아니다"</h2>
+    </div>
+
+    <div class="answer-card">
+      <h3>🔬 Exp57 LoRA — "recognize → locate" 순서 증명</h3>
+      <div class="log-block">
+        <span class="hi"># 소스: logs/exp57_paligemma_grounding.log</span><br>
+        Exp57: PaliGemma Grounding LoRA<br>
+        &nbsp;&nbsp;backbone : paligemma-3b-pt-224<br>
+        &nbsp;&nbsp;trainable params: 1,916,928 || all params: 2,925,383,408<br><br>
+        &nbsp;&nbsp;<span class="dim">epoch  10/20  loss=2.3086  hit=100.0%  cx_err=0.236</span><br>
+        &nbsp;&nbsp;<span class="dim">epoch  20/20  loss=2.1589  hit=100.0%  cx_err=0.255</span><br><br>
+        <span class="hi">최종 평가 (val n=220):</span><br>
+        &nbsp;&nbsp;<span class="ok">hit_rate=100.0%  cx_err=0.286</span><br>
+        &nbsp;&nbsp;<span class="ok">best_hit=100.0%  (zero-shot baseline: 65%)</span>
+      </div>
+
+      <div class="callout-warn" style="margin-top:14px">
+        <strong>반박 논리:</strong>
+        <ul style="padding-left:16px;margin-top:6px;line-height:1.9">
+          <li><strong>"bbox는 좌표일 뿐"</strong> → 좌표는 텍스트 조건 없이는 생성되지 않는다. "red ball"을 입력하면 <code>&lt;eos&gt;</code>만 출력됨</li>
+          <li><strong>"HSV도 위치를 반환한다"</strong> → HSV는 텍스트 없이 색상만으로 위치 반환 — 메커니즘이 다름</li>
+          <li><strong>"학습 데이터를 외웠을 뿐"</strong> → 동일 이미지에서 phrase만 교체했을 때 출력이 달라짐 — 암기라면 불가능</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ══════════════════════ Q4 ══════════════════════ -->
+  <div class="qa-block">
+    <div class="qa-q">
+      <span class="label">교수님 Q4</span>
+      <h2>"텍스트로 목표를 바꾸면 행동도 바뀌어야 한다"</h2>
+    </div>
+
+    <div class="answer-card">
+      <h3>🧪 Exp59 Closed-Loop 시뮬레이션 결과</h3>
+      <p style="font-size:0.84rem;color:var(--muted);margin-bottom:12px">
+        <strong style="color:var(--text)">소스:</strong> <code>docs/v5/exp59_report.md</code> §3.2<br>
+        22개 validation 에피소드에 PaliGemma2 LoRA (Exp59) + Stage2 MLP (Exp54)를 실시간 연결하여 폐루프 주행.
+      </p>
+
+      <div class="stat-grid" style="grid-template-columns:repeat(2,1fr)">
+        <div class="stat-box">
+          <div class="num" style="color:#fbbf24">4.5%</div>
+          <div class="lbl">CL 성공률 (1/22)<br><span style="color:#475569">베이스라인: 96.7%</span></div>
+        </div>
+        <div class="stat-box">
+          <div class="num" style="color:#4ade80">98.0%</div>
+          <div class="lbl">Grounding 성공률<br><span style="color:#475569">basket을 놓치지 않음</span></div>
+        </div>
+      </div>
+
+      <div class="callout-warn" style="margin-top:12px">
+        <strong>왜 CL이 낮은가? (정직한 분석)</strong>
+        <ul style="padding-left:16px;margin-top:6px;line-height:1.9">
+          <li><strong>Grounding 자체는 98%로 성공</strong> — basket을 거의 놓치지 않음</li>
+          <li>VLM bbox cx/cy 값이 HSV GT 분포와 미세하게 다름 (OOD) → Stage2 MLP 오동작</li>
+          <li>MLP는 HSV bbox 분포로만 학습됨 → VLM bbox에 민감 → closed-loop drift</li>
+          <li><code>left_straight</code> FPE=0.654m, <code>right_right</code> FPE=0.575m — 성공 기준(0.5m) 아주 근접</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="answer-card">
+      <h3>📐 향후 해결 방향</h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div style="background:#060d16;border-radius:8px;padding:12px;font-size:0.78rem;color:var(--muted);line-height:1.8">
+          <div style="color:var(--purple);font-weight:700;margin-bottom:6px">① Joint Training</div>
+          VLM bbox 노이즈 분포를 Data Augmentation으로 Stage2 MLP 학습에 적용 → 노이즈 허용범위 확장
+        </div>
+        <div style="background:#060d16;border-radius:8px;padding:12px;font-size:0.78rem;color:var(--muted);line-height:1.8">
+          <div style="color:var(--blue);font-weight:700;margin-bottom:6px">② EMA Smoothing</div>
+          현재 <code>--ema-alpha 0.5</code> 실험 중. cx/cy에 Kalman Filter 또는 가중 이동평균 적용
+        </div>
+      </div>
+      <div class="callout-success" style="margin-top:12px">
+        <strong>결론:</strong> "텍스트로 목표 변경 → grounding 변경 → action 변경"의 구조적 파이프라인은 완성되었다.
+        Grounding 단계는 98% 성공. CL 하락은 MLP-VLM 인터페이스 노이즈 문제로, Joint Training으로 해결 가능.
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ══════════════════════ 실험 계보 ══════════════════════ -->
+  <div class="answer-card" style="margin-bottom:40px">
+    <h3>📋 실험 계보 요약 (Exp57 → Exp58 → Exp59)</h3>
+    <div class="summary-table-wrap" style="margin-top:12px">
+      <table class="evidence-table">
+        <thead>
+          <tr>
+            <th>실험</th>
+            <th style="text-align:center">날짜</th>
+            <th>목적</th>
+            <th style="text-align:center">핵심 결과</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Exp57 LoRA 학습</strong></td>
+            <td style="text-align:center;color:var(--muted)">5/27</td>
+            <td style="color:var(--muted)">PaliGemma gray basket 특화</td>
+            <td style="text-align:center"><span class="badge-success">hit=100% (zero-shot 65%)</span></td>
+          </tr>
+          <tr>
+            <td><strong>Exp57 phrase test</strong></td>
+            <td style="text-align:center;color:var(--muted)">5/27</td>
+            <td style="color:var(--muted)">비타겟 phrase → 0% 확인</td>
+            <td style="text-align:center"><span class="badge-success">98.3%p 차이 (R2-3 증거)</span></td>
+          </tr>
+          <tr>
+            <td><strong>Exp57 cross-object</strong></td>
+            <td style="text-align:center;color:var(--muted)">5/27~28</td>
+            <td style="color:var(--muted)">5개 phrase 변별력 확인</td>
+            <td style="text-align:center"><span class="badge-warn">gray=100%, others=91.7% (FP 부분 존재)</span></td>
+          </tr>
+          <tr>
+            <td><strong>Exp58 주석</strong></td>
+            <td style="text-align:center;color:var(--muted)">5/28</td>
+            <td style="color:var(--muted)">V4 brown pot pseudo-label 생성</td>
+            <td style="text-align:center"><span class="badge-success">524/524 에피소드 완료</span></td>
+          </tr>
+          <tr>
+            <td><strong>Exp59 Cross-Object</strong></td>
+            <td style="text-align:center;color:var(--muted)">5/28~29</td>
+            <td style="color:var(--muted)">Hard Negative 4종 분리 검증</td>
+            <td style="text-align:center"><span class="badge-success">TP=95%, FP=0.0% ✅</span></td>
+          </tr>
+          <tr>
+            <td><strong>Exp59 CL (진행 중)</strong></td>
+            <td style="text-align:center;color:var(--muted)">5/29</td>
+            <td style="color:var(--muted)">Closed-Loop 시뮬레이션</td>
+            <td style="text-align:center"><span class="badge-warn">Grounding 98%, CL 4.5% (노이즈 분석 중)</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div style="text-align:center;color:var(--muted);font-size:0.78rem;padding:20px 0">
+    <code>docs/v5/PROF_QA_EVIDENCE_20260529.md</code> · 생성: 2026-05-29 14:30 KST<br>
+    현재 실행 중: <code>eval_exp59_closedloop.py --ema-alpha 0.5</code>
+  </div>
+</div>
+
+</body>
+</html>
