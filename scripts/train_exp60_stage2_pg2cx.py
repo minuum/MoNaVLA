@@ -183,3 +183,63 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+def build_dataset_with_flip(ann, enc, device):
+    """좌우 반전 증강 포함 데이터셋 — 원본 + 반전 = 2배"""
+    import torch.nn.functional as F
+    
+    ACTION_MIRROR = {0:0, 1:1, 2:3, 3:2, 4:5, 5:4, 6:7, 7:6}
+    # STOP↔STOP, FWD↔FWD, LEFT↔RIGHT, FWD+L↔FWD+R, ROT_L↔ROT_R
+    
+    X, y = [], []
+    for ep in ann:
+        h5_path = Path(ep["episode"])
+        if not h5_path.exists(): continue
+        frames = [fr for fr in ep["frames"] if fr.get("gt_class") is not None]
+        if not frames: continue
+        try:
+            with h5py.File(str(h5_path), "r") as f:
+                imgs_np = f["observations"]["images"][:]
+        except: continue
+        
+        pil_imgs = [Image.fromarray(imgs_np[fr["frame_idx"]].astype("uint8")) for fr in frames]
+        
+        # 원본
+        vis_orig = enc.encode_batch(pil_imgs, device)
+        # 반전
+        from PIL import Image as PILImage
+        pil_flipped = [img.transpose(PILImage.FLIP_LEFT_RIGHT) for img in pil_imgs]
+        vis_flip = enc.encode_batch(pil_flipped, device)
+        
+        for t, fr in enumerate(frames):
+            gt_class = fr["gt_class"]
+            cx = fr.get("cx_det", 0.5)
+            cy = fr.get("cy_det", 0.5)
+            area = fr.get("area_det", 0.05)
+            detected = float(fr.get("has_bbox", fr.get("detected", False)))
+            
+            # 원본 히스토리
+            hist_orig = []
+            for k in range(WINDOW):
+                fidx = max(0, t - (WINDOW-1-k))
+                f2 = frames[fidx]
+                hist_orig.extend([f2.get("cx_det",0.5), f2.get("cy_det",0.5),
+                                   f2.get("area_det",0.05), float(f2.get("has_bbox",f2.get("detected",False)))])
+            
+            X.append(hist_orig + vis_orig[t].cpu().tolist())
+            y.append(gt_class)
+            
+            # 반전 버전
+            hist_flip = []
+            for k in range(WINDOW):
+                fidx = max(0, t - (WINDOW-1-k))
+                f2 = frames[fidx]
+                cx_f = 1.0 - f2.get("cx_det", 0.5)
+                hist_flip.extend([cx_f, f2.get("cy_det",0.5),
+                                   f2.get("area_det",0.05), float(f2.get("has_bbox",f2.get("detected",False)))])
+            
+            X.append(hist_flip + vis_flip[t].cpu().tolist())
+            y.append(ACTION_MIRROR.get(gt_class, gt_class))
+    
+    return np.array(X, dtype=np.float32), np.array(y, dtype=np.int64)
