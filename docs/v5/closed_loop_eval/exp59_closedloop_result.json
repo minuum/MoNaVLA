@@ -1,10 +1,10 @@
 {
   "exp": "exp59_closedloop",
   "ema_alpha": 1.0,
-  "success_rate": 0.55,
-  "mean_fpe": 0.5684848810078531,
-  "mean_tld": 1.005815845433703,
+  "success_rate": 0.6,
+  "mean_fpe": 0.5846028008206539,
+  "mean_tld": 1.0043365112823703,
   "mean_grounding_rate": 0.9653691520467834,
   "n_episodes": 20,
-  "stage2_pt": "stage2_pg2cx_flip_mlp.pt"
+  "stage2_pt": "stage2_pg2cx_center3x_mlp.pt"
 }
