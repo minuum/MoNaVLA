@@ -90,6 +90,9 @@ def build_dataset_with_flip(ann, enc, device):
 
         for t, fr in enumerate(frames):
             gt_cls = fr["gt_class"]
+            # 합성 STOP: area > 0.74 (basket이 화면 74% 이상 채움 = 도달)
+            if fr.get("area_det", 0) > 0.74:
+                gt_cls = 0  # STOP
 
             # 원본 히스토리
             hist_o, hist_f = [], []
