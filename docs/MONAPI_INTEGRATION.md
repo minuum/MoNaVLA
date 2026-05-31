@@ -125,33 +125,49 @@ Content-Type: application/json
   "grounding_skip_n": 3,
   "smooth_enabled": true,
   "smooth_alpha_xy": 0.65,
-  "smooth_alpha_az": 0.80
+  "smooth_alpha_az": 0.80,
+  "stop_area_threshold": 0.18,
+  "stop_cx_tolerance": 0.25
 }
 ```
 
-| 필드 | 설명 |
-|------|------|
-| `model` | `"exp49"` / `"exp54_s2v2"` / `"exp55"` |
-| `grounding_skip_n` | N프레임마다 grounding 갱신 (성능↑, 정확도↓) |
-| `speed_scaling` | 바구니 거리 기반 속도 자동 조절 |
-| `smooth_enabled` | action 평활화 (갑작스러운 방향 전환 방지) |
+| 필드 | 기본값 | 설명 |
+|------|--------|------|
+| `model` | `"exp49"` | `"exp49"` / `"exp54_s2v2"` / `"exp55"` |
+| `grounding_skip_n` | `1` | N프레임마다 grounding 갱신 (3이면 3배 빠름) |
+| `speed_scaling` | `true` | bbox 거리 기반 속도 자동 조절 |
+| `smooth_enabled` | `true` | action 평활화 (방향 전환 충격 완화) |
+| `smooth_alpha_xy` | `0.65` | XY 평활 계수 (낮을수록 부드러움) |
+| `smooth_alpha_az` | `0.80` | 회전 평활 계수 |
+| `stop_area_threshold` | `0.18` | bbox area ≥ 이 값이면 goal_near_proxy=true (≈0.5m) |
+| `stop_cx_tolerance` | `0.25` | 중앙 허용 편차: cx가 0.5±tol 범위여야 정지 |
+
+> **대시보드에서 슬라이더로 조정 가능:** http://100.85.118.58:7865  
+> → **"🛑 자동 정지 설정"** 아코디언  
+> area 0.18 ≈ 0.5m 거리, 0.30 ≈ 0.3m 거리. 실로봇 테스트마다 조정 권장.
 
 ---
 
 ## 4. 액션 클래스
 
-| idx | 이름 | linear_x | linear_y | angular_z |
-|-----|------|----------|----------|-----------|
-| 0 | STOP | 0.0 | 0.0 | 0.0 |
-| 1 | FORWARD | 1.15 | 0.0 | 0.0 |
-| 2 | LEFT | 0.0 | 1.15 | 0.0 |
-| 3 | RIGHT | 0.0 | -1.15 | 0.0 |
-| 4 | FWD+L | 1.15 | 1.15 | 0.0 |
-| 5 | FWD+R | 1.15 | -1.15 | 0.0 |
-| 6 | ROT_L | 0.0 | 0.0 | +0.25 |
-| 7 | ROT_R | 0.0 | 0.0 | -0.25 |
+| idx | 이름 | linear_x | linear_y | angular_z | 비고 |
+|-----|------|----------|----------|-----------|------|
+| 0 | STOP | 0.0 | 0.0 | 0.0 | |
+| 1 | FORWARD | 1.15 | 0.0 | 0.0 | |
+| 2 | LEFT | 0.0 | 1.15 | 0.0 | strafe 좌 |
+| 3 | RIGHT | 0.0 | -1.15 | 0.0 | strafe 우 |
+| 4 | FWD+L | 1.15 | 1.15 | 0.0 | 대각선 |
+| 5 | FWD+R | 1.15 | -1.15 | 0.0 | 대각선 |
+| 6 | ROT_L | 0.0 | 0.0 | +0.25 | 제자리 좌회전 |
+| 7 | ROT_R | 0.0 | 0.0 | -0.25 | 제자리 우회전 |
 
-> `goal_near_proxy: true` 응답 시 STOP 처리 권장 (bbox area ≥ 0.18 && cx ≈ 0.5)
+> **⚠️ 8001 현재 ROT_L/R 마스킹 적용 중**  
+> `proxy_inference_server.py` 내 ROT_L(6)/ROT_R(7)는 소프트웨어 마스킹 상태.  
+> 이유: 분포 외 입력에서 잘못 활성화 시 무한 스핀 유발.  
+> V5_add_free 데이터셋 재학습 후 마스킹 해제 예정.
+
+> **정지 판단:** `goal_near_proxy: true` 또는 `predicted_label: "STOP"` 중 하나로 처리.  
+> 조건: bbox_area ≥ stop_area_threshold **AND** |cx - 0.5| ≤ stop_cx_tolerance
 
 ---
 
