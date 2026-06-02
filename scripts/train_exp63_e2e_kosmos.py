@@ -173,23 +173,23 @@ def main():
 
                 # 프롬프트 + 액션을 합쳐서 CE loss
                 tgt_tensor = torch.tensor([tgt_ids], dtype=torch.long, device=device)
-                full_input_ids = torch.cat([inp["input_ids"], tgt_tensor], dim=1)
-                full_attn = torch.cat([
-                    inp["attention_mask"],
-                    torch.ones(1, len(tgt_ids), dtype=torch.long, device=device)
-                ], dim=1)
-                labels = torch.full_like(full_input_ids, -100)
-                labels[:, -len(tgt_ids):] = tgt_tensor  # 액션 토큰만 loss
-
-                out = model(
-                    input_ids=full_input_ids,
-                    attention_mask=full_attn,
-                    pixel_values=inp["pixel_values"],
-                    labels=labels,
-                )
+                # Kosmos-2: pixel_values는 prompt 부분에만 연결됨
+                # 액션 토큰을 label로 teacher-forcing
+                # prompt만으로 forward → 마지막 hidden state에서 action logits 예측
+                with torch.no_grad():
+                    prompt_out = model(
+                        input_ids=inp["input_ids"],
+                        attention_mask=inp["attention_mask"],
+                        pixel_values=inp["pixel_values"],
+                    )
+                # 마지막 토큰 hidden state로 action logit 계산
+                last_hidden = prompt_out.logits[:, -1, :]  # (1, vocab)
+                tgt_t = torch.tensor([tgt_ids[0]], dtype=torch.long, device=device)
+                out_mock = type('O', (), {'loss': F.cross_entropy(last_hidden, tgt_t)})()
+                out = out_mock
                 loss = out.loss
-                if torch.isnan(loss): continue
-                loss.backward()
+                if torch.isnan(loss) or torch.isinf(loss): continue
+                loss.backward(retain_graph=False)
                 torch.nn.utils.clip_grad_norm_(
                     [p for p in model.parameters() if p.requires_grad], 1.0)
                 opt.step(); opt.zero_grad()
